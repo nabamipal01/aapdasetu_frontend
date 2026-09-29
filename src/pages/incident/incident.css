@@ -1,0 +1,554 @@
+.incident-page {
+  min-height: 100vh;
+  padding: 30px;
+  box-sizing: border-box;
+  background: #f4f7fb;
+}
+
+
+/* ================= HEADER ================= */
+
+.incident-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.incident-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #172033;
+}
+
+.incident-header p {
+  margin: 6px 0 0;
+  color: #718096;
+  font-size: 14px;
+}
+
+
+/* ================= CREATE BUTTON ================= */
+
+.create-incident-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 42px;
+  padding: 0 17px;
+
+  border: none;
+  border-radius: 7px;
+
+  background: #2563eb;
+  color: white;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+.create-incident-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(37, 99, 235, 0.2);
+}
+
+.cancel-header-btn {
+  background: #64748b;
+}
+
+.cancel-header-btn:hover {
+  background: #475569;
+}
+
+.button-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+
+/* ================= SUCCESS ================= */
+
+.success-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-bottom: 20px;
+  padding: 14px 16px;
+
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 9px;
+
+  color: #166534;
+}
+
+.success-icon {
+  width: 30px;
+  height: 30px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+  background: #22c55e;
+  color: white;
+
+  font-weight: bold;
+}
+
+.success-message strong {
+  font-size: 14px;
+}
+
+.success-message p {
+  margin: 3px 0 0;
+  font-size: 13px;
+}
+
+.message-close {
+  margin-left: auto;
+
+  border: none;
+  background: transparent;
+
+  font-size: 20px;
+  color: #166534;
+
+  cursor: pointer;
+}
+
+
+/* ================= FORM ANIMATION ================= */
+
+.incident-form-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+
+  opacity: 0;
+  transform: translateY(-15px);
+
+  transition:
+    grid-template-rows 0.35s ease,
+    opacity 0.3s ease,
+    transform 0.35s ease;
+
+  overflow: hidden;
+}
+
+.incident-form-wrapper.form-open {
+  grid-template-rows: 1fr;
+
+  opacity: 1;
+  transform: translateY(0);
+
+  margin-bottom: 28px;
+}
+
+
+/* ================= FORM CARD ================= */
+
+.incident-form-card {
+  min-height: 0;
+
+  width: 100%;
+  max-width: 720px;
+
+  padding: 28px;
+  box-sizing: border-box;
+
+  background: #ffffff;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+
+  box-shadow:
+    0 3px 6px rgba(15, 23, 42, 0.03),
+    0 10px 25px rgba(15, 23, 42, 0.05);
+}
+
+
+/* ================= FORM TITLE ================= */
+
+.form-title {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+
+  padding-bottom: 22px;
+  margin-bottom: 24px;
+
+  border-bottom: 1px solid #edf0f4;
+}
+
+.form-icon {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 9px;
+
+  background: #eff6ff;
+  color: #2563eb;
+
+  font-size: 20px;
+}
+
+.form-title h3 {
+  margin: 0;
+
+  font-size: 18px;
+  font-weight: 600;
+
+  color: #172033;
+}
+
+.form-title p {
+  margin: 4px 0 0;
+
+  font-size: 13px;
+  color: #718096;
+}
+
+
+/* ================= ERROR ================= */
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  margin-bottom: 20px;
+  padding: 12px 14px;
+
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+
+  color: #b91c1c;
+
+  font-size: 13px;
+}
+
+.error-message span {
+  width: 20px;
+  height: 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #ef4444;
+  color: white;
+
+  font-size: 12px;
+  font-weight: bold;
+}
+
+
+/* ================= FORM GROUP ================= */
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #374151;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+
+/* ================= INPUT ================= */
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  height: 44px;
+
+  padding: 0 12px;
+  box-sizing: border-box;
+
+  border: 1px solid #d5dbe3;
+  border-radius: 7px;
+
+  background: white;
+
+  color: #1f2937;
+
+  font-size: 14px;
+
+  outline: none;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.form-group input::placeholder {
+  color: #9ca3af;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #2563eb;
+
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-group input:disabled,
+.form-group select:disabled {
+  background: #f8fafc;
+  cursor: not-allowed;
+}
+
+
+/* ================= ACTIONS ================= */
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+
+  margin-top: 28px;
+  padding-top: 20px;
+
+  border-top: 1px solid #edf0f4;
+}
+
+.secondary-btn,
+.submit-btn {
+  height: 42px;
+
+  padding: 0 20px;
+
+  border-radius: 7px;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.secondary-btn {
+  background: white;
+
+  border: 1px solid #d5dbe3;
+
+  color: #475569;
+}
+
+.secondary-btn:hover {
+  background: #f8fafc;
+}
+
+.submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  min-width: 145px;
+
+  border: none;
+
+  background: #2563eb;
+  color: white;
+}
+
+.submit-btn:hover {
+  background: #1d4ed8;
+}
+
+.submit-btn:disabled,
+.secondary-btn:disabled,
+.create-incident-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+
+/* ================= LOADING ================= */
+
+.spinner {
+  width: 15px;
+  height: 15px;
+
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+
+  border-radius: 50%;
+
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* ================= INCIDENT LIST ================= */
+
+.incident-list {
+  width: 100%;
+
+  background: white;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+
+  box-shadow:
+    0 3px 6px rgba(15, 23, 42, 0.03);
+}
+
+.list-header {
+  padding: 20px 22px;
+
+  border-bottom: 1px solid #edf0f4;
+}
+
+.list-header h3 {
+  margin: 0;
+
+  color: #172033;
+
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.list-header p {
+  margin: 5px 0 0;
+
+  color: #718096;
+
+  font-size: 13px;
+}
+
+.incident-table-wrapper {
+  overflow-x: auto;
+}
+
+.incident-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.incident-table th {
+  padding: 13px 18px;
+
+  background: #f8fafc;
+
+  color: #64748b;
+
+  text-align: left;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  text-transform: uppercase;
+}
+
+.incident-table td {
+  padding: 15px 18px;
+
+  border-top: 1px solid #edf0f4;
+
+  color: #475569;
+
+  font-size: 13px;
+}
+
+.incident-table td strong {
+  color: #2563eb;
+}
+
+
+/* ================= BADGES ================= */
+
+.type-badge {
+  display: inline-block;
+
+  padding: 4px 9px;
+
+  border-radius: 5px;
+
+  background: #eff6ff;
+  color: #2563eb;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  text-transform: capitalize;
+}
+
+.severity-badge,
+.status-badge {
+  display: inline-block;
+
+  padding: 4px 9px;
+
+  border-radius: 5px;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  text-transform: capitalize;
+}
+
+.severity-badge.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.reported {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+
+/* ================= MOBILE ================= */
+
+@media (max-width: 700px) {
+  .incident-page {
+    padding: 20px;
+  }
+
+  .incident-header {
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .incident-form-card {
+    padding: 20px;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .secondary-btn,
+  .submit-btn {
+    width: 100%;
+  }
+}
