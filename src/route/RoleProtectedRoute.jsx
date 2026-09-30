@@ -1,33 +1,39 @@
 import React from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import {
+  Navigate,
+  Outlet,
+} from "react-router-dom";
 
-const TASK_ONLY_ROLES = new Set(["volunteer", "ngo_contact", "ngo"]);
+import { useAuth } from "../context/AuthContext";
+import { getUserRole } from "../utils/roles";
 
 function RoleProtectedRoute({ allowedRoles = [] }) {
   const { user } = useAuth();
-  const location = useLocation();
 
-  const role = user?.role?.toLowerCase()?.trim();
+  const role = getUserRole(user);
 
+  /*
+   * Null role = Task-only user.
+   */
   if (!role) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to="/task"
+        replace
+      />
+    );
   }
 
-  // Volunteer / NGO users can ONLY access dashboard and task
-  if (TASK_ONLY_ROLES.has(role)) {
-    const allowedPaths = ["/dashboard", "/task"];
-
-    if (!allowedPaths.includes(location.pathname)) {
-      return <Navigate to="/dashboard" replace />;
-    }
-
-    return <Outlet />;
-  }
-
-  // Normal role-based protection
+  /*
+   * Check role-specific permission.
+   */
   if (!allowedRoles.includes(role)) {
-    return <Navigate to="/dashboard" replace />;
+    return (
+      <Navigate
+        to="/dashboard"
+        replace
+      />
+    );
   }
 
   return <Outlet />;

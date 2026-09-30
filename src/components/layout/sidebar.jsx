@@ -1,90 +1,77 @@
 import React, { useState } from "react";
-import {
-  ChevronDown,
-  ClipboardCheck,
-  LayoutDashboard,
-  X,
-} from "lucide-react";
+import { ChevronDown, ClipboardCheck, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { getMenuForRole } from "../../config/menuConfig";
 import { useAuth } from "../../context/AuthContext";
-import {
-  getUserRole,
-  isTaskOnlyRole,
-} from "../../utils/roles";
+import { getUserRole, hasFullAccess } from "../../utils/roles";
 
-function Sidebar({
-  mobileOpen,
-  setMobileOpen,
-  collapsed,
-}) {
+function Sidebar({ mobileOpen, setMobileOpen, collapsed }) {
   const navigate = useNavigate();
   const location = useLocation();
 
   const { user, logout } = useAuth();
 
   const role = getUserRole(user);
-  const taskOnly = isTaskOnlyRole(user);
+  console.log("SIDEBAR ROLE:", role);
+  const menuItems = getMenuForRole(role);
 
-console.log("SIDEBAR AUTH DEBUG", {
-  user,
-  role: user?.role,
-  userType: user?.user_type,
-  normalizedRole: user?.role?.toLowerCase()?.trim(),
-  normalizedUserType: user?.user_type?.toLowerCase()?.trim(),
-  resolvedRole: getUserRole(user),
-  taskOnly: isTaskOnlyRole(user),
-});
+  // const fullAccess = hasFullAccess(user);
 
-  /*
-   * ---------------------------------------------------------
-   * MENU
-   * ---------------------------------------------------------
-   *
-   * volunteer
-   * ngo
-   * ngo_contact
-   *
-   * can see ONLY:
-   *
-   * Dashboard
-   * Task
-   *
-   * All other roles continue to use getMenuForRole().
-   */
+  // console.log("========== SIDEBAR DEBUG ==========");
+  // console.log("USER:", user);
+  // console.log("user.user_type:", user?.user_type);
+  // console.log("user.role:", user?.role);
+  // console.log("RESOLVED ROLE:", role);
+  // console.log("FULL ACCESS:", fullAccess);
+  // console.log("====================================");
 
-  const menuItems = taskOnly
-    ? [
-        {
-          label: "Dashboard",
-          path: "/dashboard",
-          icon: LayoutDashboard,
-        },
-        {
-          label: "Task",
-          path: "/task",
-          icon: ClipboardCheck,
-        },
-      ]
-    : role
-      ? getMenuForRole(role)
-      : [];
+  // console.log("SIDEBAR ROLE DEBUG:", {
+  //   user,
+  //   user_type: user?.user_type,
+  //   role: user?.role,
+  //   resolvedRole: role,
+  //   fullAccess,
+  // });
 
-  const [openMenus, setOpenMenus] = useState({});
+  // console.log("SIDEBAR AUTH DEBUG", {
+  //   user,
+  //   role: user?.role,
+  //   userType: user?.user_type,
+  //   normalizedRole: user?.role?.toLowerCase()?.trim(),
+  //   normalizedUserType: user?.user_type?.toLowerCase()?.trim(),
+  //   resolvedRole: getUserRole(user),
+  //   taskOnly: isTaskOnlyRole(user),
+  // });
 
-  /*
-   * ---------------------------------------------------------
-   * TOGGLE SUB MENU
-   * ---------------------------------------------------------
-   */
+  // const taskMenuItem = {
+  //   label: "Task",
+  //   path: "/task",
+  //   icon: ClipboardCheck,
+  // };
 
-  const toggleMenu = (label) => {
-    setOpenMenus((previous) => ({
-      ...previous,
-      [label]: !previous[label],
-    }));
-  };
+  // const menuItems = fullAccess
+  //   ? [
+  //       ...getMenuForRole(role).filter(
+  //         (item) => item.path !== "/task"
+  //       ),
+  //       taskMenuItem,
+  //     ]
+  //   : [taskMenuItem];
+    const [openMenus, setOpenMenus] = useState({});
+
+  //   /*
+  //    * ---------------------------------------------------------
+  //    * TOGGLE SUB MENU
+  //    * ---------------------------------------------------------
+  //    */
+
+    const toggleMenu = (label) => {
+      setOpenMenus((previous) => ({
+        ...previous,
+        [label]: !previous[label],
+      }));
+    };
 
   /*
    * ---------------------------------------------------------
@@ -127,12 +114,9 @@ console.log("SIDEBAR AUTH DEBUG", {
     const Icon = item.icon;
 
     const hasChildren =
-      Array.isArray(item.children) &&
-      item.children.length > 0;
+      Array.isArray(item.children) && item.children.length > 0;
 
-    const isActive =
-      item.path &&
-      location.pathname === item.path;
+    const isActive = item.path && location.pathname === item.path;
 
     const isOpen = openMenus[item.label];
 
@@ -168,9 +152,7 @@ console.log("SIDEBAR AUTH DEBUG", {
             <div className="flex items-center gap-3">
               {Icon && <Icon size={18} />}
 
-              <span>
-                {item.label}
-              </span>
+              <span>{item.label}</span>
             </div>
 
             <ChevronDown
@@ -183,17 +165,17 @@ console.log("SIDEBAR AUTH DEBUG", {
           </button>
 
           {isOpen && (
-            <div className="
+            <div
+              className="
               ml-4
               mt-1
               space-y-1
               border-l
               border-white/10
               pl-2
-            ">
-              {item.children.map((child) =>
-                renderMenuItem(child, level + 1)
-              )}
+            "
+            >
+              {item.children.map((child) => renderMenuItem(child, level + 1))}
             </div>
           )}
         </div>
@@ -233,9 +215,7 @@ console.log("SIDEBAR AUTH DEBUG", {
       >
         {Icon && <Icon size={18} />}
 
-        <span>
-          {item.label}
-        </span>
+        <span>{item.label}</span>
       </button>
     );
   };
@@ -311,9 +291,7 @@ console.log("SIDEBAR AUTH DEBUG", {
           "
         >
           <div>
-            <h1 className="text-lg font-bold">
-              AAPDASETU
-            </h1>
+            <h1 className="text-lg font-bold">AAPDASETU</h1>
 
             <p
               className="
@@ -397,9 +375,7 @@ console.log("SIDEBAR AUTH DEBUG", {
           "
         >
           <div className="space-y-1">
-            {menuItems.map((item) =>
-              renderMenuItem(item)
-            )}
+            {menuItems.map((item) => renderMenuItem(item))}
           </div>
         </nav>
 

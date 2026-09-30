@@ -17,10 +17,7 @@ function ProtectedRoute() {
 
   const location = useLocation();
 
-  /* =========================================================
-     Session Expired
-  ========================================================= */
-
+  /* Session expired */
   if (sessionExpired) {
     return (
       <Navigate
@@ -34,10 +31,7 @@ function ProtectedRoute() {
     );
   }
 
-  /* =========================================================
-     Not Logged In
-  ========================================================= */
-
+  /* Not logged in */
   if (!isLoggedIn || !user) {
     return (
       <Navigate
@@ -50,38 +44,17 @@ function ProtectedRoute() {
     );
   }
 
-  /* =========================================================
-     Task Only Roles
-     
-     volunteer
-     ngo
-     ngo_contact
-
-     These users can ONLY access:
-
-       /dashboard
-       /task
-  ========================================================= */
-
+  /* Task-only users can ONLY access /task */
   if (isTaskOnlyRole(user)) {
-    const allowedPaths = [
-      "/dashboard",
-      "/task",
-    ];
-
-    if (!allowedPaths.includes(location.pathname)) {
+    if (location.pathname !== "/task") {
       return (
         <Navigate
-          to="/dashboard"
+          to="/task"
           replace
         />
       );
     }
   }
-
-  /* =========================================================
-     Authenticated + Authorized
-  ========================================================= */
 
   return <Outlet />;
 }

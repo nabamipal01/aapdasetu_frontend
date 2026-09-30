@@ -27,7 +27,6 @@ import {
   GraduationCap,
   FileBarChart,
 } from "lucide-react";
-import { isTaskOnlyRole, normalizeRole } from '../utils/roles';
 
 const commonMenus = [
   {
@@ -120,11 +119,6 @@ const commonMenus = [
   },
 
 
-  {
-    label: "Incident",
-    icon: Siren,
-    path: "/incident",
-  },
    {
     label: "Alerts",
     icon: BellRing,
@@ -138,17 +132,26 @@ const commonMenus = [
         label: "Post-Alerts",
         icon: FileBarChart,
         path: "/alerts/post-alerts",
-      },
+      }, 
+
+      
+  {
+    label: "Incident",
+    icon: Siren,
+    path: "/incident",
+  },
+
+      {
+    label: "Task",
+    icon: ClipboardCheck,
+    path: "/task",
+  },
      
      
     ],
   },
   
-  {
-    label: "Task",
-    icon: ClipboardCheck,
-    path: "/task",
-  },
+
   // // {
   //   label: "Resources",
   //   icon: Package,
@@ -366,11 +369,20 @@ const userMenus = {
 };
 
 export const getMenuForRole = (role) => {
-  const normalizedRole = normalizeRole(role);
-
-  if (isTaskOnlyRole(normalizedRole)) {
-    return commonMenus.filter((menu) => menu.path === "/task");
+    if (!role) {
+    return [
+      {
+        label: "Task",
+        icon: ClipboardCheck,
+        path: "/task",
+      },
+    ];
   }
+  const normalizedRole = String(role).trim().toLowerCase();
+
+  // if (isTaskOnlyRole(normalizedRole)) {
+  //   return commonMenus.filter((menu) => menu.path === "/task");
+  // }
 
   const menus = [...commonMenus];
 

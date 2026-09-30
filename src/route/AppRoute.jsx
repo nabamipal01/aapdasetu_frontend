@@ -4,12 +4,12 @@ import { Routes, Route } from "react-router-dom";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
 import RoleProtectedRoute from "./RoleProtectedRoute";
 
-import Dashboard from "../pages/dashboard/Dashboard";
 import Admin from "../pages/location/Admin";
 import District from "../pages/location/District";
 import Subdivision from "../pages/location/Subdivision";
 import Block from "../pages/location/Block";
 import Task from "../pages/task/Task";
+import Dashboard from "../pages/Dashboard/Dashboard";
 
 function AppRoutes() {
   return (

@@ -96,7 +96,7 @@ function LoginRedirect() {
   if (isLoggedIn && user) {
     return (
       <Navigate
-        to="/dashboard"
+        to={isTaskOnlyRole(user) ? "/task" : "/dashboard"}
         replace
       />
     );
@@ -137,7 +137,7 @@ function HomeRedirect() {
 
   return (
     <Navigate
-      to="/dashboard"
+      to={isTaskOnlyRole(user) ? "/task" : "/dashboard"}
       replace
     />
   );
@@ -150,18 +150,10 @@ function HomeRedirect() {
 function CatchAll() {
   const { user } = useAuth();
 
-  /*
-   * Unknown route for task-only users
-   * goes to dashboard.
-   *
-   * Unknown route for other users also
-   * goes to dashboard.
-   */
-
   if (user && isTaskOnlyRole(user)) {
     return (
       <Navigate
-        to="/dashboard"
+        to="/task"
         replace
       />
     );

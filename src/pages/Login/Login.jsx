@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import login_bg from "../../assets/login_bg1.png";
-import { isTaskOnlyRole } from "../../utils/roles";
 
 import {
   Lock,
@@ -60,21 +59,20 @@ function Login() {
     try {
       const loggedInUser = await login(userId, password);
 
-      const destination = isTaskOnlyRole(loggedInUser)
-        ? "/task"
-        : "/dashboard";
+      const role = getUserRole(loggedInUser);
 
-      navigate(destination, { replace: true });
+      if (role === null) {
+        navigate("/task", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
     } catch (err) {
-      setFormError(
-        err?.message || "Invalid credentials. Please try again."
-      );
+      setFormError(err?.message || "Invalid credentials. Please try again.");
     }
   };
 
   return (
     <div className="relative min-h-screen overflow-hidden font-sans text-slate-900">
-
       {/* Background image */}
       <img
         src={login_bg}
@@ -89,26 +87,18 @@ function Login() {
       <div className="fixed inset-x-0 bottom-0 h-56 bg-gradient-to-t from-slate-950/60 to-transparent" />
 
       <div className="relative z-10 min-h-screen">
-
         <main className="grid min-h-screen lg:grid-cols-[65%_35%]">
-
           {/* =====================================================
               LEFT SIDE
           ===================================================== */}
           <section className="relative flex min-h-screen items-end">
-
             <div className="w-full px-6 pb-8 sm:px-10 lg:px-12 xl:px-16">
-
               {/* Text */}
               <div className="max-w-xl">
-
                 <h1 className="text-2xl font-semibold leading-[1.1] tracking-tight text-white sm:text-4xl xl:text-5xl">
                   Prepared for Emergencies.
                   <br />
-                  
-                  <span className="text-blue-300 ">
-                    Ready to Respond.
-                  </span>
+                  <span className="text-blue-300 ">Ready to Respond.</span>
                 </h1>
 
                 <p className="mt-8  max-w-xl text-sm leading-6 text-white/80 xl:text-base">
@@ -118,7 +108,6 @@ function Login() {
 
                 {/* Feature cards */}
                 <div className="mt-10 grid grid-cols-2 gap-2 sm:grid-cols-4">
-
                   {features.map((feature) => {
                     const Icon = feature.icon;
 
@@ -161,7 +150,6 @@ function Login() {
                       </div>
                     );
                   })}
-
                 </div>
               </div>
             </div>
@@ -171,9 +159,7 @@ function Login() {
               RIGHT SIDE
           ===================================================== */}
           <section className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-8 lg:px-10 xl:px-16">
-
             <div className="w-full max-w-sm">
-
               {/* Login Card */}
               <div
                 className="
@@ -192,10 +178,8 @@ function Login() {
                   sm:p-6
                 "
               >
-
                 {/* Header */}
                 <div className="text-center">
-
                   <div
                     className="
                       mx-auto mb-3
@@ -218,18 +202,12 @@ function Login() {
                   <p className="mt-1 text-xs text-white/70">
                     Department Authorised Personnel
                   </p>
-
                 </div>
 
                 {/* Form */}
-                <form
-                  onSubmit={handleLogin}
-                  className="mt-6 space-y-4"
-                >
-
+                <form onSubmit={handleLogin} className="mt-6 space-y-4">
                   {/* Email */}
                   <div>
-
                     <label
                       className="
                         mb-1.5
@@ -245,7 +223,6 @@ function Login() {
                     </label>
 
                     <div className="relative">
-
                       <User
                         size={15}
                         className="
@@ -285,13 +262,11 @@ function Login() {
                         "
                         autoComplete="username"
                       />
-
                     </div>
                   </div>
 
                   {/* Password */}
                   <div>
-
                     <label
                       className="
                         mb-1.5
@@ -307,7 +282,6 @@ function Login() {
                     </label>
 
                     <div className="relative">
-
                       <Lock
                         size={15}
                         className="
@@ -361,9 +335,7 @@ function Login() {
                           hover:text-white
                         "
                         aria-label={
-                          showPassword
-                            ? "Hide password"
-                            : "Show password"
+                          showPassword ? "Hide password" : "Show password"
                         }
                       >
                         {showPassword ? (
@@ -372,7 +344,6 @@ function Login() {
                           <Eye size={15} />
                         )}
                       </button>
-
                     </div>
                   </div>
 
@@ -431,7 +402,6 @@ function Login() {
 
                     {loading ? "SIGNING IN…" : "LOGIN"}
                   </button>
-
                 </form>
               </div>
 
@@ -439,10 +409,8 @@ function Login() {
               <p className="mt-4 text-center text-[10px] font-medium text-white/60">
                 Authorised personnel only • Secure department access
               </p>
-
             </div>
           </section>
-
         </main>
       </div>
     </div>
@@ -450,4 +418,3 @@ function Login() {
 }
 
 export default Login;
-
