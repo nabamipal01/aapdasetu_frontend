@@ -10,6 +10,8 @@ import {
   Zap,
 } from "lucide-react";
 import { listIncidents, listTasks, listVolunteers } from "../../services";
+import { MapContainer } from "react-leaflet";
+import FloodRasterLayer from "../../components/map/FloodRasterLayer";
 
 function StatCard({ title, value, description, icon: Icon, color, loading }) {
   return (
@@ -31,10 +33,11 @@ function StatCard({ title, value, description, icon: Icon, color, loading }) {
 }
 
 function Dashboard() {
-  const [stats, setStats]     = useState({ incidents: 0, tasks: 0, volunteers: 0, resolved: 0 });
+  const [stats, setStats] = useState({ incidents: 0, tasks: 0, volunteers: 0, resolved: 0 });
   const [recentIncidents, setRecentIncidents] = useState([]);
-  const [recentTasks, setRecentTasks]         = useState([]);
+  const [recentTasks, setRecentTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDistrict, setSelectedDistrict] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,18 +53,18 @@ function Dashboard() {
 
         if (cancelled) return;
 
-        const incidents  = incRes.status  === "fulfilled" ? (incRes.value?.data?.incidents  ?? incRes.value?.data?.items ?? incRes.value?.data  ?? []) : [];
-        const tasks      = taskRes.status === "fulfilled" ? (taskRes.value?.data?.tasks     ?? taskRes.value?.data?.items ?? taskRes.value?.data ?? []) : [];
-        const volTotal   = volRes.status  === "fulfilled"
+        const incidents = incRes.status === "fulfilled" ? (incRes.value?.data?.incidents ?? incRes.value?.data?.items ?? incRes.value?.data ?? []) : [];
+        const tasks = taskRes.status === "fulfilled" ? (taskRes.value?.data?.tasks ?? taskRes.value?.data?.items ?? taskRes.value?.data ?? []) : [];
+        const volTotal = volRes.status === "fulfilled"
           ? (volRes.value?.data?.pagination?.total ?? volRes.value?.data?.volunteers?.length ?? volRes.value?.data?.length ?? 0)
           : 0;
 
-        const resolved   = incidents.filter((i) => i.status === "resolved" || i.status === "closed").length;
-        const pending    = tasks.filter((t) => t.status === "pending" || t.status === "assigned").length;
+        const resolved = incidents.filter((i) => i.status === "resolved" || i.status === "closed").length;
+        const pending = tasks.filter((t) => t.status === "pending" || t.status === "assigned").length;
 
         setStats({
           incidents: incidents.length,
-          tasks:     pending,
+          tasks: pending,
           volunteers: volTotal,
           resolved,
         });
@@ -80,22 +83,22 @@ function Dashboard() {
   }, []);
 
   const SEVERITY_STYLES = {
-    low:      "bg-green-100 text-green-700",
-    medium:   "bg-yellow-100 text-yellow-700",
-    high:     "bg-orange-100 text-orange-700",
+    low: "bg-green-100 text-green-700",
+    medium: "bg-yellow-100 text-yellow-700",
+    high: "bg-orange-100 text-orange-700",
     critical: "bg-red-100 text-red-700",
   };
 
   const STATUS_STYLES = {
-    reported:     "bg-blue-100 text-blue-700",
+    reported: "bg-blue-100 text-blue-700",
     acknowledged: "bg-purple-100 text-purple-700",
-    in_progress:  "bg-indigo-100 text-indigo-700",
-    resolved:     "bg-green-100 text-green-700",
-    closed:       "bg-slate-100 text-slate-600",
-    pending:      "bg-yellow-100 text-yellow-700",
-    assigned:     "bg-blue-100 text-blue-700",
-    completed:    "bg-green-100 text-green-700",
-    cancelled:    "bg-slate-100 text-slate-500",
+    in_progress: "bg-indigo-100 text-indigo-700",
+    resolved: "bg-green-100 text-green-700",
+    closed: "bg-slate-100 text-slate-600",
+    pending: "bg-yellow-100 text-yellow-700",
+    assigned: "bg-blue-100 text-blue-700",
+    completed: "bg-green-100 text-green-700",
+    cancelled: "bg-slate-100 text-slate-500",
   };
 
   return (
@@ -144,6 +147,196 @@ function Dashboard() {
           />
         </div>
 
+        {/* -------------------------------------------------------
+    West Bengal Flood Risk Map
+-------------------------------------------------------- */}
+
+        <div className="relative z-0 mb-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
+          {/* Map Header */}
+          <div className="border-b border-slate-200 bg-white px-5 py-4">
+            <h2 className="font-semibold text-slate-900">
+              West Bengal Flood Risk Overview
+            </h2>
+
+            {/* <p className="mt-1 text-xs text-slate-500">
+              Hover over a district to view its name. Flood-risk
+              intensity is represented using the color scale.
+            </p> */}
+          </div>
+
+          {/* Map + Legend */}
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_240px]">
+
+            {/* -----------------------------------------
+        MAP CONTAINER
+    ------------------------------------------ */}
+            <div className="h-[700px] w-full">
+
+              <MapContainer
+                center={[24.2726, 88.3639]}
+                zoom={8}
+                minZoom={6}
+                maxZoom={12}
+                scrollWheelZoom={true}
+                maxBounds={[
+                  [21.45, 84.75],
+                  [27.25, 89.90],
+                ]}
+                maxBoundsViscosity={1.0}
+                className="h-full w-full"
+                style={{
+                  background: "#010101",
+                }}
+              >
+
+                {/* Flood raster */}
+                <FloodRasterLayer />
+
+              </MapContainer>
+
+            </div>
+
+            {/* -----------------------------------------
+        FLOOD RISK LEGEND
+    ------------------------------------------ */}
+            <div className="border-t border-slate-200 bg-slate-50 p-5 lg:border-l lg:border-t-0">
+
+              <div className="flex h-full flex-col">
+
+                {/* Legend heading */}
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Flood Risk
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Flood-risk intensity represented by the
+                    raster color scale.
+                  </p>
+                </div>
+
+                {/* Color scale */}
+                <div className="mt-6 space-y-4">
+
+                  <div className="flex items-center gap-3">
+                    <span className="h-4 w-7 shrink-0 rounded bg-green-500" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">
+                        Very Low
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Minimal flood risk
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="h-4 w-7 shrink-0 rounded bg-lime-500" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">
+                        Low
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Low flood risk
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="h-4 w-7 shrink-0 rounded bg-yellow-400" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">
+                        Moderate
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Moderate flood risk
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="h-4 w-7 shrink-0 rounded bg-orange-500" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">
+                        High
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        High flood risk
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="h-4 w-7 shrink-0 rounded bg-red-600" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-700">
+                        Very High
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Very high flood risk
+                      </p>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Divider */}
+                <div className="my-6 border-t border-slate-200" />
+
+                {/* Additional information */}
+                {/* <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Map Information
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    The flood-risk surface is loaded from the
+                    GeoTIFF raster dataset.
+                  </p>
+                </div> */}
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* Selected District */}
+          {selectedDistrict && (
+            <div className="border-t border-slate-200 bg-slate-50 px-5 py-3">
+
+              <div className="flex items-center justify-between">
+
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                    Selected District
+                  </p>
+
+                  <p className="mt-1 text-sm font-semibold text-slate-800">
+                    {selectedDistrict.name}
+                  </p>
+                </div>
+
+                <div className="text-right">
+
+                  <p className="text-xs text-slate-400">
+                    LGD ID
+                  </p>
+
+                  <p className="text-sm font-medium text-slate-700">
+                    {selectedDistrict.dist_lgd}
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+        </div>
+
         {/* Two column panels */}
         <div className="grid gap-6 lg:grid-cols-2">
 
@@ -159,7 +352,7 @@ function Dashboard() {
 
             {loading ? (
               <div className="px-5 py-4 space-y-3">
-                {[1,2,3].map((i) => (
+                {[1, 2, 3].map((i) => (
                   <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />
                 ))}
               </div>
@@ -202,7 +395,7 @@ function Dashboard() {
 
             {loading ? (
               <div className="px-5 py-4 space-y-3">
-                {[1,2,3].map((i) => (
+                {[1, 2, 3].map((i) => (
                   <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />
                 ))}
               </div>

@@ -1,399 +1,224 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GeoJSON } from "react-leaflet";
 
-
-const districtColors = [
-    "#fecaca",
-    "#fed7aa",
-    "#fef08a",
-    "#d9f99d",
-    "#bbf7d0",
-    "#a7f3d0",
-    "#99f6e4",
-    "#a5f3fc",
-    "#bae6fd",
-    "#bfdbfe",
-    "#c7d2fe",
-    "#ddd6fe",
-    "#e9d5ff",
-    "#f5d0fe",
-    "#fbcfe8",
-    "#fecdd3",
-    "#e2e8f0",
-    "#cbd5e1",
-    "#d6d3d1",
-    "#fde68a",
-    "#bef264",
-    "#86efac",
-    "#67e8f9",
+const DISTRICT_COLORS = [
+  "#FDE68A",
+  "#BFDBFE",
+  "#BBF7D0",
+  "#FBCFE8",
+  "#DDD6FE",
+  "#FED7AA",
+  "#BAE6FD",
+  "#D9F99D",
+  "#FECACA",
+  "#C7D2FE",
+  "#A7F3D0",
+  "#FDE2E2",
+  "#E9D5FF",
+  "#CCFBF1",
+  "#FEF3C7",
+  "#DBEAFE",
+  "#DCFCE7",
+  "#FCE7F3",
+  "#E0E7FF",
+  "#FFEDD5",
+  "#CFFAFE",
+  "#ECFCCB",
+  "#F3E8FF",
 ];
 
-
-const getDistrictColor = (districtId) => {
-
-    const numericId = Number(districtId);
-
-    const index =
-        Math.abs(numericId) %
-        districtColors.length;
-
-    return districtColors[index];
+const normalizeDistrictName = (name = "") => {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+district$/i, "")
+    .replace(/\s+/g, " ");
 };
 
+const getDistrictColor = (districtLgd) => {
+  const numericId = Number(districtLgd);
 
-const getDistrictStyle = (districtId) => ({
-    color: "#64748b",
-    weight: 1,
-    fillColor: getDistrictColor(districtId),
-    fillOpacity: 0.65,
-});
+  if (Number.isNaN(numericId)) {
+    return DISTRICT_COLORS[0];
+  }
 
+  return DISTRICT_COLORS[
+    Math.abs(numericId) % DISTRICT_COLORS.length
+  ];
+};
 
-function DistrictLayer({
-    selectedDistrict,
-    onDistrictSelect,
+export default function DistrictLayer({
+  selectedDistrict,
+  onDistrictSelect,
+  databaseDistricts = [],
+  requireDatabaseDistrict = false,
 }) {
+  const [geoData, setGeoData] = useState(null);
+  const databaseDistrictsRef = useRef(databaseDistricts);
 
-    const [districtData, setDistrictData] =
-        useState(null);
+  useLayoutEffect(() => {
+    databaseDistrictsRef.current = databaseDistricts;
+  }, [databaseDistricts]);
 
+  useEffect(() => {
+    const loadDistricts = async () => {
+      try {
+        const response = await fetch("/gis/districts.geojson");
 
-    /*
-    |--------------------------------------------------------------------------
-    | Load District GeoJSON
-    |--------------------------------------------------------------------------
-    */
+        if (!response.ok) {
+          throw new Error("Failed to load districts GeoJSON");
+        }
 
-    useEffect(() => {
-
-        fetch("/gis/districts.geojson")
-
-            .then((response) => {
-
-                if (!response.ok) {
-                    throw new Error(
-                        `HTTP error: ${response.status}`
-                    );
-                }
-
-                return response.json();
-
-            })
-
-            .then((data) => {
-
-                setDistrictData(data);
-
-            })
-
-            .catch((error) => {
-
-                console.error(
-                    "District GeoJSON error:",
-                    error
-                );
-
-            });
-
-    }, []);
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Styles
-    |--------------------------------------------------------------------------
-    */
-
-    const selectedDistrictStyle = {
-        color: "#1d4ed8",
-        weight: 3,
-        fillColor: "#2563eb",
-        fillOpacity: 0.35,
+        const data = await response.json();
+        setGeoData(data);
+      } catch (error) {
+        console.error("District GeoJSON error:", error);
+      }
     };
 
+    loadDistricts();
+  }, []);
 
-    const hoverStyle = {
-        color: "#142d9c",
-        weight: 2,
-        fillColor: "#142d9c",
-        fillOpacity: 0.5,
+  if (!geoData) {
+    return null;
+  }
+
+  const getFeatureStyle = (feature) => {
+    const properties = feature?.properties || {};
+
+    const districtLgd = properties.dist_lgd;
+    const color = getDistrictColor(districtLgd);
+
+    const isSelected =
+      selectedDistrict &&
+      String(selectedDistrict.dist_lgd) === String(districtLgd);
+
+    return {
+      color: isSelected ? "#1d4ed8" : "#739cb6",
+      weight: isSelected ? 2 : 0.8,
+      fillColor: color,
+      fillOpacity: isSelected ? 0.35 : 0.65,
     };
+  };
 
+  const handleEachFeature = (feature, layer) => {
+    const properties = feature?.properties || {};
 
-    /*
-    |--------------------------------------------------------------------------
-    | District Feature Events
-    |--------------------------------------------------------------------------
-    */
+    const districtLgd = properties.dist_lgd;
 
-    const onEachDistrict = (
-        feature,
-        layer
-    ) => {
+    const districtName =
+      properties.dtname ||
+      properties.district_name ||
+      properties.district ||
+      properties.name ||
+      "Unknown District";
 
-        const properties =
-            feature?.properties || {};
+    layer.bindTooltip(districtName, {
+      sticky: true,
+      direction: "top",
+    });
 
-
-        const districtName =
-            properties.dtname ||
-            "Unknown District";
-
-
-        const districtId =
-            properties.dist_lgd;
-
-
-        const isSelected =
-            selectedDistrict &&
-            Number(selectedDistrict.id) ===
-            Number(districtId);
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Tooltip
-        |--------------------------------------------------------------------------
-        */
-
-        layer.bindTooltip(
-            districtName,
-            {
-                sticky: true,
-                direction: "top",
-            }
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Events
-        |--------------------------------------------------------------------------
-        */
-
-        layer.on({
-
-            /*
-            |--------------------------------------------------------------------------
-            | Mouse Over
-            |--------------------------------------------------------------------------
-            */
-
-            mouseover: (event) => {
-
-                /*
-                 * If another district is selected,
-                 * don't highlight other districts.
-                 */
-
-                if (
-                    selectedDistrict &&
-                    !isSelected
-                ) {
-                    return;
-                }
-
-
-                event.target.setStyle(
-                    hoverStyle
-                );
-
-                event.target.bringToFront();
-
-            },
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Mouse Out
-            |--------------------------------------------------------------------------
-            */
-
-            mouseout: (event) => {
-
-                /*
-                 * Don't modify other districts
-                 * when one district is selected.
-                 */
-
-                if (
-                    selectedDistrict &&
-                    !isSelected
-                ) {
-                    return;
-                }
-
-
-                /*
-                 * Restore selected style
-                 */
-
-                if (isSelected) {
-
-                    event.target.setStyle(
-                        selectedDistrictStyle
-                    );
-
-                } else {
-
-                    event.target.setStyle(
-                        getDistrictStyle(
-                            districtId
-                        )
-                    );
-
-                }
-
-            },
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | District Click
-            |--------------------------------------------------------------------------
-            */
-
-            click: (event) => {
-
-                /*
-                 * IMPORTANT:
-                 *
-                 * event.latlng contains the exact
-                 * point where the user clicked.
-                 */
-
-                const {
-                    lat,
-                    lng,
-                } = event.latlng;
-
-
-                /*
-                 * Create selected district object
-                 */
-
-                const district = {
-
-                    id: districtId,
-
-                    dist_lgd:
-                        properties.dist_lgd,
-
-                    name:
-                        districtName,
-
-                    /*
-                     * Exact mouse click position
-                     */
-
-                    latitude: lat,
-
-                    longitude: lng,
-
-                    properties,
-
-                    feature,
-
-                };
-
-
-                console.log(
-                    "Selected district:",
-                    district
-                );
-
-
-                /*
-                 * Send district + clicked
-                 * coordinates to parent
-                 */
-
-                onDistrictSelect?.(
-                    district
-                );
-
-            },
-
+    layer.on({
+      mouseover: (event) => {
+        event.target.setStyle({
+          color: "#142d9c",
+          weight: 2.5,
+          fillColor: getDistrictColor(districtLgd),
+          fillOpacity: 0.85,
         });
 
-    };
+        event.target.bringToFront();
+      },
 
+      mouseout: (event) => {
+        event.target.setStyle(getFeatureStyle(feature));
+      },
 
-    /*
-    |--------------------------------------------------------------------------
-    | Loading
-    |--------------------------------------------------------------------------
-    */
+      click: (event) => {
+        const { lat, lng } = event.latlng;
 
-    if (!districtData) {
-        return null;
-    }
+        /*
+         * -------------------------------------------------------
+         * District page
+         * -------------------------------------------------------
+         *
+         * A district does NOT need to exist in the DB.
+         *
+         * The purpose of this page is to create the district.
+         */
+        if (!requireDatabaseDistrict) {
+          onDistrictSelect?.({
+            id: null,
 
+            dist_lgd: districtLgd,
 
-    /*
-    |--------------------------------------------------------------------------
-    | Render
-    |--------------------------------------------------------------------------
-    */
+            name: districtName,
 
-    return (
+            latitude: lat,
+            longitude: lng,
 
-        <GeoJSON
+            properties,
+            feature,
+          });
 
-            key={
-                selectedDistrict?.id ??
-                "all-districts"
-            }
+          return;
+        }
 
-            data={districtData}
+        /*
+         * -------------------------------------------------------
+         * Subdivision / Block page
+         * -------------------------------------------------------
+         *
+         * These workflows require an existing DB district.
+         */
+        const normalizedGeoName =
+          normalizeDistrictName(districtName);
 
-            style={(feature) => {
+        const databaseDistrict = databaseDistrictsRef.current.find(
+          (district) =>
+            normalizeDistrictName(district.name) ===
+            normalizedGeoName
+        );
 
-                const districtId =
-                    feature?.properties?.dist_lgd;
+        if (!databaseDistrict) {
+          alert(
+            `District "${districtName}" was not found in the database. Please choose only a created district.`
+          );
 
+          return;
+        }
 
-                const isSelected =
-                    selectedDistrict &&
-                    Number(
-                        selectedDistrict.id
-                    ) ===
-                    Number(districtId);
+        onDistrictSelect?.({
+          id: databaseDistrict.id,
 
+          dist_lgd: districtLgd,
 
-                if (isSelected) {
+          name: databaseDistrict.name,
 
-                    return {
-                        ...selectedDistrictStyle,
+          latitude:
+            databaseDistrict.latitude != null
+              ? Number(databaseDistrict.latitude)
+              : lat,
 
-                        /*
-                         * Keep the individual
-                         * district color.
-                         */
+          longitude:
+            databaseDistrict.longitude != null
+              ? Number(databaseDistrict.longitude)
+              : lng,
 
-                        fillColor:
-                            getDistrictColor(
-                                districtId
-                            ),
-                    };
+          properties,
+          feature,
 
-                }
+          databaseDistrict,
+        });
+      },
+    });
+  };
 
-
-                return getDistrictStyle(
-                    districtId
-                );
-
-            }}
-
-            onEachFeature={
-                onEachDistrict
-            }
-
-        />
-
-    );
+  return (
+    <GeoJSON
+      data={geoData}
+      style={getFeatureStyle}
+      onEachFeature={handleEachFeature}
+    />
+  );
 }
-
-
-export default DistrictLayer;

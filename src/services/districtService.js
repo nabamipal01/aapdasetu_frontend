@@ -9,8 +9,8 @@ export const createDistrict = (params = {}) =>
 export const getDistrict = (params = {}) =>
   get("/api/districts/get.php", params);
 
-export const updateDistrict = (params = {}) =>
-  patch("/api/districts/update.php", params);
+export const updateDistrict = (id, data = {}) =>
+  patch(`/api/districts/update.php?id=${encodeURIComponent(id)}`, data);
 
 export const deleteDistrict = (id) =>
   del(`/api/districts/delete.php?id=${encodeURIComponent(id)}`);

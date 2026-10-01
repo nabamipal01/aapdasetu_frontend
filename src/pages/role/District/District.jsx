@@ -72,7 +72,7 @@ function District() {
         page: 1,
         per_page: 50,
       });
-
+      console.log("DISTRICT USERS RESPONSE:", res);
       setUsers(
         Array.isArray(res?.data?.users)
           ? res.data.users
@@ -205,9 +205,10 @@ function District() {
       email: user.email || "",
       phone: user.phone || "",
       linked_id:
-        user.linked_id ||
-        user.districtId ||
-        user.district?.id ||
+        user.district_id ??
+        user.districtId ??
+        user.linked_id ??
+        user.district?.id ??
         "",
     });
 
@@ -305,7 +306,10 @@ function District() {
     }
 
     const districtId =
-      user.linked_id || user.districtId;
+      user.district_id ??
+      user.districtId ??
+      user.linked_id ??
+      user.district?.id;
 
     const district = districts.find(
       (item) =>

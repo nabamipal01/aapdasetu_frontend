@@ -1,216 +1,439 @@
-import { useEffect, useMemo, useState } from "react";
 import { GeoJSON } from "react-leaflet";
 
-function SubdivisionLayer({
+import {
+    filterFeaturesByDistrict,
+    getDistrictId,
+} from "../../utils/map";
+
+import useGeoJSONData from "../../hooks/useGEOJsonData";
+
+import { attachHoverEvents } from "../../utils/leaflet";
+
+import { MAP_STYLES } from "../../constants/mapStyles";
+
+
+export default function SubdivisionLayer({
     selectedDistrict,
+
+    databaseDistricts = [],
+
+    databaseSubdivisions = [],
+
     onSubdivisionSelect,
+
+    requireDatabaseDistrict = true,
+
+    requireDatabaseSubdivision = false,
 }) {
-    const [subdivisionData, setSubdivisionData] = useState(null);
-    const [error, setError] = useState("");
-
-    useEffect(() => {
-        fetch("/gis/subdivisions.geojson")
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error: ${response.status}`);
-                }
-
-                return response.json();
-            })
-            .then((data) => {
-                console.log(
-                    "Subdivision GeoJSON:",
-                    data
-                );
-
-                if (
-                    !data ||
-                    !Array.isArray(data.features)
-                ) {
-                    throw new Error(
-                        "Invalid subdivision GeoJSON format."
-                    );
-                }
-                setSubdivisionData(data);
-            })
-            .catch((error) => {
-                console.error(
-                    "Subdivision GeoJSON error:",
-                    error
-                );
-
-                setError(
-                    "Unable to load subdivision map data."
-                );
-            });
-    }, []);
 
     /*
-     * Filter before sending data to GeoJSON.
+     * -------------------------------------------------------
+     * Load subdivision GeoJSON
+     * -------------------------------------------------------
      */
-    const filteredSubdivisionData = useMemo(() => {
-        if (!subdivisionData) {
-            return null;
-        }
 
-        if (!selectedDistrict) {
-            return null;
-        }
+    const {
+        data: subdivisionData,
+        loading,
+        error,
+    } = useGeoJSONData(
+        "/gis/subdivisions.geojson",
+        "Subdivision"
+    );
 
-        console.log(
-            "Filtering subdivisions for district:",
+
+    /*
+     * -------------------------------------------------------
+     * No district selected
+     * -------------------------------------------------------
+     *
+     * Subdivisions should not be displayed until
+     * a district has been selected.
+     */
+
+    if (!selectedDistrict) {
+        return null;
+    }
+
+
+    /*
+     * -------------------------------------------------------
+     * Verify database district
+     * -------------------------------------------------------
+     */
+
+    const databaseDistrict =
+        databaseDistricts.find(
+            (district) =>
+                Number(district.id) ===
+                Number(selectedDistrict.id)
+        );
+
+
+    /*
+     * -------------------------------------------------------
+     * If database district is required
+     * and does not exist, don't show subdivisions.
+     * -------------------------------------------------------
+     */
+
+    if (
+        requireDatabaseDistrict &&
+        !databaseDistrict
+    ) {
+        return null;
+    }
+
+
+    /*
+     * -------------------------------------------------------
+     * Filter subdivisions by district
+     * -------------------------------------------------------
+     *
+     * IMPORTANT:
+     *
+     * This filtering uses the GEOJSON district ID.
+     *
+     * selectedDistrict.dist_lgd
+     *
+     * NOT selectedDistrict.id
+     */
+
+    const filteredData =
+        filterFeaturesByDistrict(
+            subdivisionData,
             selectedDistrict
         );
 
-        const selectedDistrictId =
-            Number(
-                selectedDistrict.dist_lgd ??
-                selectedDistrict.id
-            );
 
-        console.log(
-            "Selected dist_lgd:",
-            selectedDistrictId
-        );
+    /*
+     * -------------------------------------------------------
+     * Feature
+     * -------------------------------------------------------
+     */
 
-        if (Number.isNaN(selectedDistrictId)) {
-            console.error(
-                "Invalid selected district ID:",
-                selectedDistrict
-            );
+    const onEachSubdivision = (
+        feature,
+        layer
+    ) => {
 
-            return null;
-        }
+        const properties =
+            feature?.properties || {};
 
-        const filteredFeatures =
-            subdivisionData.features.filter((feature) => {
-
-                const properties =
-                    feature?.properties || {};
-
-                const subdivisionDistrictId =
-                    Number(
-                        properties.dist_lgd
-                    );
-
-                return (
-                    subdivisionDistrictId ===
-                    selectedDistrictId
-                );
-            });
-
-        console.log(
-            "Number of subdivisions:",
-            filteredFeatures.length
-        );
-
-        console.log(
-            "Filtered subdivisions:",
-            filteredFeatures
-        );
-
-        return {
-            ...subdivisionData,
-            features: filteredFeatures,
-        };
-
-    }, [
-        subdivisionData,
-        selectedDistrict,
-    ]);
-
-    const normalStyle = {
-        color: "#16a34a",
-        weight: 1,
-        fillColor: "#22c55e",
-        fillOpacity: 0.08,
-    };
-
-    const hoverStyle = {
-        color: "#15803d",
-        weight: 3,
-        fillColor: "#22c55e",
-        fillOpacity: 0.30,
-    };
-
-    // const selectedStyle = {
-    //     color: "#166534",
-    //     weight: 4,
-    //     fillColor: "#22c55e",
-    //     fillOpacity: 0.40,
-    // };
-
-    const onEachSubdivision = (feature, layer) => {
-        const properties = feature.properties || {};
 
         /*
-         * Change these property names according to
-         * your actual subdistricts.geojson.
+         * -----------------------------------------------------
+         * GEOJSON SUBDIVISION ID
+         * -----------------------------------------------------
          */
+
+        const subdivisionLgd =
+            properties.subdivision_id ??
+            properties.subdist_lgd ??
+            properties.subdt_lgd ??
+            properties.subdist_code ??
+            properties.subdist_id;
+
+
+        /*
+         * -----------------------------------------------------
+         * SUBDIVISION NAME
+         * -----------------------------------------------------
+         */
+
         const subdivisionName =
             properties.subdivision_name ||
+            properties.subdist_name ||
+            properties.subdtname ||
+            properties.name ||
             "Unknown Subdivision";
 
-        const subdivisionId =
-            properties.subdivision_id;
 
-        const districtId =
+        /*
+         * -----------------------------------------------------
+         * GEOJSON DISTRICT ID
+         * -----------------------------------------------------
+         */
+
+        const districtLgd =
             properties.dist_lgd;
 
-        // if (
-        //     !selectedDistrict ||
-        //     Number(districtId) !==
-        //     Number(selectedDistrict.id)
-        // ) {
-        //     return;
-        // }
 
-        layer.bindTooltip(subdivisionName, {
-            sticky: true,
-            direction: "top",
-        });
+        /*
+         * -----------------------------------------------------
+         * GEOJSON DISTRICT NAME
+         * -----------------------------------------------------
+         */
 
-        layer.on({
-            mouseover: (event) => {
-                event.target.setStyle(hoverStyle);
-                event.target.bringToFront();
-            },
+        const districtName =
+            properties.dtname ||
+            properties.district ||
+            properties.district_name ||
+            selectedDistrict?.name ||
+            "";
 
-            mouseout: (event) => {
-                event.target.setStyle(normalStyle);
-            },
 
-            click: () => {
-                const bounds = layer.getBounds();
-                const center = bounds.getCenter();
+        /*
+         * -----------------------------------------------------
+         * FIND EXISTING DATABASE SUBDIVISION
+         * -----------------------------------------------------
+         *
+         * We use:
+         *
+         * database district ID
+         * +
+         * subdivision name
+         *
+         * because subdivision GeoJSON ID and DB ID
+         * are different ID systems.
+         */
+
+        const databaseSubdivision =
+            databaseSubdivisions.find(
+                (item) => {
+
+                    const sameDistrict =
+                        Number(
+                            item.district_id
+                        ) ===
+                        Number(
+                            selectedDistrict.id
+                        );
+
+
+                    const sameName =
+                        String(
+                            item.name || ""
+                        )
+                            .trim()
+                            .toLowerCase() ===
+                        String(
+                            subdivisionName || ""
+                        )
+                            .trim()
+                            .toLowerCase();
+
+
+                    return (
+                        sameDistrict &&
+                        sameName
+                    );
+                }
+            );
+
+
+        /*
+         * -----------------------------------------------------
+         * Tooltip
+         * -----------------------------------------------------
+         */
+
+        layer.bindTooltip(
+            subdivisionName,
+            {
+                sticky: true,
+                direction: "top",
+            }
+        );
+
+
+        /*
+         * -----------------------------------------------------
+         * Hover
+         * -----------------------------------------------------
+         */
+
+        attachHoverEvents(
+            layer,
+            MAP_STYLES.subdivision.normal,
+            MAP_STYLES.subdivision.hover
+        );
+
+
+        /*
+         * -----------------------------------------------------
+         * Click
+         * -----------------------------------------------------
+         */
+
+        layer.on(
+            "click",
+            (event) => {
+
+                const {
+                    lat,
+                    lng,
+                } = event.latlng;
+
+
+                /*
+                 * -------------------------------------------------
+                 * Parent district must exist
+                 * -------------------------------------------------
+                 */
+
+                if (
+                    requireDatabaseDistrict &&
+                    !databaseDistrict
+                ) {
+
+                    alert(
+                        `District "${districtName}" is not available in the database yet. Please create the district first.`
+                    );
+
+                    return;
+                }
+
+
+                /*
+                 * -------------------------------------------------
+                 * Existing subdivision check
+                 * -------------------------------------------------
+                 *
+                 * This is OPTIONAL because a new subdivision
+                 * can be created.
+                 */
+
+                if (
+                    requireDatabaseSubdivision &&
+                    !databaseSubdivision
+                ) {
+
+                    alert(
+                        `Subdivision "${subdivisionName}" is not available in the database yet. Please choose only a created subdivision.`
+                    );
+
+                    return;
+                }
+
+
+                /*
+                 * -------------------------------------------------
+                 * FINAL SUBDIVISION OBJECT
+                 * -------------------------------------------------
+                 */
 
                 const subdivision = {
-                    id: subdivisionId,
-                    name: subdivisionName,
-                    districtId: districtId,
-                    districtName: properties.dtname,
-                    latitude: center.lat,
-                    longitude: center.lng,
+
+                    /*
+                     * DATABASE SUBDIVISION ID
+                     *
+                     * null = new subdivision
+                     */
+
+                    id:
+                        databaseSubdivision?.id ??
+                        null,
+
+
+                    /*
+                     * GEOJSON SUBDIVISION ID
+                     */
+
+                    subdivision_lgd:
+                        subdivisionLgd,
+
+
+                    /*
+                     * DATABASE DISTRICT ID
+                     */
+
+                    districtId:
+                        databaseDistrict?.id ??
+                        selectedDistrict?.id ??
+                        null,
+
+
+                    /*
+                     * GEOJSON DISTRICT ID
+                     */
+
+                    districtLgd:
+                        districtLgd,
+
+
+                    /*
+                     * DISTRICT NAME
+                     */
+
+                    districtName:
+                        databaseDistrict?.name ||
+                        selectedDistrict?.name ||
+                        districtName,
+
+
+                    /*
+                     * SUBDIVISION NAME
+                     */
+
+                    name:
+                        databaseSubdivision?.name ||
+                        subdivisionName,
+
+
+                    /*
+                     * Existing address
+                     */
+
+                    address:
+                        databaseSubdivision?.address ||
+                        "",
+
+
+                    /*
+                     * Click coordinates
+                     */
+
+                    latitude:
+                        databaseSubdivision?.latitude ??
+                        lat,
+
+                    longitude:
+                        databaseSubdivision?.longitude ??
+                        lng,
+
+
+                    /*
+                     * Original GeoJSON
+                     */
+
                     properties,
+
                     feature,
+
+
+                    /*
+                     * Existing database record
+                     */
+
+                    databaseSubdivision:
+                        databaseSubdivision ||
+                        null,
                 };
+
 
                 console.log(
                     "Selected subdivision:",
                     subdivision
                 );
 
-                if (onSubdivisionSelect) {
-                    onSubdivisionSelect(subdivision);
-                }
-            },
-        });
+
+                onSubdivisionSelect?.(
+                    subdivision
+                );
+            }
+        );
     };
 
-    // --------------------------------------------------
-    // Error
-    // --------------------------------------------------
+
+    /*
+     * -------------------------------------------------------
+     * Error
+     * -------------------------------------------------------
+     */
+
     if (error) {
+
         return (
             <div className="absolute left-4 top-4 z-[1000] rounded-lg bg-red-100 px-4 py-3 text-sm text-red-700 shadow">
                 {error}
@@ -218,66 +441,61 @@ function SubdivisionLayer({
         );
     }
 
-    // --------------------------------------------------
-    // No district selected
-    // --------------------------------------------------
-    if (!selectedDistrict) {
-        return null;
-    }
 
-    // --------------------------------------------------
-    // GeoJSON not loaded yet
-    // --------------------------------------------------
-    if (!subdivisionData) {
-        return null;
-    }
-
-    // --------------------------------------------------
-    // No matching subdivisions
-    // --------------------------------------------------
-    if (!filteredSubdivisionData) {
-        return null;
-    }
-
-    // if (!subdivisionData) {
-    //     return null;
-    // }
+    /*
+     * -------------------------------------------------------
+     * Loading
+     * -------------------------------------------------------
+     */
 
     if (
-        filteredSubdivisionData.features.length ===
-        0
+        loading ||
+        !filteredData
     ) {
+        return null;
+    }
+
+
+    /*
+     * -------------------------------------------------------
+     * No subdivision found
+     * -------------------------------------------------------
+     */
+
+    if (
+        !filteredData.features ||
+        filteredData.features.length === 0
+    ) {
+
         console.warn(
-            "No subdivisions found for selected district."
+            "No subdivisions found for district:",
+            getDistrictId(
+                selectedDistrict
+            )
         );
 
         return null;
     }
 
-    // if (
-    //     !selectedDistrict ||
-    //     !filteredSubdivisionData
-    // ) {
-    //     return null;
-    // }
 
-    // return (
-    //     <GeoJSON
-    //         key={selectedDistrict.id}
-    //         data={subdivisionData}
-    //         style={normalStyle}
-    //         onEachFeature={onEachSubdivision}
-    //     />
-    // );
+    /*
+     * -------------------------------------------------------
+     * Render
+     * -------------------------------------------------------
+     */
 
     return (
         <GeoJSON
-            key={`subdivision-${selectedDistrict.dist_lgd ?? selectedDistrict.id}`}
-            data={filteredSubdivisionData}
-            style={normalStyle}
-            onEachFeature={onEachSubdivision}
+            key={
+                `subdivision-${selectedDistrict.dist_lgd}`
+            }
+            data={filteredData}
+            style={
+                MAP_STYLES.subdivision.normal
+            }
+            onEachFeature={
+                onEachSubdivision
+            }
         />
     );
 }
-
-export default SubdivisionLayer;

@@ -5,6 +5,7 @@ import {
   listStockIssues,
   deleteStockIssue,
   listUsers,
+  listDistricts,
 } from "../../../services";
 
 import {
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 
 const EMPTY_FORM = {
+  district_id: "",
   district_user_id: "",
   storage_location: "",
   remarks: "",
@@ -36,9 +38,11 @@ function IssueStock() {
   const [inventoryItems, setInventoryItems] = useState([]);
   const [issues, setIssues] = useState([]);
   const [districtUsers, setDistrictUsers] = useState([]);
+  const [districts, setDistricts] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [districtsLoading, setDistrictsLoading] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -130,6 +134,30 @@ function IssueStock() {
     fetchAll();
   }, [fetchAll]);
 
+  const fetchDistricts = useCallback(async () => {
+    setDistrictsLoading(true);
+
+    try {
+      const response = await listDistricts();
+      const districtList = Array.isArray(response?.data?.districts)
+        ? response.data.districts
+        : Array.isArray(response?.data)
+        ? response.data
+        : [];
+
+      setDistricts(districtList);
+    } catch (err) {
+      setDistricts([]);
+      setError(err.message || "Failed to load districts.");
+    } finally {
+      setDistrictsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDistricts();
+  }, [fetchDistricts]);
+
   // Reset page when search changes
   useEffect(() => {
     setPage(1);
@@ -144,6 +172,49 @@ function IssueStock() {
       [e.target.name]: e.target.value,
     }));
   };
+
+  const handleDistrictChange = (e) => {
+    const districtId = e.target.value;
+    const selectedDistrict = districts.find(
+      (district) => String(district.id) === districtId
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      district_id: districtId,
+      district_user_id: "",
+      storage_location: selectedDistrict?.storage_location || "",
+    }));
+    setError("");
+  };
+
+  const selectedDistrict = districts.find(
+    (district) => String(district.id) === String(form.district_id)
+  );
+
+  const filteredDistrictUsers = districtUsers.filter((user) => {
+    const userDistrictId =
+      user.district_id ??
+      user.districtId ??
+      user.linked_id ??
+      user.district?.id;
+
+    if (userDistrictId != null) {
+      return String(userDistrictId) === String(form.district_id);
+    }
+
+    const userDistrictName =
+      user.district_name ??
+      user.districtName ??
+      user.district?.name;
+
+    return Boolean(
+      selectedDistrict?.name &&
+      userDistrictName &&
+      String(userDistrictName).trim().toLowerCase() ===
+        String(selectedDistrict.name).trim().toLowerCase()
+    );
+  });
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
@@ -192,6 +263,11 @@ function IssueStock() {
   // =========================================================
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!form.district_id) {
+      setError("Select a district.");
+      return;
+    }
 
     if (!form.district_user_id) {
       setError("Select a district user.");
@@ -457,36 +533,63 @@ function IssueStock() {
 
                   <div className="grid gap-4 sm:grid-cols-2">
 
-                    {/* District User */}
+                    {/* District */}
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        District User *
+                        District *
                       </label>
 
                       <select
-                        name="district_user_id"
-                        value={
-                          form.district_user_id
-                        }
-                        onChange={handleChange}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                        name="district_id"
+                        value={form.district_id}
+                        onChange={handleDistrictChange}
+                        disabled={districtsLoading}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-100"
                       >
                         <option value="">
-                          Select district user
+                          {districtsLoading
+                            ? "Loading districts..."
+                            : "Select district"}
                         </option>
 
-                        {districtUsers.map(
-                          (u) => (
-                            <option
-                              key={u.id}
-                              value={u.id}
-                            >
-                              {u.name}
-                            </option>
-                          )
-                        )}
+                        {districts.map((district) => (
+                          <option key={district.id} value={district.id}>
+                            {district.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
+
+                    {/* District User */}
+                    {form.district_id && (
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                          District User *
+                        </label>
+
+                        <select
+                          name="district_user_id"
+                          value={form.district_user_id}
+                          onChange={handleChange}
+                          disabled={loading || filteredDistrictUsers.length === 0}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                        >
+                          <option value="">
+                            {loading
+                              ? "Loading district users..."
+                              : filteredDistrictUsers.length === 0
+                              ? "No users for this district"
+                              : "Select district user"}
+                          </option>
+
+                          {filteredDistrictUsers.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                     {/* Storage Location */}
                     <div>
@@ -496,12 +599,14 @@ function IssueStock() {
 
                       <input
                         name="storage_location"
-                        value={
-                          form.storage_location
+                        value={form.storage_location}
+                        readOnly
+                        placeholder={
+                          form.district_id
+                            ? "No storage location configured for this district"
+                            : "Select a district first"
                         }
-                        onChange={handleChange}
-                        placeholder="e.g. Bishnupur District Emergency Store"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                        className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none"
                       />
                     </div>
 

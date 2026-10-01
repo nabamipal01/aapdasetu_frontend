@@ -199,8 +199,25 @@ function Block() {
     setForm((prev) => ({
       ...prev,
       [name]: value,
+      ...(name === "district_id"
+        ? { subdivision_id: "", block_id: "" }
+        : name === "subdivision_id"
+        ? { block_id: "" }
+        : {}),
     }));
   };
+
+  const filteredSubdivisions = subdivisions.filter(
+    (subdivision) =>
+      Number(subdivision.district_id ?? subdivision.districtId) ===
+      Number(form.district_id)
+  );
+
+  const filteredBlocks = blocks.filter(
+    (block) =>
+      Number(block.subdivision_id ?? block.subdivisionId) ===
+      Number(form.subdivision_id)
+  );
 
   const resetForm = () => {
     setForm({ ...EMPTY_FORM });
@@ -290,9 +307,20 @@ function Block() {
       email: u.email || "",
       phone: u.phone || "",
 
-      district_id: u.district_id ?? "",
-      subdivision_id: u.subdivision_id ?? "",
-      block_id: u.block_id ?? u.linked_id ?? "",
+      district_id:
+        u.district_id ?? u.districtId ?? u.district?.id ?? "",
+      subdivision_id:
+        u.subdivision_id ??
+        u.subdivisionId ??
+        u.subdivision?.id ??
+        "",
+      block_id:
+        u.block_id ??
+        u.blockId ??
+        u.linked_id ??
+        u.linkedId ??
+        u.block?.id ??
+        "",
     });
 
     setError("");
@@ -384,18 +412,28 @@ function Block() {
 
     const linkedDistrict = districts.find(
       (district) =>
-        Number(district.id) === Number(u.district_id)
+        Number(district.id) ===
+        Number(u.district_id ?? u.districtId ?? u.district?.id)
     );
 
     const linkedSubdivision = subdivisions.find(
       (subdivision) =>
-        Number(subdivision.id) === Number(u.subdivision_id)
+        Number(subdivision.id) ===
+        Number(
+          u.subdivision_id ?? u.subdivisionId ?? u.subdivision?.id
+        )
     );
 
     const linkedBlock = blocks.find(
       (block) =>
         Number(block.id) ===
-        Number(u.block_id ?? u.linked_id)
+        Number(
+          u.block_id ??
+          u.blockId ??
+          u.linked_id ??
+          u.linkedId ??
+          u.block?.id
+        )
     );
 
     const districtName =
@@ -604,16 +642,18 @@ function Block() {
                       name="subdivision_id"
                       value={form.subdivision_id}
                       onChange={handleChange}
-                      disabled={subdivisionsLoading}
+                      disabled={!form.district_id || subdivisionsLoading}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-slate-100"
                     >
                       <option value="">
-                        {subdivisionsLoading
+                        {!form.district_id
+                          ? "Select district first"
+                          : subdivisionsLoading
                           ? "Loading subdivisions..."
                           : "Select Subdivision"}
                       </option>
 
-                      {subdivisions.map((subdivision) => (
+                      {filteredSubdivisions.map((subdivision) => (
                         <option
                           key={subdivision.id}
                           value={subdivision.id}
@@ -634,16 +674,18 @@ function Block() {
                       name="block_id"
                       value={form.block_id}
                       onChange={handleChange}
-                      disabled={blocksLoading}
+                      disabled={!form.subdivision_id || blocksLoading}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-slate-100"
                     >
                       <option value="">
-                        {blocksLoading
+                        {!form.subdivision_id
+                          ? "Select subdivision first"
+                          : blocksLoading
                           ? "Loading blocks..."
                           : "Select Block"}
                       </option>
 
-                      {blocks.map((block) => (
+                      {filteredBlocks.map((block) => (
                         <option
                           key={block.id}
                           value={block.id}
@@ -827,20 +869,30 @@ function Block() {
                     const linkedDistrict = districts.find(
                       (district) =>
                         Number(district.id) ===
-                        Number(u.district_id)
+                        Number(u.district_id ?? u.districtId ?? u.district?.id)
                     );
 
                     const linkedSubdivision =
                       subdivisions.find(
                         (subdivision) =>
                           Number(subdivision.id) ===
-                          Number(u.subdivision_id)
+                          Number(
+                            u.subdivision_id ??
+                            u.subdivisionId ??
+                            u.subdivision?.id
+                          )
                       );
 
                     const linkedBlock = blocks.find(
                       (block) =>
                         Number(block.id) ===
-                        Number(u.block_id ?? u.linked_id)
+                        Number(
+                          u.block_id ??
+                          u.blockId ??
+                          u.linked_id ??
+                          u.linkedId ??
+                          u.block?.id
+                        )
                     );
 
                     return (

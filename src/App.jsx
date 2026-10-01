@@ -61,6 +61,7 @@ import SubdivisionLocation from "./pages/location/SubdivisionLocation";
 import BlockLocation from "./pages/location/BlockLocation";
 
 import { isTaskOnlyRole } from "./utils/roles";
+import ReturnStock from "./pages/Inventory/ReturnStock/ReturnStock";
 
 /* =========================================================
    Roles
@@ -389,6 +390,11 @@ function App() {
                 <Route
                   path="/inventory/issue"
                   element={<IssueStock />}
+                />
+
+                <Route
+                  path="/inventory/return"
+                  element={<ReturnStock />}
                 />
 
                 <Route

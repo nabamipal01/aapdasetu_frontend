@@ -10,6 +10,11 @@ const getAuthHeaders = () => {
   };
 };
 
+// ========================================
+// CREATE
+// POST /create.php
+// ========================================
+
 export const createTraining = async (trainingData) => {
   const response = await fetch(
     `${API_BASE_URL}/create.php`,
@@ -31,6 +36,11 @@ export const createTraining = async (trainingData) => {
   return data;
 };
 
+// ========================================
+// LIST
+// GET /list.php
+// ========================================
+
 export const getTrainings = async (
   page = 1,
   limit = 10,
@@ -42,12 +52,16 @@ export const getTrainings = async (
   });
 
   if (search.trim()) {
-    params.append("search", search.trim());
+    params.append(
+      "search",
+      search.trim()
+    );
   }
 
   const response = await fetch(
     `${API_BASE_URL}/list.php?${params.toString()}`,
     {
+      method: "GET",
       headers: getAuthHeaders(),
     }
   );
@@ -63,10 +77,16 @@ export const getTrainings = async (
   return data;
 };
 
+// ========================================
+// GET BY ID
+// GET /get.php?id=1
+// ========================================
+
 export const getTrainingById = async (id) => {
   const response = await fetch(
     `${API_BASE_URL}/get.php?id=${id}`,
     {
+      method: "GET",
       headers: getAuthHeaders(),
     }
   );
@@ -82,6 +102,11 @@ export const getTrainingById = async (id) => {
   return data;
 };
 
+// ========================================
+// UPDATE
+// PATCH /update.php?id=1
+// ========================================
+
 export const updateTraining = async (
   id,
   trainingData
@@ -89,7 +114,7 @@ export const updateTraining = async (
   const response = await fetch(
     `${API_BASE_URL}/update.php?id=${id}`,
     {
-      method: "PUT",
+      method: "PATCH",
       headers: getAuthHeaders(),
       body: JSON.stringify(trainingData),
     }
@@ -106,6 +131,11 @@ export const updateTraining = async (
   return data;
 };
 
+// ========================================
+// DELETE
+// DELETE /delete.php?id=1
+// ========================================
+
 export const deleteTraining = async (id) => {
   const response = await fetch(
     `${API_BASE_URL}/delete.php?id=${id}`,
@@ -113,7 +143,7 @@ export const deleteTraining = async (id) => {
       method: "DELETE",
       headers: getAuthHeaders(),
     }
-  );                     
+  );
 
   const data = await response.json();
 

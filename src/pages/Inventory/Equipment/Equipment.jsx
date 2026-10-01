@@ -188,7 +188,7 @@ const resolveUser = (userId) => {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">ID</th>
+                  <th className="px-5 py-3 font-semibold">SL.NO</th>
                   <th className="px-5 py-3 font-semibold">Equipment Type</th>
                   <th className="px-5 py-3 font-semibold">Added By</th>
                   <th className="px-5 py-3 font-semibold">Created At</th>
@@ -196,9 +196,9 @@ const resolveUser = (userId) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {types.map((t) => (
+                {types.map((t,index) => (
                   <tr key={t.equipment_id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3 text-slate-400">{t.equipment_id}</td>
+                    <td className="px-5 py-3 text-slate-400"> {index + 1}</td>
                     <td className="px-5 py-3 font-medium text-slate-800">
                       {editId === t.equipment_id ? (
                         <div className="flex items-center gap-2">

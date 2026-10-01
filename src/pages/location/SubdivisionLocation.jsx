@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
+	MapContainer,
+	Marker,
+	Popup,
 } from "react-leaflet";
 
 import "leaflet/dist/leaflet.css";
@@ -12,1028 +11,1706 @@ import SubdivisionLayer from "../../components/map/SubDivisionLayer";
 import DistrictLayer from "../../components/map/DistrictLayer";
 
 import {
-  createSubdivision,
-  listSubdivisions,
+	createSubdivision,
+	deleteSubdivision,
+	listDistricts,
+	listSubdivisions,
+	updateSubdivision,
 } from "../../services";
+
+import { WEST_BENGAL_BOUNDS } from "../../constants/mapBounds";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 
 
 function SubdivisionLocation() {
 
-  /*
-  |--------------------------------------------------------------------------
-  | Form
-  |--------------------------------------------------------------------------
-  */
+	/*
+	|--------------------------------------------------------------------------
+	| Form
+	|--------------------------------------------------------------------------
+	*/
+
+	const [form, setForm] = useState({
+		district_id: "",
+		district: "",
+		name: "",
+		address: "",
+		latitude: "",
+		longitude: "",
+	});
+
+
+	/*
+	|--------------------------------------------------------------------------
+	| Map State
+	|--------------------------------------------------------------------------
+	*/
+
+	const [position, setPosition] = useState(null);
+
+	const [selectedDistrict, setSelectedDistrict] =
+		useState(null);
+
+	const [selectedSubdivision, setSelectedSubdivision] =
+		useState(null);
+
 
-  const [form, setForm] = useState({
-    district_id: "",
-    district: "",
-    name: "",
-    address: "",
-    latitude: "",
-    longitude: "",
-  });
+	/*
+	|--------------------------------------------------------------------------
+	| Table State
+	|--------------------------------------------------------------------------
+	*/
 
+	const [districts, setDistricts] = useState([]);
+	const [subdivisions, setSubdivisions] =
+		useState([]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Map State
-  |--------------------------------------------------------------------------
-  */
+	const [loadingSubdivisions, setLoadingSubdivisions] =
+		useState(false);
 
-  const [position, setPosition] = useState(null);
+	const [subdivisionError, setSubdivisionError] =
+		useState("");
 
-  const [selectedDistrict, setSelectedDistrict] =
-    useState(null);
+	const [saving, setSaving] =
+		useState(false);
 
-  const [selectedSubdivision, setSelectedSubdivision] =
-    useState(null);
+	const [editingSubdivisionId, setEditingSubdivisionId] = useState(null);
+	const [editForm, setEditForm] = useState({
+		district_id: "",
+		district: "",
+		name: "",
+		address: "",
+		latitude: "",
+		longitude: "",
+	});
+	const [updatingSubdivision, setUpdatingSubdivision] = useState(false);
 
+	const [deleteModal, setDeleteModal] = useState({
+		open: false,
+		subdivision: null
+	});
+	const [deletingSubdivision, setDeletingSubdivision] = useState(false);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Table State
-  |--------------------------------------------------------------------------
-  */
+	/*
+	|--------------------------------------------------------------------------
+	| Form Change
+	|--------------------------------------------------------------------------
+	*/
 
-  const [subdivisions, setSubdivisions] =
-    useState([]);
+	const handleChange = (event) => {
 
-  const [loadingSubdivisions, setLoadingSubdivisions] =
-    useState(false);
+		const { name, value } = event.target;
 
-  const [subdivisionError, setSubdivisionError] =
-    useState("");
+		setForm((previous) => ({
+			...previous,
+			[name]: value,
+		}));
 
-  const [saving, setSaving] =
-    useState(false);
+	};
 
 
-  /*
-  |--------------------------------------------------------------------------
-  | Form Change
-  |--------------------------------------------------------------------------
-  */
+	/*
+	|--------------------------------------------------------------------------
+	| Load Districts and Subdivisions
+	|--------------------------------------------------------------------------
+	*/
+	const loadDistricts = async () => {
+		try {
+			const response = await listDistricts();
 
-  const handleChange = (event) => {
+			if (response?.success) {
+				setDistricts(response.data || []);
+			}
+		} catch (error) {
+			console.error(
+				"Load districts error:",
+				error
+			);
+		}
+	};
 
-    const { name, value } = event.target;
+	const loadSubdivisions = async () => {
 
-    setForm((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
+		try {
 
-  };
+			setLoadingSubdivisions(true);
 
+			setSubdivisionError("");
 
-  /*
-  |--------------------------------------------------------------------------
-  | Load Subdivisions
-  |--------------------------------------------------------------------------
-  */
+			const response =
+				await listSubdivisions();
 
-  const loadSubdivisions = async () => {
+			console.log(
+				"Subdivision list response:",
+				response
+			);
 
-    try {
 
-      setLoadingSubdivisions(true);
+			if (response?.success) {
 
-      setSubdivisionError("");
+				setSubdivisions(
+					response.data || []
+				);
 
-      const response =
-        await listSubdivisions();
+			} else {
 
-      console.log(
-        "Subdivision list response:",
-        response
-      );
+				setSubdivisionError(
+					response?.message ||
+					"Failed to load subdivisions."
+				);
 
+			}
 
-      if (response?.success) {
+		} catch (error) {
 
-        setSubdivisions(
-          response.data || []
-        );
+			console.error(
+				"Subdivision list error:",
+				error
+			);
 
-      } else {
+			setSubdivisionError(
+				"Unable to load subdivision list."
+			);
 
-        setSubdivisionError(
-          response?.message ||
-          "Failed to load subdivisions."
-        );
+		} finally {
 
-      }
+			setLoadingSubdivisions(false);
 
-    } catch (error) {
+		}
 
-      console.error(
-        "Subdivision list error:",
-        error
-      );
+	};
 
-      setSubdivisionError(
-        "Unable to load subdivision list."
-      );
 
-    } finally {
+	/*
+	|--------------------------------------------------------------------------
+	| Load Table On Page Load
+	|--------------------------------------------------------------------------
+	*/
 
-      setLoadingSubdivisions(false);
+	useEffect(() => {
+		loadDistricts();
+		loadSubdivisions();
+	}, []);
 
-    }
 
-  };
+	/*
+	|--------------------------------------------------------------------------
+	| District Selection
+	|--------------------------------------------------------------------------
+	*/
 
+	const handleDistrictSelect = (district) => {
 
-  /*
-  |--------------------------------------------------------------------------
-  | Load Table On Page Load
-  |--------------------------------------------------------------------------
-  */
+		console.log(
+			"Selected district:",
+			district
+		);
 
-  useEffect(() => {
 
-    loadSubdivisions();
+		/*
+		|--------------------------------------------------------------------------
+		| Store selected district
+		|--------------------------------------------------------------------------
+		*/
 
-  }, []);
+		setSelectedDistrict(district);
 
 
-  /*
-  |--------------------------------------------------------------------------
-  | District Selection
-  |--------------------------------------------------------------------------
-  */
+		/*
+		|--------------------------------------------------------------------------
+		| Clear previous subdivision
+		|--------------------------------------------------------------------------
+		*/
 
-  const handleDistrictSelect = (district) => {
+		setSelectedSubdivision(null);
 
-    console.log(
-      "Selected district:",
-      district
-    );
+		setPosition(null);
 
-    setSelectedDistrict(district);
 
-    /*
-     * Clear previously selected subdivision
-     */
+		/*
+		|--------------------------------------------------------------------------
+		| Update form
+		|--------------------------------------------------------------------------
+		*/
 
-    setSelectedSubdivision(null);
+		setForm((previous) => ({
 
-    setPosition(null);
+			...previous,
 
+			district_id:
+				district.id || "",
 
-    /*
-     * Update form
-     */
+			district:
+				district.name || "",
 
-    setForm((previous) => ({
+			name: "",
 
-      ...previous,
+			latitude: "",
 
-      district_id: district.id,
+			longitude: "",
 
-      district: district.name,
+		}));
 
-      name: "",
+	};
 
-      latitude: "",
 
-      longitude: "",
+	/*
+	|--------------------------------------------------------------------------
+	| Subdivision Selection
+	|--------------------------------------------------------------------------
+	*/
 
-    }));
+	const handleSubdivisionSelect = (
+		subdivision
+	) => {
 
-  };
+		console.log(
+			"Selected subdivision:",
+			subdivision
+		);
+		console.log("Selected district:", selectedDistrict);
 
+		/*
+		|--------------------------------------------------------------------------
+		| Store selected subdivision
+		|--------------------------------------------------------------------------
+		*/
 
-  /*
-  |--------------------------------------------------------------------------
-  | Subdivision Selection
-  |--------------------------------------------------------------------------
-  */
+		setSelectedSubdivision(
+			subdivision
+		);
 
-  const handleSubdivisionSelect = (
-    subdivision
-  ) => {
 
-    console.log(
-      "Selected subdivision:",
-      subdivision
-    );
+		/*
+		|--------------------------------------------------------------------------
+		| Update form
+		|--------------------------------------------------------------------------
+		|
+		| Latitude and longitude come directly
+		| from the exact mouse click.
+		|
+		*/
 
+		setForm((previous) => ({
 
-    setSelectedSubdivision(
-      subdivision
-    );
+			...previous,
 
+			district_id:
+				// subdivision.districtId ||
+				selectedDistrict?.id ||
+				"",
 
-    /*
-     * Update form
-     */
+			district:
+				selectedDistrict?.name ||
+				subdivision.districtName ||
+				"",
 
-    setForm((previous) => ({
+			name:
+				subdivision.name ||
+				"",
 
-      ...previous,
+			latitude:
+				subdivision.latitude != null
+					? subdivision.latitude.toFixed(6)
+					: "",
 
-      district_id: subdivision.districtId,
+			longitude:
+				subdivision.longitude != null
+					? subdivision.longitude.toFixed(6)
+					: "",
 
-      // Get district name from selected district
-      district: selectedDistrict?.name || "",
+		}));
+		console.log(selectedDistrict?.id);
 
-      // Selected subdivision
-      name: subdivision.name || "",
+		/*
+		|--------------------------------------------------------------------------
+		| Place Marker
+		|--------------------------------------------------------------------------
+		|
+		| Marker is placed at the exact location
+		| where the subdivision polygon was clicked.
+		|
+		*/
 
-      latitude:
-        subdivision.latitude?.toFixed(6) || "",
+		if (
+			subdivision.latitude != null &&
+			subdivision.longitude != null
+		) {
 
-      longitude:
-        subdivision.longitude?.toFixed(6) || "",
+			setPosition({
 
-    }));
+				lat:
+					subdivision.latitude,
 
+				lng:
+					subdivision.longitude,
 
-    /*
-     * Update marker
-     */
+			});
 
-    if (
-      subdivision.latitude != null &&
-      subdivision.longitude != null
-    ) {
+		} else {
 
-      setPosition({
+			setPosition(null);
 
-        lat: subdivision.latitude,
+		}
 
-        lng: subdivision.longitude,
+	};
 
-      });
 
-    }
+	/*
+	|--------------------------------------------------------------------------
+	| Submit
+	|--------------------------------------------------------------------------
+	*/
 
-  };
+	const handleSubmit = async (event) => {
 
+		event.preventDefault();
 
-  /*
-  |--------------------------------------------------------------------------
-  | Submit
-  |--------------------------------------------------------------------------
-  */
 
-  const handleSubmit = async (event) => {
+		/*
+		|--------------------------------------------------------------------------
+		| Validation
+		|--------------------------------------------------------------------------
+		*/
 
-    event.preventDefault();
-    console.log("FORM BEFORE SUBMIT:", form);
-    console.log("SELECTED DISTRICT:", selectedDistrict);
-    console.log("SELECTED SUBDIVISION:", selectedSubdivision);
+		if (!form.district_id) {
 
-    /*
-     * Basic validation
-     */
+			alert(
+				"Please select a district."
+			);
 
-    if (!form.district_id) {
-      alert("Please select a district.");
-      return;
-    }
+			return;
 
-    if (!form.district) {
+		}
 
-      alert(
-        "Please select a district."
-      );
 
-      return;
+		if (!form.district) {
 
-    }
+			alert(
+				"Please select a district."
+			);
 
+			return;
 
-    if (!form.name) {
+		}
 
-      alert(
-        "Please select a subdivision."
-      );
 
-      return;
+		if (!form.name) {
 
-    }
+			alert(
+				"Please select a subdivision."
+			);
 
+			return;
 
-    if (!form.latitude || !form.longitude) {
+		}
 
-      alert(
-        "Please select the subdivision location."
-      );
 
-      return;
+		if (!form.latitude || !form.longitude) {
 
-    }
+			alert(
+				"Please select the subdivision location."
+			);
 
+			return;
 
-    try {
+		}
 
-      setSaving(true);
 
+		try {
 
-      console.log(
-        "Subdivision data:",
-        form
-      );
+			setSaving(true);
 
 
-      const response =
-        await createSubdivision(form);
+			console.log(
+				"Subdivision data:",
+				form
+			);
 
 
-      console.log(
-        "Create subdivision response:",
-        response
-      );
+			const response =
+				await createSubdivision(form);
 
 
-      if (response?.success) {
+			console.log(
+				"Create subdivision response:",
+				response
+			);
 
-        alert(
-          "Subdivision created successfully."
-        );
 
+			if (response?.success) {
 
-        /*
-         * Reset form
-         */
+				alert(
+					"Subdivision created successfully."
+				);
 
-        setForm({
 
-          district: "",
+				/*
+				|--------------------------------------------------------------------------
+				| Reset Form
+				|--------------------------------------------------------------------------
+				*/
 
-          name: "",
+				setForm({
 
-          address: "",
+					district_id: "",
 
-          latitude: "",
+					district: "",
 
-          longitude: "",
+					name: "",
 
-        });
+					address: "",
 
+					latitude: "",
 
-        /*
-         * Reset map selection
-         */
+					longitude: "",
 
-        setPosition(null);
+				});
 
-        setSelectedDistrict(null);
 
-        setSelectedSubdivision(null);
+				/*
+				|--------------------------------------------------------------------------
+				| Reset Map Selection
+				|--------------------------------------------------------------------------
+				*/
 
+				setPosition(null);
 
-        /*
-         * Reload table
-         */
+				setSelectedDistrict(null);
 
-        loadSubdivisions();
+				setSelectedSubdivision(null);
 
-      } else {
 
-        alert(
-          response?.message ||
-          "Failed to create subdivision."
-        );
+				/*
+				|--------------------------------------------------------------------------
+				| Reload Table
+				|--------------------------------------------------------------------------
+				*/
 
-      }
+				loadSubdivisions();
 
-    } catch (error) {
+			} else {
 
-      console.error(
-        "Create subdivision error:",
-        error
-      );
+				alert(
+					response?.message ||
+					"Failed to create subdivision."
+				);
 
+			}
 
-      /*
-       * Try to show API error message
-       */
+		} catch (error) {
 
-      const message =
-        error?.response?.data?.message ||
-        "Something went wrong while creating subdivision.";
+			console.error(
+				"Create subdivision error:",
+				error
+			);
 
 
-      alert(message);
+			const message =
+				error?.response?.data?.message ||
+				"Something went wrong while creating subdivision.";
 
-    } finally {
 
-      setSaving(false);
+			alert(message);
 
-    }
+		} finally {
 
-  };
+			setSaving(false);
 
+		}
 
-  /*
-  |--------------------------------------------------------------------------
-  | Reset Form
-  |--------------------------------------------------------------------------
-  */
+	};
 
-  const handleReset = () => {
 
-    setForm({
+	/*
+	|--------------------------------------------------------------------------
+	| Reset Form
+	|--------------------------------------------------------------------------
+	*/
 
-      district: "",
+	const handleReset = () => {
 
-      name: "",
+		setForm({
 
-      address: "",
+			district_id: "",
 
-      latitude: "",
+			district: "",
 
-      longitude: "",
+			name: "",
 
-    });
+			address: "",
 
-    setPosition(null);
+			latitude: "",
 
-    setSelectedDistrict(null);
+			longitude: "",
 
-    setSelectedSubdivision(null);
+		});
 
-  };
 
+		setPosition(null);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Render
-  |--------------------------------------------------------------------------
-  */
+		setSelectedDistrict(null);
 
-  return (
+		setSelectedSubdivision(null);
 
-    <div className="min-h-screen w-full bg-gray-50 p-6">
+	};
 
+	const handleEditSubdivision = (subdivision) => {
 
-      {/* =====================================================
-          Header
-      ====================================================== */}
+		console.log(
+			"Edit subdivision:",
+			subdivision
+		);
 
-      <div className="mb-6">
+		setEditingSubdivisionId(
+			subdivision.id
+		);
 
-        <h1 className="text-2xl font-semibold text-gray-800">
-          Subdivision Location
-        </h1>
+		setEditForm({
+			district_id:
+				subdivision.district_id ||
+				subdivision.districtId ||
+				"",
 
-        <p className="mt-1 text-sm text-gray-500">
-          Add and manage subdivision location information.
-        </p>
+			district:
+				subdivision.district ||
+				subdivision.district_name ||
+				"",
 
-      </div>
+			name:
+				subdivision.name ||
+				"",
 
+			address:
+				subdivision.address ||
+				"",
 
-      {/* =====================================================
-          Main Layout
-      ====================================================== */}
+			latitude:
+				subdivision.latitude ??
+				"",
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_1fr]">
+			longitude:
+				subdivision.longitude ??
+				"",
+		});
+	};
 
+	const handleCancelEdit = () => {
 
-        {/* ===================================================
-            Form
-        ==================================================== */}
+		setEditingSubdivisionId(null);
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+		setEditForm({
+			district_id: "",
+			district: "",
+			name: "",
+			address: "",
+			latitude: "",
+			longitude: "",
+		});
+	};
 
-          <h2 className="mb-6 text-lg font-semibold text-gray-800">
-            Subdivision Details
-          </h2>
+	const handleEditChange = (event) => {
 
+		const {
+			name,
+			value,
+		} = event.target;
 
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5"
-          >
+		setEditForm((previous) => ({
+			...previous,
+			[name]: value,
+		}));
+	};
 
+	const handleUpdateSubdivision = async (
+		subdivisionId
+	) => {
 
-            {/* District */}
+		try {
 
-            <div>
+			setUpdatingSubdivision(true);
 
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                District
-              </label>
+			const payload = {
+				district_id:
+					editForm.district_id,
 
-              <input
-                type="text"
-                name="district"
-                value={form.district}
-                onChange={handleChange}
-                readOnly
-                placeholder="Select district from map"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
+				district:
+					editForm.district.trim(),
 
-            </div>
+				name:
+					editForm.name.trim(),
 
+				address:
+					editForm.address.trim(),
 
-            {/* Subdivision Name */}
+				latitude:
+					editForm.latitude,
 
-            <div>
+				longitude:
+					editForm.longitude,
+			};
 
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Subdivision Name
-              </label>
+			console.log(
+				"Update subdivision ID:",
+				subdivisionId
+			);
 
-              <input
-                type="text"
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                readOnly
-                placeholder="Select subdivision from map"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
+			console.log(
+				"Update subdivision payload:",
+				payload
+			);
 
-            </div>
+			const response =
+				await updateSubdivision(
+					subdivisionId,
+					payload
+				);
 
+			console.log(
+				"Update subdivision response:",
+				response
+			);
 
-            {/* Address */}
+			if (response?.success) {
 
-            <div>
+				alert(
+					"Subdivision updated successfully."
+				);
 
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Address
-              </label>
+				await loadSubdivisions();
 
-              <textarea
-                name="address"
-                value={form.address}
-                onChange={handleChange}
-                rows={3}
-                placeholder="Subdivision address"
-                className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
+				handleCancelEdit();
 
-            </div>
+			} else {
 
+				alert(
+					response?.message ||
+					"Failed to update subdivision."
+				);
 
-            {/* Latitude / Longitude */}
+			}
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+		} catch (error) {
 
+			console.error(
+				"Update subdivision error:",
+				error
+			);
 
-              {/* Latitude */}
+			alert(
+				error?.message ||
+				"Unable to update subdivision."
+			);
 
-              <div>
+		} finally {
 
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Latitude
-                </label>
+			setUpdatingSubdivision(false);
 
-                <input
-                  type="number"
-                  step="any"
-                  name="latitude"
-                  value={form.latitude}
-                  onChange={handleChange}
-                  placeholder="Latitude"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
+		}
+	};
 
-              </div>
+	const handleDeleteSubdivision = (
+		subdivision
+	) => {
 
+		setDeleteModal({
+			open: true,
+			subdivision,
+		});
+	};
 
-              {/* Longitude */}
+	const handleConfirmDelete = async () => {
 
-              <div>
+		const subdivision =
+			deleteModal.subdivision;
 
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Longitude
-                </label>
+		if (!subdivision) {
+			return;
+		}
 
-                <input
-                  type="number"
-                  step="any"
-                  name="longitude"
-                  value={form.longitude}
-                  onChange={handleChange}
-                  placeholder="Longitude"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
+		try {
 
-              </div>
+			setDeletingSubdivision(true);
 
-            </div>
+			const response =
+				await deleteSubdivision(
+					subdivision.id
+				);
 
+			console.log(
+				"Delete subdivision response:",
+				response
+			);
 
-            {/* Buttons */}
+			if (response?.success) {
 
-            <div className="flex gap-3 pt-2">
+				setDeleteModal({
+					open: false,
+					subdivision: null,
+				});
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
+				if (
+					editingSubdivisionId ===
+					subdivision.id
+				) {
+					handleCancelEdit();
+				}
 
-                {saving
-                  ? "Saving..."
-                  : "Save Subdivision"}
+				await loadSubdivisions();
 
-              </button>
+				alert(
+					"Subdivision deleted successfully."
+				);
 
+			} else {
 
-              <button
-                type="button"
-                onClick={handleReset}
-                disabled={saving}
-                className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Reset
-              </button>
+				alert(
+					response?.message ||
+					"Failed to delete subdivision."
+				);
 
-            </div>
+			}
 
-          </form>
+		} catch (error) {
 
-        </div>
+			console.error(
+				"Delete subdivision error:",
+				error
+			);
 
+			alert(
+				error?.message ||
+				"Something went wrong while deleting subdivision."
+			);
 
-        {/* ===================================================
-            Map
-        ==================================================== */}
+		} finally {
 
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+			setDeletingSubdivision(false);
 
+		}
+	};
 
-          {/* Map Header */}
 
-          <div className="border-b border-gray-200 px-5 py-4">
+	/*
+	|--------------------------------------------------------------------------
+	| Render
+	|--------------------------------------------------------------------------
+	*/
 
-            <h2 className="text-lg font-semibold text-gray-800">
-              Subdivision Map
-            </h2>
+	return (
 
-            <p className="mt-1 text-sm text-gray-500">
+		<div className="relative min-h-screen w-full bg-gray-50 p-6">
 
-              {selectedDistrict
 
-                ? `Select a subdivision inside ${selectedDistrict.name}.`
+			{/* =====================================================
+                Page Header
+            ====================================================== */}
 
-                : "Select a district first, then select a subdivision."}
+			<div className="relative z-20 mb-6">
 
-            </p>
+				<h1 className="text-2xl font-semibold text-gray-800">
+					Subdivision Location
+				</h1>
 
-          </div>
+				<p className="mt-1 text-sm text-gray-500">
+					Add and manage subdivision location information.
+				</p>
 
+			</div>
 
-          {/* Map */}
 
-          <div className="h-[600px] w-full">
+			{/* =====================================================
+                Main Layout
+            ====================================================== */}
 
-            <MapContainer
-              center={[22.5726, 88.3639]}
-              zoom={7}
-              scrollWheelZoom={true}
-              className="h-full w-full"
-            >
+			<div className="relative z-0 grid grid-cols-1 gap-6 xl:grid-cols-[380px_1fr]">
 
-              {/* <TileLayer
-                attribution="&copy; OpenStreetMap contributors"
-                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maxZoom={19}
-              /> */}
 
+				{/* ===================================================
+                    Form
+                ==================================================== */}
 
-              {/* District */}
+				<div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 
-              <DistrictLayer
-                selectedDistrict={selectedDistrict}
-                onDistrictSelect={
-                  handleDistrictSelect
-                }
-              />
+					<h2 className="mb-6 text-lg font-semibold text-gray-800">
+						Subdivision Details
+					</h2>
 
 
-              {/* Subdivision */}
+					<form
+						onSubmit={handleSubmit}
+						className="space-y-5"
+					>
 
-              {selectedDistrict && (
 
-                <SubdivisionLayer
-                  selectedDistrict={
-                    selectedDistrict
-                  }
-                  onSubdivisionSelect={
-                    handleSubdivisionSelect
-                  }
-                />
+						{/* District */}
 
-              )}
+						<div>
 
+							<label className="mb-1 block text-sm font-medium text-gray-700">
+								District
+							</label>
 
-              {/* Marker */}
+							<input
+								type="text"
+								name="district"
+								value={form.district}
+								readOnly
+								placeholder="Select district from map"
+								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+							/>
 
-              {position && (
+						</div>
 
-                <Marker
-                  position={[
-                    position.lat,
-                    position.lng,
-                  ]}
-                >
 
-                  <Popup>
+						{/* Subdivision */}
 
-                    <div className="text-sm">
+						<div>
 
-                      <p className="font-semibold">
-                        {form.name}
-                      </p>
+							<label className="mb-1 block text-sm font-medium text-gray-700">
+								Subdivision Name
+							</label>
 
-                      <p>
-                        District:{" "}
-                        {form.district}
-                      </p>
+							<input
+								type="text"
+								name="name"
+								value={form.name}
+								readOnly
+								placeholder="Select subdivision from map"
+								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+							/>
 
-                      <p>
-                        Latitude:{" "}
-                        {position.lat.toFixed(6)}
-                      </p>
+						</div>
 
-                      <p>
-                        Longitude:{" "}
-                        {position.lng.toFixed(6)}
-                      </p>
 
-                    </div>
+						{/* Address */}
 
-                  </Popup>
+						<div>
 
-                </Marker>
+							<label className="mb-1 block text-sm font-medium text-gray-700">
+								Address
+							</label>
 
-              )}
+							<textarea
+								name="address"
+								value={form.address}
+								onChange={handleChange}
+								rows={3}
+								placeholder="Subdivision address"
+								className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+							/>
 
-            </MapContainer>
+						</div>
 
-          </div>
 
+						{/* Latitude / Longitude */}
 
-          {/* Coordinates */}
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-          <div className="grid grid-cols-2 border-t border-gray-200">
 
-            <div className="px-5 py-4">
+							{/* Latitude */}
 
-              <p className="text-xs text-gray-500">
-                Latitude
-              </p>
+							<div>
 
-              <p className="mt-1 text-sm font-medium text-gray-800">
-                {form.latitude || "--"}
-              </p>
+								<label className="mb-1 block text-sm font-medium text-gray-700">
+									Latitude
+								</label>
 
-            </div>
+								<input
+									type="number"
+									step="any"
+									name="latitude"
+									value={form.latitude}
+									readOnly
+									placeholder="Select from map"
+									className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+								/>
 
+							</div>
 
-            <div className="border-l border-gray-200 px-5 py-4">
 
-              <p className="text-xs text-gray-500">
-                Longitude
-              </p>
+							{/* Longitude */}
 
-              <p className="mt-1 text-sm font-medium text-gray-800">
-                {form.longitude || "--"}
-              </p>
+							<div>
 
-            </div>
+								<label className="mb-1 block text-sm font-medium text-gray-700">
+									Longitude
+								</label>
 
-          </div>
+								<input
+									type="number"
+									step="any"
+									name="longitude"
+									value={form.longitude}
+									readOnly
+									placeholder="Select from map"
+									className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+								/>
 
-        </div>
+							</div>
 
-      </div>
+						</div>
 
 
-      {/* =====================================================
-          Subdivision Table
-      ====================================================== */}
+						{/* Buttons */}
 
-      <div className="mt-6 rounded-xl border border-gray-200 bg-white shadow-sm">
+						<div className="flex gap-3 pt-2">
 
+							<button
+								type="submit"
+								disabled={saving}
+								className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+							>
 
-        {/* Table Header */}
+								{saving
+									? "Saving..."
+									: "Save Subdivision"}
 
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+							</button>
 
-          <div>
 
-            <h2 className="text-lg font-semibold text-gray-800">
-              Subdivision List
-            </h2>
+							<button
+								type="button"
+								onClick={handleReset}
+								disabled={saving}
+								className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+							>
 
-            <p className="mt-1 text-sm text-gray-500">
-              Manage subdivision location records.
-            </p>
+								Reset
 
-          </div>
+							</button>
 
+						</div>
 
-          <button
-            type="button"
-            onClick={loadSubdivisions}
-            disabled={loadingSubdivisions}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+					</form>
 
-            {loadingSubdivisions
-              ? "Loading..."
-              : "Refresh"}
+				</div>
 
-          </button>
 
-        </div>
+				{/* ===================================================
+                    Map
+                ==================================================== */}
 
+				<div className="relative z-0 isolate overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
-        {/* Loading */}
 
-        {loadingSubdivisions && (
+					{/* Map Header */}
 
-          <div className="px-5 py-8 text-center text-sm text-gray-500">
+					<div className="relative z-20 border-b border-gray-200 bg-white px-5 py-4">
 
-            Loading subdivisions...
+						<h2 className="text-lg font-semibold text-gray-800">
+							Subdivision Map
+						</h2>
 
-          </div>
+						<p className="mt-1 text-sm text-gray-500">
 
-        )}
+							{selectedDistrict
 
+								? `Select a subdivision inside ${selectedDistrict.name}.`
 
-        {/* Error */}
+								: "Select a district first, then select a subdivision."}
 
-        {!loadingSubdivisions &&
-          subdivisionError && (
+						</p>
 
-            <div className="px-5 py-8 text-center text-sm text-red-500">
+					</div>
 
-              {subdivisionError}
 
-            </div>
+					{/* Map */}
 
-          )}
+					<div className="relative z-0 h-[600px] w-full">
 
+						<MapContainer
+							center={[22.5726, 88.3639]}
+							zoom={7}
+							minZoom={6.5}
+							maxZoom={12}
+							maxBounds={WEST_BENGAL_BOUNDS}
+							maxBoundsViscosity={1.0}
+							scrollWheelZoom={true}
+							className="h-full w-full"
+						>
 
-        {/* Table */}
 
-        {!loadingSubdivisions &&
-          !subdivisionError && (
+							{/* =================================================
+                                District Layer
+                            ================================================== */}
 
-            <div className="overflow-x-auto">
+							<DistrictLayer
+								selectedDistrict={selectedDistrict}
+								databaseDistricts={districts}
+								requireDatabaseDistrict={true}
+								onDistrictSelect={handleDistrictSelect}
+							/>
 
-              <table className="min-w-full divide-y divide-gray-200">
 
+							{/* =================================================
+                                Subdivision Layer
+                            ================================================== */}
 
-                {/* Header */}
+							{selectedDistrict && (
 
-                <thead className="bg-gray-50">
+								<SubdivisionLayer
+									selectedDistrict={selectedDistrict}
+									databaseDistricts={districts}
+									databaseSubdivisions={subdivisions}
+									requireDatabaseDistrict={true}
+									requireDatabaseSubdivision={false}
+									onSubdivisionSelect={handleSubdivisionSelect}
+								/>
 
-                  <tr>
+							)}
 
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      ID
-                    </th>
 
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      District
-                    </th>
+							{/* =================================================
+                                Marker
+                            ================================================== */}
 
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Subdivision
-                    </th>
+							{position && (
 
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Address
-                    </th>
+								<Marker
+									position={[
+										position.lat,
+										position.lng,
+									]}
+								>
 
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Latitude
-                    </th>
+									<Popup>
 
-                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Longitude
-                    </th>
+										<div className="text-sm">
 
-                  </tr>
+											<p className="font-semibold">
+												{form.name ||
+													"Selected Subdivision"}
+											</p>
 
-                </thead>
+											<p>
+												District:{" "}
+												{form.district || "-"}
+											</p>
 
+											<p>
+												Latitude:{" "}
+												{position.lat.toFixed(6)}
+											</p>
 
-                {/* Body */}
+											<p>
+												Longitude:{" "}
+												{position.lng.toFixed(6)}
+											</p>
 
-                <tbody className="divide-y divide-gray-200 bg-white">
+										</div>
 
-                  {subdivisions.length > 0 ? (
+									</Popup>
 
-                    subdivisions.map(
-                      (subdivision) => (
+								</Marker>
 
-                        <tr
-                          key={
-                            subdivision.id
-                          }
-                          className="transition hover:bg-gray-50"
-                        >
+							)}
 
+						</MapContainer>
 
-                          {/* ID */}
+					</div>
 
-                          <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">
 
-                            {subdivision.id}
+					{/* =================================================
+                        Coordinates
+                    ================================================== */}
 
-                          </td>
+					<div className="relative z-20 grid grid-cols-2 border-t border-gray-200 bg-white">
 
+						<div className="px-5 py-4">
 
-                          {/* District */}
+							<p className="text-xs text-gray-500">
+								Latitude
+							</p>
 
-                          <td className="whitespace-nowrap px-5 py-4 text-sm font-medium text-gray-800">
+							<p className="mt-1 text-sm font-medium text-gray-800">
+								{form.latitude || "--"}
+							</p>
 
-                            {subdivision.district ||
-                              subdivision.district_name ||
-                              "-"}
+						</div>
 
-                          </td>
 
+						<div className="border-l border-gray-200 px-5 py-4">
 
-                          {/* Subdivision */}
+							<p className="text-xs text-gray-500">
+								Longitude
+							</p>
 
-                          <td className="whitespace-nowrap px-5 py-4 text-sm font-medium text-gray-800">
+							<p className="mt-1 text-sm font-medium text-gray-800">
+								{form.longitude || "--"}
+							</p>
 
-                            {subdivision.name ||
-                              "-"}
+						</div>
 
-                          </td>
+					</div>
 
+				</div>
 
-                          {/* Address */}
+			</div>
 
-                          <td className="px-5 py-4 text-sm text-gray-600">
 
-                            {subdivision.address ||
-                              "-"}
+			{/* =====================================================
+                Subdivision Table
+            ====================================================== */}
 
-                          </td>
+			<div className="relative z-0 mt-6 rounded-xl border border-gray-200 bg-white shadow-sm">
 
 
-                          {/* Latitude */}
+				{/* Table Header */}
 
-                          <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">
+				<div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
 
-                            {subdivision.latitude ||
-                              "-"}
+					<div>
 
-                          </td>
+						<h2 className="text-lg font-semibold text-gray-800">
+							Subdivision List
+						</h2>
 
+						<p className="mt-1 text-sm text-gray-500">
+							Manage subdivision location records.
+						</p>
 
-                          {/* Longitude */}
+					</div>
 
-                          <td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">
 
-                            {subdivision.longitude ||
-                              "-"}
+					<button
+						type="button"
+						onClick={loadSubdivisions}
+						disabled={loadingSubdivisions}
+						className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+					>
 
-                          </td>
+						{loadingSubdivisions
+							? "Loading..."
+							: "Refresh"}
 
-                        </tr>
+					</button>
 
-                      )
-                    )
+				</div>
 
-                  ) : (
 
-                    <tr>
+				{/* Loading */}
 
-                      <td
-                        colSpan="7"
-                        className="px-5 py-8 text-center text-sm text-gray-500"
-                      >
+				{loadingSubdivisions && (
 
-                        No subdivisions found.
+					<div className="px-5 py-8 text-center text-sm text-gray-500">
 
-                      </td>
+						Loading subdivisions...
 
-                    </tr>
+					</div>
 
-                  )}
+				)}
 
-                </tbody>
 
-              </table>
+				{/* Error */}
 
-            </div>
+				{!loadingSubdivisions &&
+					subdivisionError && (
 
-          )}
+						<div className="px-5 py-8 text-center text-sm text-red-500">
 
-      </div>
+							{subdivisionError}
 
-    </div>
+						</div>
 
-  );
+					)}
+
+
+				{/* Table */}
+
+				{!loadingSubdivisions &&
+					!subdivisionError && (
+
+						<div className="overflow-x-auto">
+
+							<table className="min-w-full divide-y divide-gray-200">
+
+
+								{/* Header */}
+
+								<thead className="bg-gray-50">
+
+									<tr>
+
+										<th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											S.No.
+										</th>
+
+										<th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											District
+										</th>
+
+										<th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Subdivision
+										</th>
+
+										<th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Address
+										</th>
+
+										<th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Latitude
+										</th>
+
+										<th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Longitude
+										</th>
+
+										<th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Action
+										</th>
+
+									</tr>
+
+								</thead>
+
+
+								{/* Body */}
+
+								<tbody className="divide-y divide-gray-200 bg-white">
+
+									{subdivisions.length > 0 ? (
+
+										subdivisions.map(
+											(subdivision, index) => {
+
+												const isEditing =
+													editingSubdivisionId ===
+													subdivision.id;
+
+												return (
+
+													<tr
+														key={subdivision.id}
+														className="transition hover:bg-gray-50"
+													>
+
+														{/* S.No. */}
+
+														<td className="whitespace-nowrap px-5 py-4 text-sm text-gray-600">
+
+															{index + 1}
+
+														</td>
+
+
+														{/* District */}
+
+														<td className="whitespace-nowrap px-5 py-4">
+
+															{isEditing ? (
+
+																<input
+																	type="text"
+																	name="district"
+																	value={
+																		editForm.district
+																	}
+																	readOnly
+																	className="w-full min-w-[150px] rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+																/>
+
+															) : (
+
+																<span className="text-sm font-medium text-gray-800">
+
+																	{subdivision.district ||
+																		subdivision.district_name ||
+																		"-"}
+
+																</span>
+
+															)}
+
+														</td>
+
+
+														{/* Subdivision */}
+
+														<td className="whitespace-nowrap px-5 py-4">
+
+															{isEditing ? (
+
+																<input
+																	type="text"
+																	name="name"
+																	value={
+																		editForm.name
+																	}
+																	readOnly
+																	className="w-full min-w-[180px] rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+																/>
+
+															) : (
+
+																<span className="text-sm font-medium text-gray-800">
+
+																	{subdivision.name ||
+																		"-"}
+
+																</span>
+
+															)}
+
+														</td>
+
+
+														{/* Address */}
+
+														<td className="px-5 py-4">
+
+															{isEditing ? (
+
+																<input
+																	type="text"
+																	name="address"
+																	value={
+																		editForm.address
+																	}
+																	onChange={
+																		handleEditChange
+																	}
+																	className="w-full min-w-[250px] rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+																/>
+
+															) : (
+
+																<span className="text-sm text-gray-600">
+
+																	{subdivision.address ||
+																		"-"}
+
+																</span>
+
+															)}
+
+														</td>
+
+
+														{/* Latitude */}
+
+														<td className="whitespace-nowrap px-5 py-4">
+
+															{isEditing ? (
+
+																<input
+																	type="text"
+																	name="latitude"
+																	value={
+																		editForm.latitude
+																	}
+																	readOnly
+																	className="w-full min-w-[120px] rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+																/>
+
+															) : (
+
+																<span className="text-sm text-gray-600">
+
+																	{subdivision.latitude ||
+																		"-"}
+
+																</span>
+
+															)}
+
+														</td>
+
+
+														{/* Longitude */}
+
+														<td className="whitespace-nowrap px-5 py-4">
+
+															{isEditing ? (
+
+																<input
+																	type="text"
+																	name="longitude"
+																	value={
+																		editForm.longitude
+																	}
+																	readOnly
+																	className="w-full min-w-[120px] rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+																/>
+
+															) : (
+
+																<span className="text-sm text-gray-600">
+
+																	{subdivision.longitude ||
+																		"-"}
+
+																</span>
+
+															)}
+
+														</td>
+
+
+														{/* Action */}
+
+														<td className="whitespace-nowrap px-5 py-4">
+
+															<div className="flex items-center justify-center gap-2">
+
+																{isEditing ? (
+
+																	<>
+
+																		{/* Save */}
+
+																		<button
+																			type="button"
+																			disabled={
+																				updatingSubdivision
+																			}
+																			onClick={() =>
+																				handleUpdateSubdivision(
+																					subdivision.id
+																				)
+																			}
+																			title="Save Changes"
+																			className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-green-200 bg-green-50 text-green-600 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+																		>
+
+																			<Check
+																				size={18}
+																				strokeWidth={2.5}
+																			/>
+
+																		</button>
+
+
+																		{/* Cancel */}
+
+																		<button
+																			type="button"
+																			disabled={
+																				updatingSubdivision
+																			}
+																			onClick={
+																				handleCancelEdit
+																			}
+																			title="Cancel"
+																			className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																		>
+
+																			<X
+																				size={18}
+																				strokeWidth={2.5}
+																			/>
+
+																		</button>
+
+																	</>
+
+																) : (
+
+																	<>
+
+																		{/* Edit */}
+
+																		<button
+																			type="button"
+																			onClick={() =>
+																				handleEditSubdivision(
+																					subdivision
+																				)
+																			}
+																			title="Edit Subdivision"
+																			className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+																		>
+
+																			<Pencil
+																				size={17}
+																				strokeWidth={2}
+																			/>
+
+																		</button>
+
+
+																		{/* Delete */}
+
+																		<button
+																			type="button"
+																			onClick={() =>
+																				handleDeleteSubdivision(
+																					subdivision
+																				)
+																			}
+																			title="Delete Subdivision"
+																			className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100"
+																		>
+
+																			<Trash2
+																				size={17}
+																				strokeWidth={2}
+																			/>
+
+																		</button>
+
+																	</>
+
+																)}
+
+															</div>
+
+														</td>
+
+													</tr>
+
+												);
+
+											}
+
+										)
+
+									) : (
+
+										<tr>
+
+											<td
+												colSpan="7"
+												className="px-5 py-8 text-center text-sm text-gray-500"
+											>
+
+												No subdivisions found.
+
+											</td>
+
+										</tr>
+
+									)}
+
+								</tbody>
+
+							</table>
+
+						</div>
+
+					)}
+
+			</div>
+
+			{deleteModal.open && (
+
+				<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 px-4">
+
+					<div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+
+						{/* Modal Content */}
+
+						<div className="p-6">
+
+							{/* Delete Icon */}
+
+							<div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+
+								<Trash2
+									size={28}
+									strokeWidth={2}
+									className="text-red-600"
+								/>
+
+							</div>
+
+
+							{/* Title */}
+
+							<h3 className="mt-5 text-center text-lg font-semibold text-gray-900">
+
+								Delete Subdivision?
+
+							</h3>
+
+
+							{/* Description */}
+
+							<p className="mt-2 text-center text-sm leading-6 text-gray-500">
+
+								Are you sure you want to delete{" "}
+
+								<span className="font-semibold text-gray-800">
+
+									"{deleteModal.subdivision?.name}"
+
+								</span>
+
+								?
+
+								<br />
+
+								This action cannot be undone.
+
+							</p>
+
+						</div>
+
+
+						{/* Modal Actions */}
+
+						<div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+
+							<button
+								type="button"
+								disabled={
+									deletingSubdivision
+								}
+								onClick={() => {
+
+									if (
+										deletingSubdivision
+									) {
+										return;
+									}
+
+									setDeleteModal({
+										open: false,
+										subdivision: null,
+									});
+
+								}}
+								className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+							>
+
+								Cancel
+
+							</button>
+
+
+							<button
+								type="button"
+								disabled={
+									deletingSubdivision
+								}
+								onClick={
+									handleConfirmDelete
+								}
+								className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+							>
+
+								<Trash2
+									size={17}
+									strokeWidth={2}
+								/>
+
+								{deletingSubdivision
+									? "Deleting..."
+									: "Delete Subdivision"}
+
+							</button>
+
+						</div>
+
+					</div>
+
+				</div>
+
+			)}
+
+		</div>
+
+	);
 
 }
 

@@ -83,7 +83,7 @@ function SubDivison() {
         page: 1,
         per_page: 50,
       });
-
+      console.log("DISTRICT USERS RESPONSE:", res);
       setUsers(
         Array.isArray(res?.data?.users)
           ? res.data.users
@@ -176,8 +176,15 @@ function SubDivison() {
     setForm((prev) => ({
       ...prev,
       [name]: value,
+      ...(name === "district_id" ? { linked_id: "" } : {}),
     }));
   };
+
+  const filteredSubdivisions = subdivisions.filter(
+    (subdivision) =>
+      Number(subdivision.district_id ?? subdivision.districtId) ===
+      Number(form.district_id)
+  );
 
   const resetForm = () => {
     setForm({ ...EMPTY_FORM });
@@ -265,8 +272,14 @@ function SubDivison() {
       name: u.name || "",
       email: u.email || "",
       phone: u.phone || "",
-      district_id: u.district_id ?? "",
-      linked_id: u.linked_id ?? "",
+      district_id:
+        u.district_id ?? u.districtId ?? u.district?.id ?? "",
+      linked_id:
+        u.linked_id ??
+        u.subdivision_id ??
+        u.subdivisionId ??
+        u.subdivision?.id ??
+        "",
     });
 
     setError("");
@@ -367,13 +380,18 @@ function SubDivison() {
     const linkedSubdivision = subdivisions.find(
       (subdivision) =>
         Number(subdivision.id) ===
-        Number(u.linked_id)
+        Number(
+          u.linked_id ??
+          u.subdivision_id ??
+          u.subdivisionId ??
+          u.subdivision?.id
+        )
     );
 
     const linkedDistrict = districts.find(
       (district) =>
         Number(district.id) ===
-        Number(u.district_id)
+        Number(u.district_id ?? u.districtId ?? u.district?.id)
     );
 
     const districtName =
@@ -616,16 +634,22 @@ function SubDivison() {
                       name="linked_id"
                       value={form.linked_id}
                       onChange={handleChange}
-                      disabled={subdivisionsLoading}
+                      disabled={
+                        !form.district_id ||
+                        subdivisionsLoading ||
+                        districtsLoading
+                      }
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-100"
                     >
                       <option value="">
-                        {subdivisionsLoading
+                        {!form.district_id
+                          ? "Select district first"
+                          : subdivisionsLoading
                           ? "Loading subdivisions..."
                           : "Select Subdivision"}
                       </option>
 
-                      {subdivisions.map(
+                      {filteredSubdivisions.map(
                         (subdivision) => (
                           <option
                             key={subdivision.id}
@@ -867,14 +891,23 @@ function SubDivison() {
                         subdivisions.find(
                           (subdivision) =>
                             Number(subdivision.id) ===
-                            Number(u.linked_id)
+                                Number(
+                                  u.linked_id ??
+                                  u.subdivision_id ??
+                                  u.subdivisionId ??
+                                  u.subdivision?.id
+                                )
                         );
 
                       const linkedDistrict =
                         districts.find(
                           (district) =>
                             Number(district.id) ===
-                            Number(u.district_id)
+                              Number(
+                                u.district_id ??
+                                u.districtId ??
+                                u.district?.id
+                              )
                         );
 
                       return (

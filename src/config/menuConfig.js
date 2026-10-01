@@ -26,6 +26,10 @@ import {
   Wrench,
   GraduationCap,
   FileBarChart,
+  Boxes,
+  BarChart3,
+  PackageCheck,
+  ClipboardMinus,
 } from "lucide-react";
 
 const commonMenus = [
@@ -85,38 +89,53 @@ const commonMenus = [
     ],
   },
 
-  {
-    label: "Inventory",
-    icon: Package,
-    children: [
-      {
-        label: "Stock Overview",
-        icon: Package,
-        path: "/inventory/overview",
-      },
-       {
-        label: "Equipment",
-        icon: Wrench,
-        path: "/inventory/equipment",
-      },
-      {
-        label: "Add Stock",
-        icon: PackagePlus,
-        path: "/inventory/add",
-      },
-      {
-        label: "Issue Stock",
-        icon: PackageMinus,
-        path: "/inventory/issue",
-      },
-      {
-        label: "Stock History",
-        icon: History,
-        path: "/inventory/history",
-      },
-     
-    ],
-  },
+{
+  label: "Inventory",
+  icon: Boxes,
+  children: [
+    {
+      label: "Stock Overview",
+      icon: BarChart3,
+      path: "/inventory/overview",
+    },
+    {
+      label: "Equipment",
+      icon: Wrench,
+      path: "/inventory/equipment",
+    },
+    {
+      label: "Add Stock",
+      icon: PackagePlus,
+      path: "/inventory/add",
+    },
+    {
+      label: "Issue Stock",
+      icon: PackageMinus,
+      path: "/inventory/issue",
+    },
+    {
+      label: "Return Stock",
+      icon: PackageCheck,
+      path: "/inventory/return",
+    },
+    {
+      label: "Stock History",
+      icon: History,
+      children: [
+        {
+          label: "Stock Issue History",
+          icon: ClipboardMinus,
+          path: "/inventory/history/issue",
+        },
+        {
+          label: "Stock Return History",
+          icon: ClipboardCheck,
+          path: "/inventory/history/return",
+        },
+      ],
+    },
+  ],
+},
 
 
    {
