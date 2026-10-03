@@ -27,3 +27,4 @@ export * from "./alertService";
 export * from "./equipmentService";
 export * from "./stockIssueService";
 export * from "./stockHistoryService";
+export * from "./returnHistoryService";

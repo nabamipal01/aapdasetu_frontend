@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   getDistricts,
@@ -18,7 +18,7 @@ function ReturnStock() {
 
   const [returnQuantity, setReturnQuantity] = useState("");
 
-  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingDistricts, setLoadingDistricts] = useState(true);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -30,23 +30,25 @@ function ReturnStock() {
    * Load districts when page opens
    */
   useEffect(() => {
-    loadDistricts();
+    let isActive = true;
+
+    getDistricts()
+      .then((data) => {
+        if (isActive) setDistricts(data);
+      })
+      .catch((err) => {
+        if (isActive) {
+          setError(err.message || "Unable to load districts.");
+        }
+      })
+      .finally(() => {
+        if (isActive) setLoadingDistricts(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, []);
-
-  const loadDistricts = async () => {
-    try {
-      setLoadingDistricts(true);
-      setError("");
-
-      const data = await getDistricts();
-
-      setDistricts(data || []);
-    } catch (err) {
-      setError(err.message || "Unable to load districts.");
-    } finally {
-      setLoadingDistricts(false);
-    }
-  };
 
   /*
    * District changed
@@ -75,7 +77,7 @@ function ReturnStock() {
 
       const data = await getDistrictUsers(districtId);
 
-      setUsers(data?.users || []);
+      setUsers(data);
     } catch (err) {
       setError(
         err.message || "Unable to load district users."
@@ -110,7 +112,7 @@ function ReturnStock() {
 
       const data = await getAssignedItems(userId);
 
-      const formattedItems = (data?.items || []).map(
+      const formattedItems = data.map(
         (item) => ({
           ...item,
           return_quantity: 0,
@@ -254,7 +256,7 @@ function ReturnStock() {
       );
 
       setItems(
-        (data?.items || []).map((item) => ({
+        data.map((item) => ({
           ...item,
           return_quantity: 0,
         }))

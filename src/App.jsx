@@ -62,6 +62,7 @@ import BlockLocation from "./pages/location/BlockLocation";
 
 import { isTaskOnlyRole } from "./utils/roles";
 import ReturnStock from "./pages/Inventory/ReturnStock/ReturnStock";
+import ReturnHistory from "./pages/Inventory/ReturnHistory/returnHistory";
 
 /* =========================================================
    Roles
@@ -410,6 +411,10 @@ function App() {
                 <Route
                   path="/inventory/category/:id"
                   element={<CategoryDetail />}
+                />
+                <Route
+                  path="/inventory/history/return"
+                  element={<ReturnHistory />}
                 />
 
 

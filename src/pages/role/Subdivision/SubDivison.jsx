@@ -83,13 +83,12 @@ function SubDivison() {
         page: 1,
         per_page: 50,
       });
-      console.log("DISTRICT USERS RESPONSE:", res);
       setUsers(
         Array.isArray(res?.data?.users)
           ? res.data.users
           : Array.isArray(res?.data)
-          ? res.data
-          : []
+            ? res.data
+            : []
       );
     } catch (err) {
       setError(err.message || "Failed to load subdivision users");
@@ -111,8 +110,8 @@ function SubDivison() {
       const districtList = Array.isArray(res?.data?.districts)
         ? res.data.districts
         : Array.isArray(res?.data)
-        ? res.data
-        : [];
+          ? res.data
+          : [];
 
       setDistricts(districtList);
     } catch (err) {
@@ -141,8 +140,8 @@ function SubDivison() {
       )
         ? res.data.subdivisions
         : Array.isArray(res?.data)
-        ? res.data
-        : [];
+          ? res.data
+          : [];
 
       setSubdivisions(subdivisionList);
     } catch (err) {
@@ -246,8 +245,7 @@ function SubDivison() {
       }
 
       setSuccess(
-        `Subdivision user "${
-          createdUser?.name || form.name
+        `Subdivision user "${createdUser?.name || form.name
         }" created.`
       );
 
@@ -321,9 +319,9 @@ function SubDivison() {
         prev.map((u) =>
           u.id === id
             ? {
-                ...u,
-                ...res.data,
-              }
+              ...u,
+              ...res.data,
+            }
             : u
         )
       );
@@ -372,36 +370,52 @@ function SubDivison() {
   // Search
   // ---------------------------------------------------------------------------
 
+  const getLinkedSubdivision = (user) =>
+    subdivisions.find(
+      (subdivision) =>
+        Number(subdivision.id) ===
+        Number(
+          user.linked_id ??
+          user.subdivision_id ??
+          user.subdivisionId ??
+          user.subdivision?.id ??
+          user.linked_entity?.id
+        )
+    );
+
+  const getLinkedDistrict = (user, linkedSubdivision = getLinkedSubdivision(user)) =>
+    districts.find(
+      (district) =>
+        Number(district.id) ===
+        Number(
+          user.district_id ??
+          user.districtId ??
+          user.district?.id ??
+          linkedSubdivision?.district_id ??
+          linkedSubdivision?.districtId ??
+          linkedSubdivision?.district?.id
+        )
+    );
+
   const filteredUsers = users.filter((u) => {
     const query = search.toLowerCase().trim();
 
     if (!query) return true;
 
-    const linkedSubdivision = subdivisions.find(
-      (subdivision) =>
-        Number(subdivision.id) ===
-        Number(
-          u.linked_id ??
-          u.subdivision_id ??
-          u.subdivisionId ??
-          u.subdivision?.id
-        )
-    );
-
-    const linkedDistrict = districts.find(
-      (district) =>
-        Number(district.id) ===
-        Number(u.district_id ?? u.districtId ?? u.district?.id)
-    );
+    const linkedSubdivision = getLinkedSubdivision(u);
+    const linkedDistrict = getLinkedDistrict(u, linkedSubdivision);
 
     const districtName =
       linkedDistrict?.name ||
       u.district_name ||
       u.district?.name ||
+      linkedSubdivision?.district?.name ||
+      u.linked_entity?.district?.name ||
       "";
 
     const subdivisionName =
       linkedSubdivision?.name ||
+      u.linked_entity?.name ||
       u.subdivision_name ||
       u.subdivision?.name ||
       u.linked_name ||
@@ -545,11 +559,10 @@ function SubDivison() {
         {/* Create Form */}
 
         <div
-          className={`grid transition-all duration-300 ease-in-out ${
-            showForm
+          className={`grid transition-all duration-300 ease-in-out ${showForm
               ? "mb-6 grid-rows-[1fr] opacity-100"
               : "grid-rows-[0fr] opacity-0 pointer-events-none"
-          }`}
+            }`}
         >
           <div className="overflow-hidden">
 
@@ -645,8 +658,8 @@ function SubDivison() {
                         {!form.district_id
                           ? "Select district first"
                           : subdivisionsLoading
-                          ? "Loading subdivisions..."
-                          : "Select Subdivision"}
+                            ? "Loading subdivisions..."
+                            : "Select Subdivision"}
                       </option>
 
                       {filteredSubdivisions.map(
@@ -886,29 +899,11 @@ function SubDivison() {
                   <tbody className="divide-y divide-slate-100">
 
                     {paginatedUsers.map((u) => {
-
-                      const linkedSubdivision =
-                        subdivisions.find(
-                          (subdivision) =>
-                            Number(subdivision.id) ===
-                                Number(
-                                  u.linked_id ??
-                                  u.subdivision_id ??
-                                  u.subdivisionId ??
-                                  u.subdivision?.id
-                                )
-                        );
-
-                      const linkedDistrict =
-                        districts.find(
-                          (district) =>
-                            Number(district.id) ===
-                              Number(
-                                u.district_id ??
-                                u.districtId ??
-                                u.district?.id
-                              )
-                        );
+                      const linkedSubdivision = getLinkedSubdivision(u);
+                      const linkedDistrict = getLinkedDistrict(
+                        u,
+                        linkedSubdivision
+                      );
 
                       return (
                         <tr
@@ -1021,6 +1016,8 @@ function SubDivison() {
                               linkedDistrict?.name ||
                               u.district_name ||
                               u.district?.name ||
+                              linkedSubdivision?.district?.name ||
+                              u.linked_entity?.district?.name ||
                               "—"
 
                             )}
@@ -1067,6 +1064,7 @@ function SubDivison() {
                             ) : (
 
                               linkedSubdivision?.name ||
+                              u.linked_entity?.name ||
                               u.subdivision_name ||
                               u.subdivision?.name ||
                               u.linked_name ||
@@ -1081,11 +1079,10 @@ function SubDivison() {
                           <td className="px-5 py-3">
 
                             <span
-                              className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                                u.status === "active"
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${u.status === "active"
                                   ? "bg-green-100 text-green-700"
                                   : "bg-slate-100 text-slate-500"
-                              }`}
+                                }`}
                             >
                               {u.status || "active"}
                             </span>
@@ -1191,7 +1188,7 @@ function SubDivison() {
                     <span className="font-medium text-slate-700">
                       {Math.min(
                         currentPage *
-                          itemsPerPage,
+                        itemsPerPage,
                         filteredUsers.length
                       )}
                     </span>
@@ -1237,11 +1234,10 @@ function SubDivison() {
                         onClick={() =>
                           setCurrentPage(page)
                         }
-                        className={`min-w-9 rounded-lg px-3 py-2 text-sm font-medium ${
-                          currentPage === page
+                        className={`min-w-9 rounded-lg px-3 py-2 text-sm font-medium ${currentPage === page
                             ? "bg-orange-500 text-white"
                             : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                        }`}
+                          }`}
                       >
                         {page}
                       </button>

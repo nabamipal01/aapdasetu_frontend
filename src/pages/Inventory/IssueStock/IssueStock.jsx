@@ -425,6 +425,21 @@ function IssueStock() {
     }
   );
 
+  const inventoryItemsByCategory = inventoryItems.reduce(
+    (groups, item) => {
+      const category =
+        item.equipment_type ??
+        item.equipment?.equipment_type ??
+        item.category_name ??
+        "Uncategorized";
+
+      if (!groups[category]) groups[category] = [];
+      groups[category].push(item);
+      return groups;
+    },
+    {}
+  );
+
   // =========================================================
   // JSX
   // =========================================================
@@ -679,26 +694,23 @@ function IssueStock() {
                                   Select item
                                 </option>
 
-                                {inventoryItems.map(
-                                  (item) => (
-                                    <option
-                                      key={item.id}
-                                      value={item.id}
-                                    >
-                                      {
-                                        item.product_name
-                                      }{" "}
-                                      (
-                                      {
-                                        item.equipment_type
-                                      }
-                                      ) — Stock:{" "}
-                                      {
-                                        item.quantity
-                                      }
-                                    </option>
-                                  )
-                                )}
+                                {Object.entries(
+                                  inventoryItemsByCategory
+                                ).map(([category, items]) => (
+                                  <optgroup
+                                    key={category}
+                                    label={category}
+                                  >
+                                    {items.map((item) => (
+                                      <option
+                                        key={item.id}
+                                        value={item.id}
+                                      >
+                                        {item.product_name} — Stock: {item.quantity}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ))}
                               </select>
 
                               <input

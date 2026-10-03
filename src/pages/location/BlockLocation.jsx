@@ -396,6 +396,21 @@ function BlocksLocation() {
 	const handleBlockSelect = (
 		block
 	) => {
+		const latitude =
+			block.latitude == null ||
+			block.latitude === ""
+				? null
+				: Number(block.latitude);
+
+		const longitude =
+			block.longitude == null ||
+			block.longitude === ""
+				? null
+				: Number(block.longitude);
+
+		const hasCoordinates =
+			Number.isFinite(latitude) &&
+			Number.isFinite(longitude);
 
 		console.log(
 			"Selected block from map:",
@@ -535,18 +550,16 @@ function BlocksLocation() {
 				block.name ||
 				"",
 
-			address:
-				databaseBlock?.address ||
-				"",
+			address: "",
 
 			latitude:
-				block.latitude != null
-					? block.latitude.toFixed(6)
+				hasCoordinates
+					? latitude.toFixed(6)
 					: "",
 
 			longitude:
-				block.longitude != null
-					? block.longitude.toFixed(6)
+				hasCoordinates
+					? longitude.toFixed(6)
 					: "",
 
 		}));
@@ -556,18 +569,15 @@ function BlocksLocation() {
 		 * Exact clicked position
 		 */
 
-		if (
-			block.latitude != null &&
-			block.longitude != null
-		) {
+		if (hasCoordinates) {
 
 			setPosition({
 
 				lat:
-					block.latitude,
+					latitude,
 
 				lng:
-					block.longitude,
+					longitude,
 
 			});
 
@@ -1136,6 +1146,7 @@ function BlocksLocation() {
 								type="text"
 								value={form.latitude}
 								readOnly
+								placeholder="Select block"
 								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
 							/>
 
@@ -1154,6 +1165,7 @@ function BlocksLocation() {
 								type="text"
 								value={form.longitude}
 								readOnly
+								placeholder="Select block"
 								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
 							/>
 

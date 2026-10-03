@@ -1,69 +1,47 @@
-const API_BASE = "http://localhost/AapdaSetu/backend/api";
+import { get, patch } from "./api";
+
+const getResponseData = (response, fallbackMessage) => {
+  if (response?.success === false) {
+    throw new Error(response.message || fallbackMessage);
+  }
+
+  return response?.data;
+};
+
 // District dropdown
 export const getDistricts = async () => {
-  const response = await fetch(
-    `${API_BASE}/districts/list.php`
-  );
+  const response = await get("/api/districts/list.php");
+  const data = getResponseData(response, "Failed to fetch districts.");
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch districts: ${response.status}`
-    );
-  }
-
-  const result = await response.json();
-
-  if (!result.success) {
-    throw new Error(result.message || "Failed to fetch districts.");
-  }
-
-  return result.data;
+  return Array.isArray(data?.districts)
+    ? data.districts
+    : Array.isArray(data)
+    ? data
+    : [];
 };
 
 // District user dropdown
-export const getDistrictUsers = async () => {
-  const response = await fetch(
-    `${API_BASE}/users/list.php?role=district`
-  );
+export const getDistrictUsers = async (districtId) => {
+  const response = await get("/api/inventory/return/district_users.php", {
+    district_id: districtId,
+  });
+  const data = getResponseData(response, "Failed to fetch district users.");
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch district users: ${response.status}`
-    );
-  }
-
-  const result = await response.json();
-
-  if (!result.success) {
-    throw new Error(
-      result.message || "Failed to fetch district users."
-    );
-  }
-
-  return result.data;
+  return Array.isArray(data?.users) ? data.users : [];
 };
 
 // Stock dropdown
 export const getAssignedItems = async (districtUserId) => {
-  const response = await fetch(
-    `${API_BASE}/inventory/return/items.php?district_user_id=${districtUserId}`
-  );
+  const response = await get("/api/inventory/return/items.php", {
+    district_user_id: districtUserId,
+  });
+  const data = getResponseData(response, "Failed to fetch stock items.");
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch stock items: ${response.status}`
-    );
-  }
-
-  const result = await response.json();
-
-  if (!result.success) {
-    throw new Error(
-      result.message || "Failed to fetch stock items."
-    );
-  }
-
-  return result.data;
+  return Array.isArray(data?.items)
+    ? data.items
+    : Array.isArray(data)
+    ? data
+    : [];
 };
 
 // Return stock
@@ -71,36 +49,17 @@ export const returnStock = async ({
   districtUserId,
   items,
 }) => {
-  const response = await fetch(
-    `${API_BASE}/inventory/return/update.php`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        district_user_id: Number(districtUserId),
-        items: items.map((item) => ({
-          inventory_id: Number(item.inventory_id),
-          issue_id: Number(item.issue_id),
-          return_quantity: Number(item.return_quantity),
-        })),
-      }),
-    }
-  );
+  const result = await patch("/api/inventory/return/update.php", {
+    district_user_id: Number(districtUserId),
+    items: items.map((item) => ({
+      inventory_id: Number(item.inventory_id),
+      issue_id: Number(item.issue_id),
+      return_quantity: Number(item.return_quantity),
+    })),
+  });
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to return stock: ${response.status}`
-    );
-  }
-
-  const result = await response.json();
-
-  if (!result.success) {
-    throw new Error(
-      result.message || "Stock return failed."
-    );
+  if (result?.success === false) {
+    throw new Error(result.message || "Stock return failed.");
   }
 
   return result;

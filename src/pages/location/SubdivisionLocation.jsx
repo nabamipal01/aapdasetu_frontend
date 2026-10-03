@@ -245,6 +245,8 @@ function SubdivisionLocation() {
 
 			name: "",
 
+			address: "",
+
 			latitude: "",
 
 			longitude: "",
@@ -263,6 +265,21 @@ function SubdivisionLocation() {
 	const handleSubdivisionSelect = (
 		subdivision
 	) => {
+		const latitude =
+			subdivision.latitude == null ||
+			subdivision.latitude === ""
+				? null
+				: Number(subdivision.latitude);
+
+		const longitude =
+			subdivision.longitude == null ||
+			subdivision.longitude === ""
+				? null
+				: Number(subdivision.longitude);
+
+		const hasCoordinates =
+			Number.isFinite(latitude) &&
+			Number.isFinite(longitude);
 
 		console.log(
 			"Selected subdivision:",
@@ -309,14 +326,16 @@ function SubdivisionLocation() {
 				subdivision.name ||
 				"",
 
+			address: "",
+
 			latitude:
-				subdivision.latitude != null
-					? subdivision.latitude.toFixed(6)
+				hasCoordinates
+					? latitude.toFixed(6)
 					: "",
 
 			longitude:
-				subdivision.longitude != null
-					? subdivision.longitude.toFixed(6)
+				hasCoordinates
+					? longitude.toFixed(6)
 					: "",
 
 		}));
@@ -332,18 +351,15 @@ function SubdivisionLocation() {
 		|
 		*/
 
-		if (
-			subdivision.latitude != null &&
-			subdivision.longitude != null
-		) {
+		if (hasCoordinates) {
 
 			setPosition({
 
 				lat:
-					subdivision.latitude,
+					latitude,
 
 				lng:
-					subdivision.longitude,
+					longitude,
 
 			});
 
@@ -922,7 +938,7 @@ function SubdivisionLocation() {
 									name="latitude"
 									value={form.latitude}
 									readOnly
-									placeholder="Select from map"
+									placeholder="Select subdivision"
 									className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
 								/>
 
@@ -943,7 +959,7 @@ function SubdivisionLocation() {
 									name="longitude"
 									value={form.longitude}
 									readOnly
-									placeholder="Select from map"
+									placeholder="Select subdivision"
 									className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
 								/>
 
