@@ -200,7 +200,7 @@ const normalizeTask = (task = {}) => {
     status: task.status ?? "",
     due_at: task.due_at ?? null,
     started_at: task.started_at ?? null,
-    completed_at: task.completed_at ?? null,
+    // completed_at: task.completed_at ?? null,
     created_at: task.created_at ?? null,
     updated_at: task.updated_at ?? null,
   };
@@ -864,9 +864,9 @@ function Task() {
                       Status
                     </th>
 
-                    <th className="px-5 py-3 font-semibold">
+                    {/* <th className="px-5 py-3 font-semibold">
                       Completed
-                    </th>
+                    </th> */}
 
                     <th className="px-5 py-3 font-semibold">
                       Created By
@@ -1020,12 +1020,12 @@ function Task() {
                       </td>
 
                       {/* COMPLETED */}
-
+{/* 
                       <td className="whitespace-nowrap px-5 py-4 text-slate-500">
                         {formatDateTime(
                           task.completed_at
                         )}
-                      </td>
+                      </td> */}
 
                       {/* CREATED BY */}
 

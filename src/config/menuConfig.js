@@ -99,7 +99,7 @@ const commonMenus = [
       path: "/inventory/overview",
     },
     {
-      label: "Equipment",
+      label: "Equipment Category",
       icon: Wrench,
       path: "/inventory/equipment",
     },

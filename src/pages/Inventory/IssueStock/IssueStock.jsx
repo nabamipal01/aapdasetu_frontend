@@ -326,7 +326,57 @@ function IssueStock() {
         }),
       };
 
-      await createStockIssue(payload);
+      const response = await createStockIssue(payload);
+      const createdIssue =
+        response?.data?.issue ??
+        response?.issue ??
+        response?.data ??
+        response ??
+        {};
+      const issuedItems = itemsPayload.map((issuedItem) => {
+        const inventoryItem = inventoryItems.find(
+          (item) =>
+            Number(item.inventory_id ?? item.id) ===
+            issuedItem.inventory_id
+        );
+
+        return {
+          ...inventoryItem,
+          ...issuedItem,
+          product_name:
+            inventoryItem?.product_name ??
+            inventoryItem?.item_name ??
+            `Inventory item #${issuedItem.inventory_id}`,
+          equipment_type:
+            inventoryItem?.equipment_type ??
+            inventoryItem?.equipment?.equipment_type ??
+            inventoryItem?.category_name ??
+            "—",
+        };
+      });
+      const selectedDistrictUser = districtUsers.find(
+        (user) =>
+          Number(user.id) === Number(form.district_user_id)
+      );
+
+      setPreviewIssue({
+        ...createdIssue,
+        id:
+          createdIssue?.id ??
+          createdIssue?.issue_id ??
+          response?.issue_id ??
+          response?.id,
+        district_user_id: Number(form.district_user_id),
+        district_user_name:
+          createdIssue?.district_user_name ??
+          selectedDistrictUser?.name,
+        storage_location: payload.storage_location,
+        remarks: payload.remarks ?? "",
+        created_at:
+          createdIssue?.created_at ??
+          new Date().toISOString(),
+        items: issuedItems,
+      });
 
       setSuccess(
         "Stock issued successfully."
@@ -1133,96 +1183,85 @@ function IssueStock() {
       ====================================================== */}
       {previewIssue && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
           onClick={() =>
             setPreviewIssue(null)
           }
         >
-
           <div
-            className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stock-issue-preview-title"
+            className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10"
             onClick={(e) =>
               e.stopPropagation()
             }
           >
-
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Stock Issue Preview
-                </h2>
-
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Issue #
-                  {previewIssue.id ??
-                    previewIssue.issue_id}
-                </p>
+            <div className="flex items-start justify-between border-b border-slate-100 bg-gradient-to-r from-orange-50 via-white to-white px-6 py-5 sm:px-7">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+                  <ArrowDownCircle size={22} />
+                </div>
+                <div>
+                  <h2
+                    id="stock-issue-preview-title"
+                    className="text-xl font-bold tracking-tight text-slate-900"
+                  >
+                    Stock Issue Preview
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Review the issue record and delivery details.
+                  </p>
+                  <span className="mt-3 inline-flex rounded-full border border-orange-200 bg-white px-3 py-1 text-xs font-semibold text-orange-700">
+                    Issue #
+                    {previewIssue.id ??
+                      previewIssue.issue_id ??
+                      "—"}
+                  </span>
+                </div>
               </div>
-
               <button
                 type="button"
                 onClick={() =>
                   setPreviewIssue(null)
                 }
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close stock issue preview"
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-white hover:text-slate-700"
               >
                 <X size={18} />
               </button>
-
             </div>
 
-            {/* Modal Body */}
-            <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6">
-
-              {/* Details */}
-              <div className="grid gap-4 sm:grid-cols-2">
-
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Issue ID
-                  </p>
-
-                  <p className="mt-1 text-sm font-medium text-slate-900">
-                    {previewIssue.district_user_name ||
-                      districtUsers.find(
-                        (u) =>
-                          Number(u.id) === Number(previewIssue.district_user_id)
-                      )?.name ||
-                      "—"}
-                  </p>
-                </div>
-
-                <div>
+            <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6 sm:p-7">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     District User
                   </p>
-
-                  <p className="mt-1 text-sm font-medium text-slate-900">
+                  <p className="mt-2 break-words text-sm font-semibold text-slate-900">
                     {previewIssue.district_user_name ??
+                      districtUsers.find(
+                        (user) =>
+                          Number(user.id) ===
+                          Number(previewIssue.district_user_id)
+                      )?.name ??
                       previewIssue.district_user_id ??
                       "—"}
                   </p>
                 </div>
-
-                <div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Storage Location
+                    Store Location
                   </p>
-
-                  <p className="mt-1 text-sm text-slate-700">
-                    {previewIssue.storage_location ||
-                      "—"}
+                  <p className="mt-2 break-words text-sm font-semibold text-slate-900">
+                    {previewIssue.storage_location || "—"}
                   </p>
                 </div>
-
-                <div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:col-span-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Issued At
                   </p>
-
-                  <p className="mt-1 text-sm text-slate-700">
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
                     {previewIssue.created_at
                       ? new Date(
                         previewIssue.created_at
@@ -1230,114 +1269,88 @@ function IssueStock() {
                       : "—"}
                   </p>
                 </div>
-
               </div>
 
-              {/* Notes */}
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Notes
-                </p>
-
-                <div className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-                  {previewIssue.remarks ||
-                    "No notes provided."}
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Issued Items
+                  </p>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                    {previewIssue.items?.length ?? 0}{" "}
+                    {(previewIssue.items?.length ?? 0) === 1
+                      ? "item"
+                      : "items"}
+                  </span>
                 </div>
-              </div>
-
-              {/* Issued Items */}
-              <div>
-
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Issued Items
-                </p>
-
-                {previewIssue.items?.length >
-                  0 ? (
-                  <div className="overflow-hidden rounded-lg border border-slate-200">
-
-                    <table className="w-full text-left text-sm">
-
-                      <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                        <tr>
-
-                          <th className="px-4 py-3 font-semibold">
+                {previewIssue.items?.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {previewIssue.items.map((item, index) => (
+                      <div
+                        key={item.id ?? item.inventory_id ?? index}
+                        className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-slate-500">
                             Item
-                          </th>
-
-                          <th className="px-4 py-3 font-semibold">
+                          </p>
+                          <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                            {item.product_name ??
+                              item.item_name ??
+                              item.inventory_id ??
+                              "—"}
+                          </p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-slate-500">
                             Equipment Type
-                          </th>
-
-                          <th className="px-4 py-3 text-right font-semibold">
+                          </p>
+                          <p className="mt-1 break-words text-sm text-slate-700">
+                            {item.equipment_type ??
+                              item.equipment?.equipment_type ??
+                              item.category_name ??
+                              "—"}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
+                          <p className="text-xs font-medium text-slate-500">
                             Quantity
-                          </th>
-
-                        </tr>
-                      </thead>
-
-                      <tbody className="divide-y divide-slate-100">
-
-                        {previewIssue.items.map(
-                          (item, index) => (
-                            <tr
-                              key={
-                                item.id ??
-                                index
-                              }
-                            >
-
-                              <td className="px-4 py-3 font-medium text-slate-800">
-                                {item.product_name ??
-                                  item.item_name ??
-                                  item.inventory_id ??
-                                  "—"}
-                              </td>
-
-                              <td className="px-4 py-3 text-slate-500">
-                                {item.equipment_type ??
-                                  "—"}
-                              </td>
-
-                              <td className="px-4 py-3 text-right font-semibold text-slate-700">
-                                {item.quantity ??
-                                  "—"}
-                              </td>
-
-                            </tr>
-                          )
-                        )}
-
-                      </tbody>
-                    </table>
-
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {item.quantity ?? "—"}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
-                    No item details available
-                    for this issue.
-                  </div>
+                  <p className="px-4 py-5 text-center text-sm text-slate-500">
+                    No item details available for this issue.
+                  </p>
                 )}
-
               </div>
 
+              <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-orange-800">
+                  Note
+                </p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+                  {previewIssue.remarks || "No notes provided."}
+                </p>
+              </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4">
-
+            <div className="flex justify-end border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-7">
               <button
                 type="button"
                 onClick={() =>
                   setPreviewIssue(null)
                 }
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
               >
                 Close
               </button>
-
             </div>
-
           </div>
         </div>
       )}

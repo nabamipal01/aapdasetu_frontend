@@ -1,6 +1,17 @@
 
 import { useEffect, useState } from "react";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  Clock3,
+  Eye,
+  Link2,
+  MapPin,
+  Monitor,
+  Pencil,
+  Trash2,
+  UserRound,
+  X,
+} from "lucide-react";
 
 import {
   createTraining,
@@ -1042,193 +1053,147 @@ function Training() {
 
       {showViewModal &&
         viewTraining && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-
-            <div className="max-h-[95vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-
-                <div>
-                  <h2 className="text-xl font-bold text-slate-800">
-                    Training Details
-                  </h2>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    View training event information
-                  </p>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={closeViewModal}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="training-view-title"
+              className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between border-b border-slate-100 bg-gradient-to-r from-blue-50 via-white to-white px-6 py-5 sm:px-7">
+                <div className="flex min-w-0 items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                    <CalendarDays size={22} />
+                  </div>
+                  <div className="min-w-0">
+                    <h2
+                      id="training-view-title"
+                      className="text-xl font-bold tracking-tight text-slate-900"
+                    >
+                      Training Details
+                    </h2>
+                    <p className="mt-1 break-words text-sm text-slate-500">
+                      {viewTraining.event_name || "Training event"}
+                    </p>
+                    <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-semibold capitalize text-blue-700">
+                      <Monitor size={13} />
+                      {viewTraining.event_mode || "Mode not specified"}
+                    </span>
+                  </div>
                 </div>
-
                 <button
                   type="button"
-                  onClick={
-                    closeViewModal
-                  }
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-xl text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  onClick={closeViewModal}
+                  aria-label="Close training details"
+                  className="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-white hover:text-slate-700"
                 >
-                  ×
+                  <X size={18} />
                 </button>
-
               </div>
 
-              {/* Details */}
-              <div className="space-y-5 p-6">
-
-                {/* Event Name */}
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Event Name
-                  </p>
-
-                  <p className="mt-1 text-base font-semibold text-slate-800">
-                    {viewTraining.event_name ||
-                      "N/A"}
-                  </p>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Description
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-700">
-                    {viewTraining.description ||
-                      "N/A"}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                  {/* Mode */}
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Event Mode
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6 sm:p-7">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <CalendarDays size={15} />
+                      <p className="text-xs font-semibold uppercase tracking-wider">
+                        Start Date
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">
+                      {viewTraining.start_date || "Not specified"}
                     </p>
-
-                    <p className="mt-1 text-sm font-medium capitalize text-slate-800">
-                      {viewTraining.event_mode ||
-                        "N/A"}
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <Clock3 size={15} />
+                      <p className="text-xs font-semibold uppercase tracking-wider">
+                        End Date
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">
+                      {viewTraining.end_date || "Not specified"}
                     </p>
                   </div>
 
-                  {/* Location */}
-                  {(viewTraining.event_mode ===
-                    "offline" ||
-                    viewTraining.event_mode ===
-                      "hybrid") && (
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        Location
-                      </p>
-
-                      <p className="mt-1 text-sm text-slate-700">
-                        {viewTraining.event_location ||
-                          "N/A"}
+                  {(viewTraining.event_mode === "offline" ||
+                    viewTraining.event_mode === "hybrid") && (
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:col-span-2">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <MapPin size={15} />
+                        <p className="text-xs font-semibold uppercase tracking-wider">
+                          Location
+                        </p>
+                      </div>
+                      <p className="mt-2 break-words text-sm font-semibold text-slate-900">
+                        {viewTraining.event_location || "Not specified"}
                       </p>
                     </div>
                   )}
 
-                  {/* Meeting Link */}
-                  {(viewTraining.event_mode ===
-                    "online" ||
-                    viewTraining.event_mode ===
-                      "hybrid") && (
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        Meeting Link
-                      </p>
-
+                  {(viewTraining.event_mode === "online" ||
+                    viewTraining.event_mode === "hybrid") && (
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:col-span-2">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Link2 size={15} />
+                        <p className="text-xs font-semibold uppercase tracking-wider">
+                          Meeting Link
+                        </p>
+                      </div>
                       {viewTraining.meeting_link ? (
                         <a
-                          href={
-                            viewTraining.meeting_link
-                          }
+                          href={viewTraining.meeting_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-1 block break-all text-sm font-medium text-blue-600 hover:underline"
+                          className="mt-2 block break-all text-sm font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-800"
                         >
-                          {
-                            viewTraining.meeting_link
-                          }
+                          {viewTraining.meeting_link}
                         </a>
                       ) : (
-                        <p className="mt-1 text-sm text-slate-400">
-                          No meeting link
+                        <p className="mt-2 text-sm text-slate-500">
+                          No meeting link provided.
                         </p>
                       )}
                     </div>
                   )}
 
-                  {/* Start */}
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Start Date
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-700">
-                      {viewTraining.start_date ||
-                        "N/A"}
-                    </p>
-                  </div>
-
-                  {/* End */}
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      End Date
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-700">
-                      {viewTraining.end_date ||
-                        "N/A"}
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:col-span-2">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <UserRound size={15} />
+                      <p className="text-xs font-semibold uppercase tracking-wider">
+                        Organizer
+                      </p>
+                    </div>
+                    <p className="mt-2 break-words text-sm font-semibold text-slate-900">
+                      {viewTraining.event_organizer || "Not specified"}
                     </p>
                   </div>
-
                 </div>
 
-                {/* Organizer */}
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Organizer
+                <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-800">
+                    Description
                   </p>
-
-                  <p className="mt-1 text-sm text-slate-700">
-                    {viewTraining.event_organizer ||
-                      "N/A"}
+                  <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+                    {viewTraining.description || "No description provided."}
                   </p>
                 </div>
-
-                {/* Training ID */}
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Training ID
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-700">
-                    {viewTraining.training_event_id ||
-                      "N/A"}
-                  </p>
-                </div>
-
-                {/* Close */}
-                <div className="flex justify-end border-t border-slate-200 pt-5">
-
-                  <button
-                    type="button"
-                    onClick={
-                      closeViewModal
-                    }
-                    className="rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-900"
-                  >
-                    Close
-                  </button>
-
-                </div>
-
               </div>
 
+              <div className="flex shrink-0 justify-end border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-7">
+                <button
+                  type="button"
+                  onClick={closeViewModal}
+                  className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+                >
+                  Close
+                </button>
+              </div>
             </div>
-
           </div>
         )}
 
