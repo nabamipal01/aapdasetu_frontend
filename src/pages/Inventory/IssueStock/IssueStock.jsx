@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   listInventoryItems,
   createStockIssue,
@@ -103,8 +103,8 @@ function IssueStock() {
 
         setIssues(
           data?.issues ??
-            data?.items ??
-            (Array.isArray(data) ? data : [])
+          data?.items ??
+          (Array.isArray(data) ? data : [])
         );
 
         setPagination(
@@ -142,8 +142,8 @@ function IssueStock() {
       const districtList = Array.isArray(response?.data?.districts)
         ? response.data.districts
         : Array.isArray(response?.data)
-        ? response.data
-        : [];
+          ? response.data
+          : [];
 
       setDistricts(districtList);
     } catch (err) {
@@ -212,7 +212,7 @@ function IssueStock() {
       selectedDistrict?.name &&
       userDistrictName &&
       String(userDistrictName).trim().toLowerCase() ===
-        String(selectedDistrict.name).trim().toLowerCase()
+      String(selectedDistrict.name).trim().toLowerCase()
     );
   });
 
@@ -229,6 +229,7 @@ function IssueStock() {
     setSelectedItems((prev) => [
       ...prev,
       {
+        category: "",
         inventory_id: "",
         quantity: "",
       },
@@ -250,9 +251,10 @@ function IssueStock() {
       prev.map((row, i) =>
         i === idx
           ? {
-              ...row,
-              [field]: value,
-            }
+            ...row,
+            [field]: value,
+            ...(field === "category" ? { inventory_id: "" } : {}),
+          }
           : row
       )
     );
@@ -336,7 +338,7 @@ function IssueStock() {
     } catch (err) {
       setError(
         err.message ||
-          "Failed to issue stock"
+        "Failed to issue stock"
       );
     } finally {
       setSubmitting(false);
@@ -373,7 +375,7 @@ function IssueStock() {
     } catch (err) {
       setError(
         err.message ||
-          "Failed to delete stock issue"
+        "Failed to delete stock issue"
       );
     }
   };
@@ -392,8 +394,8 @@ function IssueStock() {
       return (
         String(
           issue.id ??
-            issue.issue_id ??
-            ""
+          issue.issue_id ??
+          ""
         )
           .toLowerCase()
           .includes(search) ||
@@ -438,6 +440,9 @@ function IssueStock() {
       return groups;
     },
     {}
+  );
+  const inventoryCategories = Object.keys(inventoryItemsByCategory).sort(
+    (first, second) => first.localeCompare(second)
   );
 
   // =========================================================
@@ -531,11 +536,10 @@ function IssueStock() {
               ISSUE FORM
           ================================================== */}
           <div
-            className={`grid transition-all duration-300 ease-in-out ${
-              showForm
+            className={`grid transition-all duration-300 ease-in-out ${showForm
                 ? "mb-6 grid-rows-[1fr] opacity-100"
                 : "pointer-events-none grid-rows-[0fr] opacity-0"
-            }`}
+              }`}
           >
             <div className="overflow-hidden">
               <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -593,8 +597,8 @@ function IssueStock() {
                             {loading
                               ? "Loading district users..."
                               : filteredDistrictUsers.length === 0
-                              ? "No users for this district"
-                              : "Select district user"}
+                                ? "No users for this district"
+                                : "Select district user"}
                           </option>
 
                           {filteredDistrictUsers.map((user) => (
@@ -609,7 +613,7 @@ function IssueStock() {
                     {/* Storage Location */}
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Storage Location *
+                        Store Location *
                       </label>
 
                       <input
@@ -628,7 +632,7 @@ function IssueStock() {
                     {/* Remarks */}
                     <div className="sm:col-span-2">
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Notes
+                        Note
                       </label>
 
                       <input
@@ -647,7 +651,7 @@ function IssueStock() {
                     <div className="mb-2 flex items-center justify-between">
 
                       <label className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Items to Issue *
+                        Product List *
                       </label>
 
                       <button
@@ -662,73 +666,112 @@ function IssueStock() {
                     </div>
 
                     {selectedItems.length ===
-                    0 ? (
+                      0 ? (
                       <p className="rounded-lg border border-dashed border-slate-300 py-4 text-center text-xs text-slate-400">
-                        Click "Add Item" to select
-                        inventory items
+                        Add a row, then choose a category before selecting a product.
                       </p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
 
                         {selectedItems.map(
                           (row, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center gap-2"
+                              className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_7rem_auto] sm:items-end"
                             >
+                              <div>
+                                <label
+                                  htmlFor={`issue-category-${idx}`}
+                                  className="mb-1.5 block text-xs font-semibold text-slate-600"
+                                >
+                                  Category *
+                                </label>
+                                <select
+                                  id={`issue-category-${idx}`}
+                                  value={row.category}
+                                  onChange={(e) =>
+                                    updateItemRow(
+                                      idx,
+                                      "category",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                >
+                                  <option value="">
+                                    {inventoryCategories.length
+                                      ? "Select category"
+                                      : "No categories available"}
+                                  </option>
+                                  {inventoryCategories.map((category) => (
+                                    <option key={category} value={category}>
+                                      {category}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
 
-                              <select
-                                value={
-                                  row.inventory_id
-                                }
-                                onChange={(e) =>
-                                  updateItemRow(
-                                    idx,
-                                    "inventory_id",
-                                    e.target.value
-                                  )
-                                }
-                                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-400"
-                              >
-                                <option value="">
-                                  Select item
-                                </option>
-
-                                {Object.entries(
-                                  inventoryItemsByCategory
-                                ).map(([category, items]) => (
-                                  <optgroup
-                                    key={category}
-                                    label={category}
-                                  >
-                                    {items.map((item) => (
+                              <div>
+                                <label
+                                  htmlFor={`issue-product-${idx}`}
+                                  className="mb-1.5 block text-xs font-semibold text-slate-600"
+                                >
+                                  Product *
+                                </label>
+                                <select
+                                  id={`issue-product-${idx}`}
+                                  value={row.inventory_id}
+                                  onChange={(e) =>
+                                    updateItemRow(
+                                      idx,
+                                      "inventory_id",
+                                      e.target.value
+                                    )
+                                  }
+                                  disabled={!row.category}
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                                >
+                                  <option value="">
+                                    {row.category
+                                      ? "Select product"
+                                      : "Select category first"}
+                                  </option>
+                                  {(inventoryItemsByCategory[row.category] || []).map(
+                                    (item) => (
                                       <option
-                                        key={item.id}
-                                        value={item.id}
+                                        key={item.inventory_id ?? item.id}
+                                        value={item.inventory_id ?? item.id}
                                       >
-                                        {item.product_name} — Stock: {item.quantity}
+                                        {item.product_name || "Unnamed product"} — Stock: {item.quantity ?? 0}
                                       </option>
-                                    ))}
-                                  </optgroup>
-                                ))}
-                              </select>
+                                    )
+                                  )}
+                                </select>
+                              </div>
 
-                              <input
-                                type="number"
-                                min="1"
-                                value={
-                                  row.quantity
-                                }
-                                onChange={(e) =>
-                                  updateItemRow(
-                                    idx,
-                                    "quantity",
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="Qty"
-                                className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-center text-sm outline-none focus:border-orange-400"
-                              />
+                              <div>
+                                <label
+                                  htmlFor={`issue-quantity-${idx}`}
+                                  className="mb-1.5 block text-xs font-semibold text-slate-600"
+                                >
+                                  Quantity *
+                                </label>
+                                <input
+                                  id={`issue-quantity-${idx}`}
+                                  type="number"
+                                  min="1"
+                                  value={row.quantity}
+                                  onChange={(e) =>
+                                    updateItemRow(
+                                      idx,
+                                      "quantity",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Qty"
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-center text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                />
+                              </div>
 
                               <button
                                 type="button"
@@ -737,7 +780,8 @@ function IssueStock() {
                                     idx
                                   )
                                 }
-                                className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                aria-label={`Remove product row ${idx + 1}`}
+                                className="flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                               >
                                 <X size={15} />
                               </button>
@@ -880,7 +924,7 @@ function IssueStock() {
                     <tr>
 
                       <th className="px-5 py-3 font-semibold">
-                        ID
+                        S.No.
                       </th>
 
                       <th className="px-5 py-3 font-semibold">
@@ -888,11 +932,11 @@ function IssueStock() {
                       </th>
 
                       <th className="px-5 py-3 font-semibold">
-                        Storage Location
+                        Store Location
                       </th>
 
                       <th className="px-5 py-3 font-semibold">
-                        Notes
+                        Note
                       </th>
 
                       <th className="px-5 py-3 font-semibold">
@@ -909,7 +953,7 @@ function IssueStock() {
                   <tbody className="divide-y divide-slate-100">
 
                     {filteredIssues.map(
-                      (issue) => {
+                      (issue, index) => {
                         const id =
                           issue.id ??
                           issue.issue_id;
@@ -922,7 +966,7 @@ function IssueStock() {
 
                             {/* ID */}
                             <td className="px-5 py-3 text-slate-500">
-                              {id}
+                              {index + 1}
                             </td>
 
                             {/* District User */}
@@ -950,8 +994,8 @@ function IssueStock() {
                             <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-400">
                               {issue.created_at
                                 ? new Date(
-                                    issue.created_at
-                                  ).toLocaleString()
+                                  issue.created_at
+                                ).toLocaleString()
                                 : "—"}
                             </td>
 
@@ -959,26 +1003,26 @@ function IssueStock() {
                                 ACTION BUTTONS
                             ================================================== */}
                             <td className="px-5 py-3">
-  <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
 
-    <button
-      type="button"
-      onClick={() => setPreviewIssue(issue)}
-      title="Preview"
-    >
-      <Eye size={17} />
-    </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewIssue(issue)}
+                                  title="Preview"
+                                >
+                                  <Eye size={17} />
+                                </button>
 
-    <button
-      type="button"
-      onClick={() => handleDelete(id)}
-      title="Delete"
-    >
-      <Trash2 size={17} />
-    </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(id)}
+                                  title="Delete"
+                                >
+                                  <Trash2 size={17} />
+                                </button>
 
-  </div>
-</td>
+                              </div>
+                            </td>
 
                           </tr>
                         );
@@ -995,7 +1039,7 @@ function IssueStock() {
             ================================================== */}
             {!loading &&
               pagination.total_pages >
-                1 && (
+              1 && (
                 <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
 
                   <p className="text-sm text-slate-500">
@@ -1004,12 +1048,12 @@ function IssueStock() {
 
                     <span className="font-medium text-slate-700">
                       {pagination.total_items ===
-                      0
+                        0
                         ? 0
                         : (pagination.page -
-                            1) *
-                            pagination.limit +
-                          1}
+                          1) *
+                        pagination.limit +
+                        1}
                     </span>
 
                     {" "}to{" "}
@@ -1017,7 +1061,7 @@ function IssueStock() {
                     <span className="font-medium text-slate-700">
                       {Math.min(
                         pagination.page *
-                          pagination.limit,
+                        pagination.limit,
                         pagination.total_items
                       )}
                     </span>
@@ -1142,11 +1186,11 @@ function IssueStock() {
 
                   <p className="mt-1 text-sm font-medium text-slate-900">
                     {previewIssue.district_user_name ||
-                        districtUsers.find(
-                          (u) =>
-                            Number(u.id) === Number(previewIssue.district_user_id)
-                        )?.name ||
-                        "—"}
+                      districtUsers.find(
+                        (u) =>
+                          Number(u.id) === Number(previewIssue.district_user_id)
+                      )?.name ||
+                      "—"}
                   </p>
                 </div>
 
@@ -1181,8 +1225,8 @@ function IssueStock() {
                   <p className="mt-1 text-sm text-slate-700">
                     {previewIssue.created_at
                       ? new Date(
-                          previewIssue.created_at
-                        ).toLocaleString()
+                        previewIssue.created_at
+                      ).toLocaleString()
                       : "—"}
                   </p>
                 </div>
@@ -1209,7 +1253,7 @@ function IssueStock() {
                 </p>
 
                 {previewIssue.items?.length >
-                0 ? (
+                  0 ? (
                   <div className="overflow-hidden rounded-lg border border-slate-200">
 
                     <table className="w-full text-left text-sm">

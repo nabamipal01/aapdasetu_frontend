@@ -82,6 +82,7 @@ function SubDivison() {
         role: "subdivision",
         page: 1,
         per_page: 50,
+        status: "active"
       });
       setUsers(
         Array.isArray(res?.data?.users)
@@ -264,20 +265,38 @@ function SubDivison() {
   // ---------------------------------------------------------------------------
 
   const startEdit = (u) => {
+    const linkedSubdivision = getLinkedSubdivision(u);
+    const linkedDistrict = getLinkedDistrict(
+      u,
+      linkedSubdivision
+    );
+
+    const districtId =
+      u.district_id ??
+      u.districtId ??
+      u.district?.id ??
+      linkedSubdivision?.district_id ??
+      linkedSubdivision?.districtId ??
+      linkedSubdivision?.district?.id ??
+      linkedDistrict?.id ??
+      "";
+
+    const subdivisionId =
+      u.linked_id ??
+      u.subdivision_id ??
+      u.subdivisionId ??
+      u.subdivision?.id ??
+      linkedSubdivision?.id ??
+      "";
+
     setEditId(u.id);
 
     setEditData({
       name: u.name || "",
       email: u.email || "",
       phone: u.phone || "",
-      district_id:
-        u.district_id ?? u.districtId ?? u.district?.id ?? "",
-      linked_id:
-        u.linked_id ??
-        u.subdivision_id ??
-        u.subdivisionId ??
-        u.subdivision?.id ??
-        "",
+      district_id: districtId,
+      linked_id: subdivisionId,
     });
 
     setError("");
@@ -341,7 +360,7 @@ function SubDivison() {
   const handleDelete = async (id, name) => {
     if (
       !window.confirm(
-        `Delete subdivision user "${name}"?`
+        `Deactivate subdivision user "${name}"?`
       )
     ) {
       return;
@@ -353,16 +372,17 @@ function SubDivison() {
 
       await deleteUser(id);
 
-      setUsers((prev) =>
-        prev.filter((u) => u.id !== id)
+      setSuccess(
+        `Subdivision user "${name}" deactivated successfully.`
       );
 
-      // Reset pagination after deleting
-      setCurrentPage(1);
+      // Reload only active subdivision users
+      await fetchUsers();
 
-      setSuccess("Subdivision user deleted.");
     } catch (err) {
-      setError(err.message || "Failed to delete user");
+      setError(
+        err.message || "Failed to deactivate subdivision user"
+      );
     }
   };
 
@@ -475,6 +495,15 @@ function SubDivison() {
   // UI
   // ---------------------------------------------------------------------------
 
+  const editSubdivisions = subdivisions.filter(
+    (subdivision) =>
+      Number(
+        subdivision.district_id ??
+        subdivision.districtId ??
+        subdivision.district?.id
+      ) === Number(editData.district_id)
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8">
       <div className="mx-auto max-w-7xl">
@@ -560,8 +589,8 @@ function SubDivison() {
 
         <div
           className={`grid transition-all duration-300 ease-in-out ${showForm
-              ? "mb-6 grid-rows-[1fr] opacity-100"
-              : "grid-rows-[0fr] opacity-0 pointer-events-none"
+            ? "mb-6 grid-rows-[1fr] opacity-100"
+            : "grid-rows-[0fr] opacity-0 pointer-events-none"
             }`}
         >
           <div className="overflow-hidden">
@@ -977,101 +1006,58 @@ function SubDivison() {
                           {/* District */}
 
                           <td className="px-5 py-3 text-slate-600">
-
                             {editId === u.id ? (
-
-                              <select
-                                value={
-                                  editData.district_id
-                                }
-                                onChange={(e) =>
-                                  setEditData((p) => ({
-                                    ...p,
-                                    district_id:
-                                      e.target.value,
-                                  }))
-                                }
-                                className="w-44 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-orange-400"
-                              >
-
-                                <option value="">
-                                  Select District
-                                </option>
-
-                                {districts.map(
-                                  (district) => (
-                                    <option
-                                      key={district.id}
-                                      value={district.id}
-                                    >
-                                      {district.name}
-                                    </option>
-                                  )
-                                )}
-
-                              </select>
-
+                              <div className="w-44 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-sm text-slate-700">
+                                {linkedDistrict?.name ||
+                                  u.district_name ||
+                                  u.district?.name ||
+                                  linkedSubdivision?.district?.name ||
+                                  u.linked_entity?.district?.name ||
+                                  "—"}
+                              </div>
                             ) : (
-
                               linkedDistrict?.name ||
                               u.district_name ||
                               u.district?.name ||
                               linkedSubdivision?.district?.name ||
                               u.linked_entity?.district?.name ||
                               "—"
-
                             )}
-
                           </td>
 
                           {/* Subdivision */}
 
                           <td className="px-5 py-3 text-slate-600">
-
                             {editId === u.id ? (
-
                               <select
-                                value={
-                                  editData.linked_id
-                                }
+                                value={editData.linked_id}
                                 onChange={(e) =>
                                   setEditData((p) => ({
                                     ...p,
-                                    linked_id:
-                                      e.target.value,
+                                    linked_id: e.target.value,
                                   }))
                                 }
                                 className="w-48 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-orange-400"
                               >
+                                <option value="">Select Subdivision</option>
 
-                                <option value="">
-                                  Select Subdivision
-                                </option>
-
-                                {subdivisions.map(
-                                  (subdivision) => (
-                                    <option
-                                      key={subdivision.id}
-                                      value={subdivision.id}
-                                    >
-                                      {subdivision.name}
-                                    </option>
-                                  )
-                                )}
-
+                                {editSubdivisions.map((subdivision) => (
+                                  <option
+                                    key={subdivision.id}
+                                    value={subdivision.id}
+                                  >
+                                    {subdivision.name}
+                                  </option>
+                                ))}
                               </select>
-
                             ) : (
-
                               linkedSubdivision?.name ||
                               u.linked_entity?.name ||
                               u.subdivision_name ||
                               u.subdivision?.name ||
                               u.linked_name ||
                               "—"
-
                             )}
-
                           </td>
 
                           {/* Status */}
@@ -1080,8 +1066,8 @@ function SubDivison() {
 
                             <span
                               className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${u.status === "active"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-slate-100 text-slate-500"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-slate-100 text-slate-500"
                                 }`}
                             >
                               {u.status || "active"}
@@ -1235,8 +1221,8 @@ function SubDivison() {
                           setCurrentPage(page)
                         }
                         className={`min-w-9 rounded-lg px-3 py-2 text-sm font-medium ${currentPage === page
-                            ? "bg-orange-500 text-white"
-                            : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                          ? "bg-orange-500 text-white"
+                          : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                           }`}
                       >
                         {page}

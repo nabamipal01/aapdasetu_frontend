@@ -11,8 +11,11 @@ import {
   RefreshCw,
   CheckCircle2,
   MapPin,
+  Pencil,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { listIncidents } from "../../services/incidentService";
+import { listUsers } from "../../services/userService";
 
 // const TASK_ONLY_ROLES = new Set([
 //   "volunteer",
@@ -239,6 +242,8 @@ function Task() {
   user?.user_type === "ngo_contact_person";
 
   const [tasks, setTasks] = useState([]);
+  const [incidents, setIncidents] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -246,6 +251,7 @@ function Task() {
   const [success, setSuccess] = useState("");
 
   const [showForm, setShowForm] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
 
   const [form, setForm] = useState(() => ({
     ...EMPTY_FORM,
@@ -270,10 +276,16 @@ function Task() {
     setError("");
 
     try {
-      const response = await listTasks({
-        page: 1,
-        per_page: 50,
-      });
+      const [taskResult, incidentResult, userResult] =
+        await Promise.allSettled([
+          listTasks({ page: 1, per_page: 50 }),
+          listIncidents({ page: 1, per_page: 100 }),
+          listUsers({ page: 1, per_page: 100 }),
+        ]);
+      if (taskResult.status === "rejected") {
+        throw taskResult.reason;
+      }
+      const response = taskResult.value;
 
       const rawTasks =
         response?.data?.tasks ??
@@ -286,6 +298,33 @@ function Task() {
         : [];
 
       setTasks(normalizedTasks);
+
+      const incidentResponse =
+        incidentResult.status === "fulfilled"
+          ? incidentResult.value
+          : null;
+      const userResponse =
+        userResult.status === "fulfilled"
+          ? userResult.value
+          : null;
+      const rawIncidents =
+        incidentResponse?.data?.incidents ??
+        incidentResponse?.data?.items ??
+        incidentResponse?.data ??
+        [];
+      const rawUsers =
+        userResponse?.data?.users ??
+        userResponse?.data?.items ??
+        userResponse?.data ??
+        [];
+      setIncidents(Array.isArray(rawIncidents) ? rawIncidents : []);
+      setUsers(Array.isArray(rawUsers) ? rawUsers : []);
+      if (
+        incidentResult.status === "rejected" ||
+        userResult.status === "rejected"
+      ) {
+        setError("Tasks loaded, but incident or assignee options could not be loaded.");
+      }
     } catch (err) {
       setError(
         err?.message || "Failed to load tasks"
@@ -312,6 +351,7 @@ function Task() {
       assigned_to: getDefaultAssignedUser(),
     });
 
+    setEditingTask(null);
     setShowForm(false);
   };
 
@@ -358,7 +398,9 @@ function Task() {
         }),
       };
 
-      const response = await createTask(payload);
+      const response = editingTask
+        ? await updateTask(editingTask.id, payload)
+        : await createTask(payload);
 
       /**
        * create.php returns:
@@ -388,9 +430,9 @@ function Task() {
         ),
       ]);
 
-      setSuccess(
-        "Task created successfully."
-      );
+      setSuccess(editingTask
+        ? "Task updated successfully."
+        : "Task created successfully.");
 
       resetForm();
 
@@ -399,95 +441,32 @@ function Task() {
     } catch (err) {
       setError(
         err?.message ||
-          "Failed to create task"
+          (editingTask
+            ? "Failed to update task"
+            : "Failed to create task")
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  /**
-   * UPDATE TASK STATUS
-   */
-  const handleStatusChange = async (
-    id,
-    newStatus
-  ) => {
-    const currentTask = tasks.find(
-      (task) => task.id === id
-    );
-
-    if (!currentTask) return;
-
-    // Don't send an unnecessary request.
-    if (currentTask.status === newStatus) {
-      return;
-    }
-
-    /**
-     * Volunteers / NGO users can only move
-     * their task to in_progress.
-     */
-    if (
-      isTaskOnly &&
-      newStatus !== "in_progress"
-    ) {
-      setError(
-        "You can only change the task status to In Progress."
-      );
-      return;
-    }
-
+  const startEditingTask = (task) => {
+    setEditingTask(task);
+    setForm({
+      incident_id: String(task.incident_id ?? ""),
+      title: task.title ?? "",
+      description: task.description ?? "",
+      assigned_to: task.assigned_to ? String(task.assigned_to) : "",
+      priority: task.priority ?? "",
+      task_type: task.task_type ?? "",
+      due_at: task.due_at
+        ? String(task.due_at).replace(" ", "T").slice(0, 16)
+        : "",
+    });
+    setShowForm(true);
     setError("");
     setSuccess("");
-
-    try {
-      const response = await updateTask(
-        id,
-        {
-          status: newStatus,
-        }
-      );
-
-      /**
-       * update.php returns nested objects:
-       *
-       * {
-       *   data: {
-       *     incident: {},
-       *     assigned_to: {},
-       *     created_by: {}
-       *   }
-       * }
-       */
-      const updatedTask =
-        response?.data?.data ??
-        response?.data ??
-        {};
-
-      const normalizedTask =
-        normalizeTask(updatedTask);
-
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === id
-            ? {
-                ...task,
-                ...normalizedTask,
-              }
-            : task
-        )
-      );
-
-      setSuccess(
-        "Task status updated successfully."
-      );
-    } catch (err) {
-      setError(
-        err?.message ||
-          "Failed to update task status"
-      );
-    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -538,7 +517,11 @@ function Task() {
               <button
                 type="button"
                 onClick={() => {
-                  setShowForm(!showForm);
+                  if (editingTask) {
+                    resetForm();
+                  } else {
+                    setShowForm(!showForm);
+                  }
                   setError("");
                   setSuccess("");
                 }}
@@ -589,7 +572,7 @@ function Task() {
               <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
 
                 <h2 className="mb-5 text-lg font-semibold text-slate-900">
-                  Create New Task
+                  {editingTask ? "Edit Task" : "Create New Task"}
                 </h2>
 
                 <form onSubmit={handleCreate}>
@@ -619,31 +602,64 @@ function Task() {
                         Incident No *
                       </label>
 
-                      <input
+                      <select
                         name="incident_id"
-                        type="number"
                         value={form.incident_id}
                         onChange={handleChange}
-                        placeholder="e.g. 1"
                         className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      />
+                      >
+                        <option value="">Select incident</option>
+                        {incidents.map((incident) => (
+                          <option key={incident.id} value={incident.id}>
+                            {incident.incident_no || `Incident #${incident.id}`}
+                            {incident.title ? ` — ${incident.title}` : ""}
+                          </option>
+                        ))}
+                        {editingTask &&
+                          form.incident_id &&
+                          !incidents.some(
+                            (incident) =>
+                              String(incident.id) === form.incident_id
+                          ) && (
+                            <option value={form.incident_id}>
+                              {editingTask.incident_no ||
+                                `Incident #${form.incident_id}`}
+                            </option>
+                          )}
+                      </select>
                     </div>
 
                     {/* ASSIGNED USER */}
 
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Assign To (User ID)
+                        Assign To
                       </label>
 
-                      <input
+                      <select
                         name="assigned_to"
-                        type="number"
                         value={form.assigned_to}
                         onChange={handleChange}
-                        placeholder="e.g. 5"
                         className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      />
+                      >
+                        <option value="">Unassigned</option>
+                        {users.map((assignee) => (
+                          <option key={assignee.id} value={assignee.id}>
+                            {assignee.name || assignee.full_name || assignee.email}
+                          </option>
+                        ))}
+                        {editingTask &&
+                          form.assigned_to &&
+                          !users.some(
+                            (assignee) =>
+                              String(assignee.id) === form.assigned_to
+                          ) && (
+                            <option value={form.assigned_to}>
+                              {editingTask.assigned_to_name ||
+                                `User #${form.assigned_to}`}
+                            </option>
+                          )}
+                      </select>
                     </div>
 
                     {/* PRIORITY */}
@@ -762,8 +778,8 @@ function Task() {
                       className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {submitting
-                        ? "Creating..."
-                        : "Create Task"}
+                      ? editingTask ? "Saving..." : "Creating..."
+                      : editingTask ? "Save Changes" : "Create Task"}
                     </button>
 
                   </div>
@@ -825,6 +841,10 @@ function Task() {
                     </th>
 
                     <th className="px-5 py-3 font-semibold">
+                      Incident No
+                    </th>
+
+                    <th className="px-5 py-3 font-semibold">
                       Incident
                     </th>
 
@@ -845,14 +865,6 @@ function Task() {
                     </th>
 
                     <th className="px-5 py-3 font-semibold">
-                      Due At
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Started
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
                       Completed
                     </th>
 
@@ -861,19 +873,11 @@ function Task() {
                     </th>
 
                     <th className="px-5 py-3 font-semibold">
-                      Created At
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Updated At
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
                       Location
                     </th>
 
                     <th className="px-5 py-3 font-semibold">
-                      Change Status
+                      Action
                     </th>
 
                   </tr>
@@ -899,18 +903,20 @@ function Task() {
                             {task.title || "—"}
                           </div>
 
-                          {task.description && (
-                            <div className="mt-1 line-clamp-2 text-xs text-slate-500">
-                              {task.description}
-                            </div>
-                          )}
+                          
 
-                          <div className="mt-1 text-xs text-slate-400">
-                            ID: #{task.id}
-                          </div>
+                          
 
                         </div>
 
+                      </td>
+
+                      {/* INCIDENT NO */}
+
+                      <td className="px-5 py-4">
+                        <span className="whitespace-nowrap font-medium text-slate-700">
+                          {task.incident_no || `#${task.incident_id}`}
+                        </span>
                       </td>
 
                       {/* INCIDENT */}
@@ -924,11 +930,6 @@ function Task() {
                               "—"}
                           </div>
 
-                          <div className="text-xs text-slate-500">
-                            {task.incident_no ||
-                              `Incident #${task.incident_id}`}
-                          </div>
-
                           {task.incident_type && (
                             <div className="mt-1 text-xs capitalize text-slate-400">
                               Type:{" "}
@@ -936,12 +937,7 @@ function Task() {
                             </div>
                           )}
 
-                          {task.incident_status && (
-                            <div className="text-xs capitalize text-slate-400">
-                              Status:{" "}
-                              {task.incident_status}
-                            </div>
-                          )}
+                         
 
                         </div>
 
@@ -955,21 +951,13 @@ function Task() {
 
                           <div className="font-medium text-slate-700">
                             {task.assigned_to_name ||
+                              users.find(
+                                (assignee) =>
+                                  String(assignee.id) ===
+                                  String(task.assigned_to)
+                              )?.name ||
                               "Unassigned"}
                           </div>
-
-                          {task.assigned_to && (
-                            <div className="text-xs text-slate-400">
-                              User ID:{" "}
-                              {task.assigned_to}
-                            </div>
-                          )}
-
-                          {task.assigned_to_email && (
-                            <div className="text-xs text-slate-400">
-                              {task.assigned_to_email}
-                            </div>
-                          )}
 
                         </div>
 
@@ -1031,22 +1019,6 @@ function Task() {
 
                       </td>
 
-                      {/* DUE AT */}
-
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-500">
-                        {formatDateTime(
-                          task.due_at
-                        )}
-                      </td>
-
-                      {/* STARTED */}
-
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-500">
-                        {formatDateTime(
-                          task.started_at
-                        )}
-                      </td>
-
                       {/* COMPLETED */}
 
                       <td className="whitespace-nowrap px-5 py-4 text-slate-500">
@@ -1066,31 +1038,8 @@ function Task() {
                               "—"}
                           </div>
 
-                          {task.created_by && (
-                            <div className="text-xs text-slate-400">
-                              User ID:{" "}
-                              {task.created_by}
-                            </div>
-                          )}
-
                         </div>
 
-                      </td>
-
-                      {/* CREATED AT */}
-
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-500">
-                        {formatDateTime(
-                          task.created_at
-                        )}
-                      </td>
-
-                      {/* UPDATED AT */}
-
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-500">
-                        {formatDateTime(
-                          task.updated_at
-                        )}
                       </td>
 
                       {/* LOCATION */}
@@ -1129,82 +1078,21 @@ function Task() {
 
                       </td>
 
-                      {/* CHANGE STATUS */}
+                      {/* ACTION */}
 
                       <td className="px-5 py-4">
-
-                        <select
-                          value={
-                            task.status || ""
-                          }
-                          onChange={(e) =>
-                            handleStatusChange(
-                              task.id,
-                              e.target.value
-                            )
-                          }
-                          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                        >
-
-                          {isTaskOnly ? (
-                            <>
-                              <option
-                                value="pending"
-                                disabled
-                              >
-                                Pending
-                              </option>
-
-                              <option
-                                value="assigned"
-                                disabled
-                              >
-                                Assigned
-                              </option>
-
-                              <option value="in_progress">
-                                In Progress
-                              </option>
-
-                              <option
-                                value="completed"
-                                disabled
-                              >
-                                Completed
-                              </option>
-
-                              <option
-                                value="cancelled"
-                                disabled
-                              >
-                                Cancelled
-                              </option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="pending">
-                                Pending
-                              </option>
-
-                              <option value="assigned">
-                                Assigned
-                              </option>
-
-                              <option value="in_progress">
-                                In Progress
-                              </option>
-
-                              <option value="completed">
-                                Completed
-                              </option>
-
-                              <option value="cancelled">
-                                Cancelled
-                              </option>
-                            </>
+                        <div className="flex min-w-[150px] items-start">
+                          {!isTaskOnly && (
+                            <button
+                              type="button"
+                              onClick={() => startEditingTask(task)}
+                              className="inline-flex items-center gap-1 rounded-md border border-indigo-200 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                            >
+                              <Pencil size={13} />
+                              Edit
+                            </button>
                           )}
-
-                        </select>
+                        </div>
 
                       </td>
 
@@ -1227,6 +1115,3 @@ function Task() {
 }
 
 export default Task;
-
-
-

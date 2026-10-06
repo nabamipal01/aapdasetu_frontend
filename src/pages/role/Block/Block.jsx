@@ -79,6 +79,7 @@ function Block() {
         role: "block",
         page: 1,
         per_page: 50,
+        status: "active"
       });
 
       setUsers(
@@ -218,7 +219,16 @@ function Block() {
       Number(block.subdivision_id ?? block.subdivisionId) ===
       Number(form.subdivision_id)
   );
+  const filteredEditBlocks = blocks.filter((block) => {
+    const blockSubdivisionId =
+      block.subdivision_id ??
+      block.subdivisionId ??
+      block.subdivision?.id ??
+      block.subdivision?.subdivision_id ??
+      block.subdivision?.subdivisionId;
 
+    return Number(blockSubdivisionId) === Number(editData.subdivision_id);
+  });
   const resetForm = () => {
     setForm({ ...EMPTY_FORM });
     setShowForm(false);
@@ -302,25 +312,42 @@ function Block() {
   const startEdit = (u) => {
     setEditId(u.id);
 
+    const linkedBlock = getLinkedBlock(u);
+
+    const subdivisionId =
+      u.subdivision_id ??
+      u.subdivisionId ??
+      u.subdivision?.id ??
+      linkedBlock?.subdivision_id ??
+      linkedBlock?.subdivisionId ??
+      linkedBlock?.subdivision?.id ??
+      "";
+
+    const districtId =
+      u.district_id ??
+      u.districtId ??
+      u.district?.id ??
+      linkedBlock?.district_id ??
+      linkedBlock?.districtId ??
+      linkedBlock?.district?.id ??
+      "";
+
+    const blockId =
+      u.block_id ??
+      u.blockId ??
+      u.linked_id ??
+      u.linkedId ??
+      u.block?.id ??
+      u.linked_entity?.id ??
+      "";
+
     setEditData({
       name: u.name || "",
       email: u.email || "",
       phone: u.phone || "",
-
-      district_id:
-        u.district_id ?? u.districtId ?? u.district?.id ?? "",
-      subdivision_id:
-        u.subdivision_id ??
-        u.subdivisionId ??
-        u.subdivision?.id ??
-        "",
-      block_id:
-        u.block_id ??
-        u.blockId ??
-        u.linked_id ??
-        u.linkedId ??
-        u.block?.id ??
-        "",
+      district_id: districtId,
+      subdivision_id: subdivisionId,
+      block_id: blockId,
     });
 
     setError("");
@@ -385,7 +412,13 @@ function Block() {
   // ---------------------------------------------------------------------------
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete block user "${name}"?`)) return;
+    if (
+      !window.confirm(
+        `Deactivate block user "${name}"?`
+      )
+    ) {
+      return;
+    }
 
     try {
       setError("");
@@ -393,11 +426,16 @@ function Block() {
 
       await deleteUser(id);
 
-      setUsers((prev) => prev.filter((u) => u.id !== id));
+      setSuccess(
+        `Block user "${name}" deactivated successfully.`
+      );
 
-      setSuccess("Block user deleted.");
+      // Reload only active block users
+      await fetchUsers();
     } catch (err) {
-      setError(err.message || "Failed to delete user");
+      setError(
+        err.message || "Failed to deactivate block user"
+      );
     }
   };
 
@@ -974,29 +1012,14 @@ function Block() {
                         {/* District */}
                         <td className="px-5 py-3 text-slate-600">
                           {editId === u.id ? (
-                            <select
-                              value={editData.district_id}
-                              onChange={(e) =>
-                                setEditData((p) => ({
-                                  ...p,
-                                  district_id: e.target.value,
-                                }))
-                              }
-                              className="w-44 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-cyan-400"
-                            >
-                              <option value="">
-                                Select District
-                              </option>
-
-                              {districts.map((district) => (
-                                <option
-                                  key={district.id}
-                                  value={district.id}
-                                >
-                                  {district.name}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="w-44 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-sm text-slate-700">
+                              {linkedDistrict?.name ||
+                                u.district_name ||
+                                u.district?.name ||
+                                linkedBlock?.district?.name ||
+                                linkedSubdivision?.district?.name ||
+                                "—"}
+                            </div>
                           ) : (
                             linkedDistrict?.name ||
                             u.district_name ||
@@ -1010,31 +1033,13 @@ function Block() {
                         {/* Subdivision */}
                         <td className="px-5 py-3 text-slate-600">
                           {editId === u.id ? (
-                            <select
-                              value={editData.subdivision_id}
-                              onChange={(e) =>
-                                setEditData((p) => ({
-                                  ...p,
-                                  subdivision_id: e.target.value,
-                                }))
-                              }
-                              className="w-48 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-cyan-400"
-                            >
-                              <option value="">
-                                Select Subdivision
-                              </option>
-
-                              {subdivisions.map(
-                                (subdivision) => (
-                                  <option
-                                    key={subdivision.id}
-                                    value={subdivision.id}
-                                  >
-                                    {subdivision.name}
-                                  </option>
-                                )
-                              )}
-                            </select>
+                            <div className="w-48 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-sm text-slate-700">
+                              {linkedSubdivision?.name ||
+                                u.subdivision_name ||
+                                u.subdivision?.name ||
+                                linkedBlock?.subdivision?.name ||
+                                "—"}
+                            </div>
                           ) : (
                             linkedSubdivision?.name ||
                             u.subdivision_name ||
@@ -1061,7 +1066,7 @@ function Block() {
                                 Select Block
                               </option>
 
-                              {blocks.map((block) => (
+                              {filteredEditBlocks.map((block) => (
                                 <option
                                   key={block.id}
                                   value={block.id}

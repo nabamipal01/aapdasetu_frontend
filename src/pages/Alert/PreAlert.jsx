@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { listAlerts, createAlert, updateAlert, deleteAlert } from "../../services";
-import { BellRing, Plus, X, RefreshCw, Trash2, Pencil, Check } from "lucide-react";
+import { BellRing, Plus, X, RefreshCw, Trash2, Pencil, Check, Eye } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { addAlertNotification } from "../../utils/alertNotifications";
 
 const EMPTY_FORM = { title: "", description: "", instruction: "" };
 
 function PreAlert() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [alerts, setAlerts]         = useState([]);
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -13,6 +17,7 @@ function PreAlert() {
   const [showForm, setShowForm]     = useState(false);
   const [form, setForm]             = useState(EMPTY_FORM);
   const [editingAlert, setEditingAlert] = useState(null);
+  const [viewingAlert, setViewingAlert] = useState(null);
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -28,7 +33,45 @@ function PreAlert() {
     }
   }, []);
 
-  useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      fetchAlerts();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchAlerts]);
+
+  useEffect(() => {
+    const notification = location.state?.alertNotification;
+    if (
+      !notification?.type?.toLowerCase().includes("pre") ||
+      !notification.alert
+    ) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const alert = notification.alertId
+        ? {
+            ...notification.alert,
+            alert_id: notification.alertId,
+          }
+        : notification.alert;
+      const alertId = alert.alert_id ?? alert.id;
+
+      setAlerts((currentAlerts) =>
+        currentAlerts.some(
+          (item) => (item.alert_id ?? item.id) === alertId
+        )
+          ? currentAlerts
+          : [alert, ...currentAlerts]
+      );
+      setViewingAlert(alert);
+      navigate(location.pathname, { replace: true, state: null });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [location.key, location.pathname, location.state, navigate]);
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -62,9 +105,27 @@ function PreAlert() {
         ...(form.instruction && { instruction: form.instruction.trim() }),
       };
       const res = await createAlert(payload);
-      const newAlert = res.data;
+      const newAlert =
+        res.data?.alert ??
+        res.data?.pre_alert ??
+        res.data ??
+        payload;
       setAlerts((prev) => [newAlert, ...prev]);
-      setSuccess(`Alert "${newAlert.title}" created and broadcast.`);
+      const alertTitle = newAlert?.title || payload.title;
+      addAlertNotification({
+        type: "Pre-alert",
+        title: alertTitle,
+        description: payload.description,
+        path: "/alerts/pre-alerts",
+        alert: {
+          ...newAlert,
+          title: alertTitle,
+          description: payload.description,
+          instruction: payload.instruction || "",
+        },
+        alertId: newAlert.alert_id ?? newAlert.id,
+      });
+      setSuccess(`Alert "${alertTitle}" created and broadcast.`);
       resetForm();
     } catch (err) {
       setError(err.message || "Failed to create alert");
@@ -223,6 +284,10 @@ function PreAlert() {
                       )}
                     </div>
                     <div className="flex shrink-0 gap-1">
+                      <button onClick={() => setViewingAlert(alert)}
+                        className="rounded p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="View alert">
+                        <Eye size={16} />
+                      </button>
                       <button onClick={() => openEdit(alert)}
                         className="rounded p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="Edit alert">
                         <Pencil size={16} />
@@ -263,6 +328,60 @@ function PreAlert() {
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {viewingAlert && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setViewingAlert(null);
+              }
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pre-alert-details-title"
+              className="w-full max-w-xl rounded-xl bg-white p-6 shadow-xl"
+            >
+              <div className="flex items-center justify-between">
+                <h2
+                  id="pre-alert-details-title"
+                  className="text-lg font-semibold text-slate-900"
+                >
+                  {viewingAlert.title || "Pre-alert details"}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setViewingAlert(null)}
+                  className="rounded p-1.5 text-slate-400 hover:bg-slate-100"
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                {viewingAlert.description || "No description provided."}
+              </p>
+              {viewingAlert.instruction && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <span className="font-semibold">Instructions: </span>
+                  {viewingAlert.instruction}
+                </div>
+              )}
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewingAlert(null)}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                >
+                  Close
+                </button>
+              </div>
+            </section>
           </div>
         )}
 

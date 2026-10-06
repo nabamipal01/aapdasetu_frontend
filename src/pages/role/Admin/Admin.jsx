@@ -52,6 +52,8 @@ function Admin() {
   const [form, setForm] = useState(EMPTY_FORM);
 
   const [editingUserId, setEditingUserId] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
+  const [updatingUserId, setUpdatingUserId] = useState(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -81,13 +83,14 @@ function Admin() {
         role: "admin",
         page,
         per_page: 5,
+        status: "active"
       });
 
       const userList = Array.isArray(res?.data?.users)
         ? res.data.users
         : Array.isArray(res?.data)
-        ? res.data
-        : [];
+          ? res.data
+          : [];
 
       setUsers(userList);
 
@@ -135,18 +138,78 @@ function Admin() {
   // ---------------------------------------------------------------------------
 
   const handleEdit = (user) => {
-    setForm({
+    setEditingUserId(user.id);
+
+    setEditingUser({
       name: user.name || "",
       email: user.email || "",
       phone: user.phone || "",
-      password: "",
-      confirmPassword: "",
     });
 
-    setEditingUserId(user.id);
-    setShowForm(true);
     setError("");
     setSuccess("");
+  };
+
+  const handleInlineChange = (e) => {
+    const { name, value } = e.target;
+
+    setEditingUser((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleInlineUpdate = async (userId) => {
+    if (!editingUser) return;
+
+    if (
+      !editingUser.name.trim() ||
+      !editingUser.email.trim() ||
+      !editingUser.phone.trim()
+    ) {
+      setError("Name, Email and Phone are required.");
+      return;
+    }
+
+    setUpdatingUserId(userId);
+    setError("");
+    setSuccess("");
+
+    try {
+      const payload = {
+        name: editingUser.name.trim(),
+        email: editingUser.email.trim(),
+        phone: editingUser.phone.trim(),
+        role: "admin",
+      };
+
+      const res = await updateUser(userId, payload);
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId
+            ? { ...user, ...res.data }
+            : user
+        )
+      );
+
+      setSuccess(
+        `User "${res.data?.name || editingUser.name}" updated successfully.`
+      );
+
+      setEditingUserId(null);
+      setEditingUser(null);
+    } catch (err) {
+      setError(err.message || "Failed to update user");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  const handleInlineCancel = () => {
+    setEditingUserId(null);
+    setEditingUser(null);
+    setError("");
   };
 
   // ---------------------------------------------------------------------------
@@ -163,8 +226,7 @@ function Admin() {
       (!editingUserId && !form.password)
     ) {
       setError(
-        `Name, Email, Phone${
-          editingUserId ? "" : " and Password"
+        `Name, Email, Phone${editingUserId ? "" : " and Password"
         } are required.`
       );
       return;
@@ -226,9 +288,8 @@ function Admin() {
     } catch (err) {
       setError(
         err.message ||
-          `Failed to ${
-            editingUserId ? "update" : "create"
-          } user`
+        `Failed to ${editingUserId ? "update" : "create"
+        } user`
       );
     } finally {
       setSubmitting(false);
@@ -240,7 +301,7 @@ function Admin() {
   // ---------------------------------------------------------------------------
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete user "${name}"?`)) return;
+    if (!window.confirm(`Deactivate user "${name}"?`)) return;
 
     try {
       setError("");
@@ -252,7 +313,7 @@ function Admin() {
         prev.filter((user) => user.id !== id)
       );
 
-      setSuccess(`User "${name}" deleted successfully.`);
+      setSuccess(`User "${name}" deactivated successfully.`);
 
       // If current page becomes empty after deletion,
       // move back one page.
@@ -262,7 +323,7 @@ function Admin() {
         fetchUsers();
       }
     } catch (err) {
-      setError(err.message || "Failed to delete user");
+      setError(err.message || "Failed to deactivate user");
     }
   };
 
@@ -370,11 +431,10 @@ function Admin() {
 
         {/* Create / Edit Form */}
         <div
-          className={`grid transition-all duration-300 ease-in-out ${
-            showForm
+          className={`grid transition-all duration-300 ease-in-out ${showForm
               ? "mb-6 grid-rows-[1fr] opacity-100"
               : "pointer-events-none grid-rows-[0fr] opacity-0"
-          }`}
+            }`}
         >
           <div className="overflow-hidden">
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -496,8 +556,8 @@ function Admin() {
                         ? "Updating…"
                         : "Creating…"
                       : editingUserId
-                      ? "Update User"
-                      : "Create User"}
+                        ? "Update User"
+                        : "Create User"}
                   </button>
                 </div>
               </form>
@@ -613,61 +673,155 @@ function Admin() {
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-                  {filteredUsers.map((user) => (
-                    <tr
-                      key={user.id}
-                      className="transition-colors hover:bg-slate-50"
-                    >
-                      <td className="px-5 py-3 font-medium text-slate-800">
-                        {user.name}
-                      </td>
+                  {filteredUsers.map((user) => {
+                    const isEditing = editingUserId === user.id;
+                    const isUpdating = updatingUserId === user.id;
 
-                      <td className="px-5 py-3 text-slate-600">
-                        {user.email}
-                      </td>
-
-                      <td className="px-5 py-3 text-slate-500">
-                        {user.phone || "—"}
-                      </td>
-
-                      <td className="px-5 py-3">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                            user.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-slate-100 text-slate-500"
+                    return (
+                      <tr
+                        key={user.id}
+                        className={`transition-colors ${isEditing
+                            ? "bg-green-50/40"
+                            : "hover:bg-slate-50"
                           }`}
-                        >
-                          {user.status || "active"}
-                        </span>
-                      </td>
+                      >
+                        {/* Name */}
+                        <td className="px-5 py-3 font-medium text-slate-800">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              name="name"
+                              value={editingUser.name}
+                              onChange={handleInlineChange}
+                              className="w-full min-w-[160px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                              autoFocus
+                            />
+                          ) : (
+                            user.name
+                          )}
+                        </td>
 
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleEdit(user)}
-                            className="rounded p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                            title="Edit"
-                          >
-                            <Pencil size={15} />
-                          </button>
+                        {/* Email */}
+                        <td className="px-5 py-3 text-slate-600">
+                          {isEditing ? (
+                            <input
+                              type="email"
+                              name="email"
+                              value={editingUser.email}
+                              onChange={handleInlineChange}
+                              className="w-full min-w-[200px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                            />
+                          ) : (
+                            user.email
+                          )}
+                        </td>
 
-                          <button
-                            onClick={() =>
-                              handleDelete(
-                                user.id,
-                                user.name
-                              )
-                            }
-                            className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                            title="Delete"
+                        {/* Phone */}
+                        <td className="px-5 py-3 text-slate-500">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              name="phone"
+                              value={editingUser.phone}
+                              onChange={handleInlineChange}
+                              className="w-full min-w-[130px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                            />
+                          ) : (
+                            user.phone || "—"
+                          )}
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-5 py-3">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${user.status === "active"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-slate-100 text-slate-500"
+                              }`}
                           >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {user.status || "active"}
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-5 py-3">
+                          {isEditing ? (
+                            <div className="flex items-center gap-1">
+                              {/* Save */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleInlineUpdate(user.id)
+                                }
+                                disabled={isUpdating}
+                                className="rounded-lg p-2 text-green-600 transition-colors hover:bg-green-100 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                title="Update"
+                              >
+                                {isUpdating ? (
+                                  <RefreshCw
+                                    size={16}
+                                    className="animate-spin"
+                                  />
+                                ) : (
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M20 6 9 17l-5-5" />
+                                  </svg>
+                                )}
+                              </button>
+
+                              {/* Cancel */}
+                              <button
+                                type="button"
+                                onClick={handleInlineCancel}
+                                disabled={isUpdating}
+                                className="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                title="Cancel"
+                              >
+                                <X size={17} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              {/* Edit */}
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(user)}
+                                className="rounded p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                                title="Edit"
+                              >
+                                <Pencil size={15} />
+                              </button>
+
+                              {/* Delete */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(
+                                    user.id,
+                                    user.name
+                                  )
+                                }
+                                className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                title="Delete"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -689,7 +843,7 @@ function Admin() {
                   <span className="font-medium text-slate-700">
                     {Math.min(
                       pagination.current_page *
-                        pagination.per_page,
+                      pagination.per_page,
                       pagination.total
                     )}
                   </span>{" "}
@@ -739,4 +893,3 @@ function Admin() {
 }
 
 export default Admin;
-

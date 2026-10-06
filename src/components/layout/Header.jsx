@@ -1,8 +1,9 @@
 
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Menu,
   Bell,
+  Check,
   ChevronDown,
   LogOut,
   PanelLeftClose,
@@ -10,6 +11,13 @@ import {
   Siren,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import API_BASE_URL from "../../config/Config";
+import {
+  ALERT_NOTIFICATIONS_EVENT,
+  getAlertNotifications,
+  markAlertNotificationRead,
+  markAllAlertNotificationsRead,
+} from "../../utils/alertNotifications";
 
 function Header({
   setMobileOpen,
@@ -17,8 +25,16 @@ function Header({
   setSidebarCollapsed,
 }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState(
+    getAlertNotifications
+  );
   const userMenuRef = useRef(null);
+  const notificationsRef = useRef(null);
   const navigate = useNavigate();
+  const unreadCount = notifications.filter(
+    (notification) => !notification.read
+  ).length;
 
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
@@ -31,12 +47,47 @@ function Header({
       ) {
         setUserMenuOpen(false);
       }
+      if (
+        notificationsRef.current &&
+        !notificationsRef.current.contains(event.target)
+      ) {
+        setNotificationsOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncNotifications = (event) => {
+      setNotifications(
+        Array.isArray(event.detail)
+          ? event.detail
+          : getAlertNotifications()
+      );
+    };
+    const syncFromStorage = (event) => {
+      if (event.key?.startsWith("aapdasetu-alert-notifications")) {
+        setNotifications(getAlertNotifications());
+      }
+    };
+
+    window.addEventListener(
+      ALERT_NOTIFICATIONS_EVENT,
+      syncNotifications
+    );
+    window.addEventListener("storage", syncFromStorage);
+
+    return () => {
+      window.removeEventListener(
+        ALERT_NOTIFICATIONS_EVENT,
+        syncNotifications
+      );
+      window.removeEventListener("storage", syncFromStorage);
     };
   }, []);
 
@@ -85,6 +136,29 @@ function Header({
 
       window.location.href = "/login";
     }
+  };
+
+  const openNotification = (notification) => {
+    setNotificationsOpen(false);
+
+    const notificationType = notification.type?.toLowerCase();
+    const destination = notificationType?.includes("post")
+      ? "/alerts/post-alerts"
+      : notificationType?.includes("pre")
+        ? "/alerts/pre-alerts"
+        : notification.path;
+
+    if (!destination) {
+      console.error("Alert notification is missing its destination.", notification);
+      return;
+    }
+
+    navigate(destination, {
+      state: {
+        alertNotification: notification,
+      },
+    });
+    setNotifications(markAlertNotificationRead(notification.id));
   };
 
   return (
@@ -183,30 +257,102 @@ function Header({
           </span>
         </button>
 
-        {/* Notification */}
-        <button
-          className="
-            relative
-            rounded-lg
-            p-2
-            text-slate-500
-            hover:bg-slate-100
-          "
-        >
-          <Bell size={20} />
+        {/* Notifications */}
+        <div className="relative" ref={notificationsRef}>
+          <button
+            type="button"
+            aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
+            aria-expanded={notificationsOpen}
+            onClick={() => {
+              setNotificationsOpen((open) => !open);
+              setUserMenuOpen(false);
+            }}
+            className="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
+          >
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
 
-          <span
-            className="
-              absolute
-              right-1
-              top-1
-              h-2
-              w-2
-              rounded-full
-              bg-red-500
-            "
-          />
-        </button>
+          {notificationsOpen && (
+            <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Notifications
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {unreadCount
+                      ? `${unreadCount} unread alert${unreadCount === 1 ? "" : "s"}`
+                      : "Your latest alerts"}
+                  </p>
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNotifications(markAllAlertNotificationsRead())
+                    }
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
+                  >
+                    <Check size={14} />
+                    Mark all read
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <p className="px-4 py-8 text-center text-sm text-slate-500">
+                    No notifications yet. New pre-alerts and post alerts will
+                    appear here.
+                  </p>
+                ) : (
+                  notifications.map((notification) => (
+                    <button
+                      key={notification.id}
+                      type="button"
+                      onClick={() => openNotification(notification)}
+                      className={`block w-full border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 ${
+                        notification.read ? "bg-white" : "bg-red-50/50"
+                      }`}
+                    >
+                      <span className="flex items-start gap-2.5">
+                        {!notification.read && (
+                          <span
+                            aria-label="Unread"
+                            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-600"
+                          />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-red-600">
+                              {notification.type}
+                            </span>
+                            <time className="shrink-0 text-[10px] text-slate-400">
+                              {new Date(notification.createdAt).toLocaleString()}
+                            </time>
+                          </span>
+                          <span className="mt-1 block text-sm font-semibold text-slate-900">
+                            {notification.title}
+                          </span>
+                          {notification.description && (
+                            <span className="mt-1 block line-clamp-2 text-xs leading-5 text-slate-600">
+                              {notification.description}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* User Dropdown */}
         <div className="relative" ref={userMenuRef}>
@@ -341,4 +487,3 @@ function Header({
 }
 
 export default Header;
-

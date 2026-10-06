@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  "http://192.168.0.12/AapdaSetu/backend/api/training";
+  "http://192.168.0.8/AapdaSetu/backend/api/training";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("token");

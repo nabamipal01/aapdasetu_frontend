@@ -95,7 +95,7 @@ export default function PrimaryHealthCare() {
                       rel="noopener noreferrer"
                       className="text-sm font-medium text-blue-600 hover:underline"
                     >
-                      Link
+                      ↗️
                     </a>
                   </td>
                 </tr>

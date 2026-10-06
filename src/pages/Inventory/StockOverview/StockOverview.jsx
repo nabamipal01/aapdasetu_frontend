@@ -112,8 +112,8 @@ function StockOverview() {
       if (itemRes.status === "fulfilled") {
         setItems(
           itemRes.value?.data?.items ??
-            itemRes.value?.data ??
-            []
+          itemRes.value?.data ??
+          []
         );
 
         setPagination(
@@ -252,9 +252,9 @@ function StockOverview() {
         prev.map((item) =>
           item.id === editingItem.id
             ? {
-                ...item,
-                ...res.data,
-              }
+              ...item,
+              ...res.data,
+            }
             : item
         )
       );
@@ -267,7 +267,7 @@ function StockOverview() {
     } catch (err) {
       setError(
         err.message ||
-          "Failed to update inventory item"
+        "Failed to update inventory item"
       );
     } finally {
       setEditSubmitting(false);
@@ -384,15 +384,15 @@ function StockOverview() {
             <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 {
-                  label: "Total Products",
+                  label: "Product Count",
                   value: summary.total_product,
                 },
                 {
-                  label: "Total Quantity",
+                  label: "Product Quantity",
                   value: summary.total_quantity,
                 },
                 {
-                  label: "Category",
+                  label: "Product Category",
                   value: summary.total_equipment_types,
                 },
                 // {
@@ -443,7 +443,7 @@ function StockOverview() {
               {equipTypes.map((e, idx) => {
                 const c =
                   CARD_COLORS[
-                    idx % CARD_COLORS.length
+                  idx % CARD_COLORS.length
                   ];
 
                 return (
@@ -763,7 +763,7 @@ function StockOverview() {
                   <span className="font-medium text-slate-700">
                     {Math.min(
                       pagination.page *
-                        pagination.limit,
+                      pagination.limit,
                       pagination.total_items
                     )}
                   </span>{" "}
@@ -855,7 +855,7 @@ function StockOverview() {
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                     {label}
                     {name === "product_name" ||
-                    name === "quantity"
+                      name === "quantity"
                       ? " *"
                       : ""}
                   </label>
@@ -866,8 +866,8 @@ function StockOverview() {
                       name.includes("date")
                         ? "date"
                         : name === "quantity"
-                        ? "number"
-                        : "text"
+                          ? "number"
+                          : "text"
                     }
                     min={
                       name === "quantity"

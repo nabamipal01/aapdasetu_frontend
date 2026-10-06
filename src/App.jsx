@@ -63,6 +63,9 @@ import BlockLocation from "./pages/location/BlockLocation";
 import { isTaskOnlyRole } from "./utils/roles";
 import ReturnStock from "./pages/Inventory/ReturnStock/ReturnStock";
 import ReturnHistory from "./pages/Inventory/ReturnHistory/returnHistory";
+import IssueStockHistory from "./pages/Inventory/IssueStockHistory/IssueStockHistory";
+import PostAlert from "./pages/Alert/PostAlert";
+
 
 /* =========================================================
    Roles
@@ -416,6 +419,10 @@ function App() {
                   path="/inventory/history/return"
                   element={<ReturnHistory />}
                 />
+                <Route
+                  path="/inventory/history/issue"
+                  element={<IssueStockHistory/>}
+                />
 
 
                 {/* -------------------------------------------------
@@ -480,6 +487,11 @@ function App() {
                 <Route
                   path="/alerts/pre-alerts"
                   element={<PreAlert />}
+                />
+
+                <Route
+                  path="/alerts/post-alerts"
+                  element={<PostAlert />}
                 />
 
               </Route>
