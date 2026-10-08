@@ -1,1 +1,5 @@
 @import "tailwindcss";
+
+.leaflet-layer.bhuvan-flood-red {
+    filter: hue-rotate(180deg) saturate(1.5);
+}

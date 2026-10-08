@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Siren,
+  Trash2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../../config/Config";
@@ -17,22 +18,51 @@ import {
   getAlertNotifications,
   markAlertNotificationRead,
   markAllAlertNotificationsRead,
+  clearAlertNotification,
+  clearAlertNotifications,
 } from "../../utils/alertNotifications";
+
+import {
+  TRAINING_NOTIFICATIONS_EVENT,
+  getTrainingNotifications,
+  markTrainingNotificationRead,
+  markAllTrainingNotificationsRead,
+  clearTrainingNotification,
+  clearTrainingNotifications,
+} from "../../utils/trainingNotifications";
 
 function Header({
   setMobileOpen,
   sidebarCollapsed,
   setSidebarCollapsed,
+  hideNav = false,
 }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState(
     getAlertNotifications
   );
+  const [trainingNotifications, setTrainingNotifications] = useState(
+    getTrainingNotifications
+  );
   const userMenuRef = useRef(null);
   const notificationsRef = useRef(null);
   const navigate = useNavigate();
-  const unreadCount = notifications.filter(
+  const combinedNotifications = [
+    ...notifications.map((notification) => ({
+      ...notification,
+      source: "alert",
+    })),
+    ...trainingNotifications.map((notification) => ({
+      ...notification,
+      source: "training",
+    })),
+  ].sort(
+    (first, second) =>
+      new Date(second.createdAt).getTime() -
+      new Date(first.createdAt).getTime()
+  );
+  const unreadCount = combinedNotifications.filter(
     (notification) => !notification.read
   ).length;
 
@@ -91,6 +121,30 @@ function Header({
     };
   }, []);
 
+  // Sync training notifications from custom event / storage
+  useEffect(() => {
+    const syncTraining = (event) => {
+      setTrainingNotifications(
+        Array.isArray(event.detail)
+          ? event.detail
+          : getTrainingNotifications()
+      );
+    };
+    const syncTrainingFromStorage = (event) => {
+      if (event.key?.startsWith("aapdasetu-training-notifications")) {
+        setTrainingNotifications(getTrainingNotifications());
+      }
+    };
+
+    window.addEventListener(TRAINING_NOTIFICATIONS_EVENT, syncTraining);
+    window.addEventListener("storage", syncTrainingFromStorage);
+
+    return () => {
+      window.removeEventListener(TRAINING_NOTIFICATIONS_EVENT, syncTraining);
+      window.removeEventListener("storage", syncTrainingFromStorage);
+    };
+  }, []);
+
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -141,6 +195,19 @@ function Header({
   const openNotification = (notification) => {
     setNotificationsOpen(false);
 
+    if (notification.source === "training") {
+      const destination = notification.path || "/training";
+      setTrainingNotifications(
+        markTrainingNotificationRead(notification.id)
+      );
+      navigate(destination, {
+        state: {
+          trainingNotification: notification,
+        },
+      });
+      return;
+    }
+
     const notificationType = notification.type?.toLowerCase();
     const destination = notificationType?.includes("post")
       ? "/alerts/post-alerts"
@@ -181,81 +248,85 @@ function Header({
     >
       {/* Left Side */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          {/* Mobile menu */}
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="
-              rounded-lg
-              p-2
-              text-slate-600
-              hover:bg-slate-100
-              lg:hidden
-            "
-          >
-            <Menu size={22} />
-          </button>
+        {!hideNav && (
+          <div className="flex items-center gap-2">
+            {/* Mobile menu */}
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="
+                rounded-lg
+                p-2
+                text-slate-600
+                hover:bg-slate-100
+                lg:hidden
+              "
+            >
+              <Menu size={22} />
+            </button>
 
-          {/* Sidebar collapse */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="
-              hidden
-              rounded-lg
-              p-2
-              text-slate-600
-              hover:bg-slate-100
-              lg:block
-            "
-            title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen size={22} />
-            ) : (
-              <PanelLeftClose size={22} />
-            )}
-          </button>
-        </div>
+            {/* Sidebar collapse */}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="
+                hidden
+                rounded-lg
+                p-2
+                text-slate-600
+                hover:bg-slate-100
+                lg:block
+              "
+              title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen size={22} />
+              ) : (
+                <PanelLeftClose size={22} />
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Right Side */}
       <div className="flex items-center gap-2 sm:gap-4">
 
-        {/* SOS Emergency Button */}
-        <button
-          onClick={() => navigate("/emergency")}
-          className="
-            flex
-            items-center
-            gap-2
-            rounded-lg
-            bg-red-600
-            px-3
-            py-2
-            text-sm
-            font-semibold
-            text-white
-            shadow-sm
-            transition
-            hover:bg-red-700
-            focus:outline-none
-            focus:ring-2
-            focus:ring-red-500
-            focus:ring-offset-2
-            sm:px-4
-          "
-          title="Emergency Contacts"
-        >
-          <Siren size={18} />
+        {/* SOS Emergency Button — hidden for volunteer / NGO roles */}
+        {!hideNav && (
+          <button
+            onClick={() => navigate("/emergency")}
+            className="
+              flex
+              items-center
+              gap-2
+              rounded-lg
+              bg-red-600
+              px-3
+              py-2
+              text-sm
+              font-semibold
+              text-white
+              shadow-sm
+              transition
+              hover:bg-red-700
+              focus:outline-none
+              focus:ring-2
+              focus:ring-red-500
+              focus:ring-offset-2
+              sm:px-4
+            "
+            title="Emergency Contacts"
+          >
+            <Siren size={18} />
 
-          <span className="hidden sm:inline">
-            SOS Emergency
-          </span>
+            <span className="hidden sm:inline">
+              SOS Emergency
+            </span>
 
-          <span className="sm:hidden">
-            SOS
-          </span>
-        </button>
+            <span className="sm:hidden">
+              SOS
+            </span>
+          </button>
+        )}
 
         {/* Notifications */}
         <div className="relative" ref={notificationsRef}>
@@ -286,51 +357,88 @@ function Header({
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {unreadCount
-                      ? `${unreadCount} unread alert${unreadCount === 1 ? "" : "s"}`
-                      : "Your latest alerts"}
+                      ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
+                      : "Your latest alerts and training activity"}
                   </p>
                 </div>
-                {unreadCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNotifications(markAllAlertNotificationsRead())
-                    }
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
-                  >
-                    <Check size={14} />
-                    Mark all read
-                  </button>
-                )}
+                <div className="flex shrink-0 items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotifications(markAllAlertNotificationsRead());
+                        setTrainingNotifications(
+                          markAllTrainingNotificationsRead()
+                        );
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
+                    >
+                      <Check size={14} />
+                      Mark all read
+                    </button>
+                  )}
+                  {combinedNotifications.length > 0 && (
+                    <button
+                      type="button"
+                      aria-label="Clear all notifications"
+                      title="Clear all notifications"
+                      onClick={() => {
+                        setNotifications(clearAlertNotifications());
+                        setTrainingNotifications(clearTrainingNotifications());
+                      }}
+                      className="rounded-md p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="max-h-96 overflow-y-auto">
-                {notifications.length === 0 ? (
+                {combinedNotifications.length === 0 ? (
                   <p className="px-4 py-8 text-center text-sm text-slate-500">
-                    No notifications yet. New pre-alerts and post alerts will
+                    No notifications yet. New alerts and training activity will
                     appear here.
                   </p>
                 ) : (
-                  notifications.map((notification) => (
-                    <button
-                      key={notification.id}
-                      type="button"
-                      onClick={() => openNotification(notification)}
-                      className={`block w-full border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 ${
-                        notification.read ? "bg-white" : "bg-red-50/50"
+                  combinedNotifications.map((notification) => (
+                    <div
+                      key={`${notification.source}-${notification.id}`}
+                      className={`flex items-start gap-2 border-b border-slate-100 px-4 py-3 transition hover:bg-slate-50 ${
+                        notification.read
+                          ? "bg-white"
+                          : notification.source === "training"
+                            ? "bg-blue-50/40"
+                            : "bg-red-50/50"
                       }`}
                     >
-                      <span className="flex items-start gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => openNotification(notification)}
+                        className="flex min-w-0 flex-1 items-start gap-2.5 text-left"
+                      >
                         {!notification.read && (
                           <span
                             aria-label="Unread"
-                            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-600"
+                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                              notification.source === "training"
+                                ? "bg-blue-600"
+                                : "bg-red-600"
+                            }`}
                           />
                         )}
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wide text-red-600">
-                              {notification.type}
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wide ${
+                                notification.source === "training"
+                                  ? "text-blue-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {notification.source === "training"
+                                ? `Training ${notification.type}`
+                                : notification.type}
                             </span>
                             <time className="shrink-0 text-[10px] text-slate-400">
                               {new Date(notification.createdAt).toLocaleString()}
@@ -345,8 +453,27 @@ function Header({
                             </span>
                           )}
                         </span>
-                      </span>
-                    </button>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Clear notification: ${notification.title}`}
+                        title="Clear notification"
+                        onClick={() => {
+                          if (notification.source === "training") {
+                            setTrainingNotifications(
+                              clearTrainingNotification(notification.id)
+                            );
+                          } else {
+                            setNotifications(
+                              clearAlertNotification(notification.id)
+                            );
+                          }
+                        }}
+                        className="shrink-0 rounded-md p-1.5 text-slate-400 transition hover:bg-red-100 hover:text-red-600"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   ))
                 )}
               </div>

@@ -94,7 +94,7 @@ const commonMenus = [
   icon: Boxes,
   children: [
     {
-      label: "Stock Overview",
+      label: "Equipment Inventory",
       icon: BarChart3,
       path: "/inventory/overview",
     },

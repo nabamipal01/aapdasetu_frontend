@@ -69,6 +69,11 @@ export const markAlertNotificationRead = (id) => {
   return saveAlertNotifications(notifications);
 };
 
+export const clearAlertNotification = (id) =>
+  saveAlertNotifications(
+    getAlertNotifications().filter((notification) => notification.id !== id)
+  );
+
 export const markAllAlertNotificationsRead = () => {
   const notifications = getAlertNotifications().map((notification) => ({
     ...notification,
@@ -76,5 +81,7 @@ export const markAllAlertNotificationsRead = () => {
   }));
   return saveAlertNotifications(notifications);
 };
+
+export const clearAlertNotifications = () => saveAlertNotifications([]);
 
 export const ALERT_NOTIFICATIONS_EVENT = NOTIFICATION_EVENT;

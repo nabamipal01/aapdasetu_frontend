@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, Trash2, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import API_BASE_URL from "../../config/Config";
-import PostAlertService from "../../services/PostAlertService";
+import {
+  createPostAlert,
+  deletePostAlert,
+  getPostAlerts,
+} from "../../services";
 import { addAlertNotification } from "../../utils/alertNotifications";
 
 const RESPONSE_ACTIONS = [
@@ -185,7 +189,7 @@ function PostAlert() {
       setLoading(true);
       setError("");
 
-      const result = await PostAlertService.getPostAlerts(page, 10);
+      const result = await getPostAlerts(page, 10);
 
       if (result?.success) {
         const data = result.data;
@@ -358,7 +362,7 @@ function PostAlert() {
         data.append("incident_photo[]", file);
       });
 
-      const result = await PostAlertService.createPostAlert(data);
+      const result = await createPostAlert(data);
 
       if (result.success) {
         setSuccess("Post Alert created successfully.");
@@ -461,7 +465,7 @@ function PostAlert() {
     setSuccess("");
 
     try {
-      const result = await PostAlertService.deletePostAlert(id);
+      const result = await deletePostAlert(id);
 
       if (result?.success === false) {
         throw new Error(result.message || "Unable to delete post alert.");

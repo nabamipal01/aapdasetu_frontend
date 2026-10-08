@@ -31,9 +31,13 @@ async function apiFetch(endpoint, options = {}) {
     : "";
   const isPublicEndpoint = endpoint.includes("/api/auth/login.php") || endpoint.includes("/api/auth/register.php");
 
-  const defaultHeaders = {
-    "Content-Type": "application/json",
-  };
+ const isFormData = options.body instanceof FormData;
+
+const defaultHeaders = {};
+
+if (!isFormData) {
+  defaultHeaders["Content-Type"] = "application/json";
+}
 
   if (token && !isPublicEndpoint) {
     defaultHeaders["Authorization"] = `Bearer ${token}`;
@@ -107,7 +111,16 @@ export const get = (endpoint, params = {}) => {
 };
 
 export const post = (endpoint, body) =>
-  apiFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
+  apiFetch(endpoint, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const postFormData = (endpoint, formData) =>
+  apiFetch(endpoint, {
+    method: "POST",
+    body: formData,
+  });
 
 export const patch = (endpoint, body) =>
   apiFetch(endpoint, { method: "PATCH", body: JSON.stringify(body) });
