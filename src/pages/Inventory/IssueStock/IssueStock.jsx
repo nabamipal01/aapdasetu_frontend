@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   listInventoryItems,
   createStockIssue,
+  updateStockIssue,
   listStockIssues,
   getStockIssue,
   deleteStockIssue,
@@ -28,6 +29,7 @@ import {
   Hash,
   ChevronLeft,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 
 const EMPTY_FORM = {
@@ -73,6 +75,7 @@ function IssueStock() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [editingIssueId, setEditingIssueId] = useState(null);
 
   // =========================================================
   // SEARCH / PAGINATION
@@ -334,11 +337,12 @@ function IssueStock() {
   // RESET FORM
   // =========================================================
 
-  const resetForm = () => {
-    setForm(EMPTY_FORM);
-    setSelectedItems([]);
-    setShowForm(false);
-  };
+ const resetForm = () => {
+  setForm(EMPTY_FORM);
+  setSelectedItems([]);
+  setEditingIssueId(null);
+  setShowForm(false);
+};
 
   // =========================================================
   // ITEM HANDLERS
@@ -728,6 +732,84 @@ function IssueStock() {
       setPreviewLoading(false);
     }
   };
+
+
+  const handleEdit = async (issue) => {
+  const issueId = issue?.issue_id ?? issue?.id;
+
+  if (!issueId) {
+    showToast("error", "Invalid stock issue ID.");
+    return;
+  }
+
+  setPreviewLoading(true);
+
+  try {
+    const response = await getStockIssue(issueId);
+    const detail = response?.data;
+
+    if (!detail) {
+      throw new Error("Stock issue details not found.");
+    }
+
+    const districtUserId = String(
+      detail.district_user_id ?? ""
+    );
+
+    const districtUser = districtUsers.find(
+      (user) => String(user.id) === districtUserId
+    );
+
+    setEditingIssueId(issueId);
+
+    setForm({
+      district_id: String(
+        detail.district_id ??
+          districtUser?.district_id ??
+          districtUser?.district?.id ??
+          ""
+      ),
+      district_user_id: districtUserId,
+      storage_location: detail.storage_location ?? "",
+      remarks: detail.remarks ?? "",
+    });
+
+    setSelectedItems(
+      (detail.items ?? []).map((item) => {
+        const inventoryId = String(
+          item.inventory_id ?? ""
+        );
+
+        const inventoryItem = inventoryItems.find(
+          (inventory) =>
+            String(
+              inventory.inventory_id ?? inventory.id
+            ) === inventoryId
+        );
+
+        return {
+          category:
+            inventoryItem?.equipment_type ??
+            inventoryItem?.equipment?.equipment_type ??
+            inventoryItem?.category_name ??
+            item.equipment_type ??
+            "",
+          inventory_id: inventoryId,
+          quantity: String(item.quantity ?? ""),
+        };
+      })
+    );
+
+    setShowForm(true);
+  } catch (err) {
+    showToast(
+      "error",
+      err?.message || "Failed to load issue for editing."
+    );
+  } finally {
+    setPreviewLoading(false);
+  }
+};
 
   // =========================================================
   // DELETE
@@ -1788,6 +1870,15 @@ function IssueStock() {
                                     <Eye
                                       size={17}
                                     />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEdit(issue)}
+                                    title="Edit issue"
+                                    className="rounded-xl p-2.5 text-slate-400 transition hover:bg-blue-50 hover:text-blue-600"
+                                  >
+                                    <Pencil size={17} />
                                   </button>
 
                                   <button

@@ -13,6 +13,8 @@ import {
   X,
   Check,
   Search,
+    Eye,
+
 } from "lucide-react";
 
 const EMPTY_EDIT_FORM = {
@@ -45,7 +47,7 @@ function StockOverview() {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
   const [editSubmitting, setEditSubmitting] = useState(false);
-
+  const [viewingItem, setViewingItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
 
@@ -701,6 +703,18 @@ function StockOverview() {
 
                           <div className="flex items-center justify-center gap-1">
 
+                            
+                              <button
+                                type="button"
+                                onClick={() => setViewingItem(item)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-600"
+                                title="View equipment"
+                                aria-label={`View ${item.product_name}`}
+                              >
+                                <Eye size={15} />
+                              </button>
+
+
                             <button
                               type="button"
                               onClick={() =>
@@ -831,6 +845,82 @@ function StockOverview() {
             )}
         </div>
       </div>
+
+      
+      {/* View Equipment Modal */}
+        {viewingItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800">
+                    Equipment Details
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    View equipment information
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingItem(null)}
+                  className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Details */}
+              <div className="grid grid-cols-1 gap-x-8 gap-y-5 px-5 py-6 sm:grid-cols-2">
+                {[
+                  ["Product Name", viewingItem.product_name],
+                  ["Equipment ID", viewingItem.equipment_id],
+                  ["Brand Name", viewingItem.brand_name],
+                  ["Equipment Type", viewingItem.equipment_type],
+                  ["OEM", viewingItem.oem],
+                  ["Storage Location", viewingItem.location],
+                  ["Purchase Date", viewingItem.purchase_date],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                      {label}
+                    </p>
+                    <p className="break-words text-sm font-medium text-slate-800">
+                      {value || "—"}
+                    </p>
+                  </div>
+                ))}
+
+                {/* Quantity */}
+                <div>
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Quantity
+                  </p>
+                  <span className="inline-flex rounded-md bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
+                    {viewingItem.quantity ?? 0} units
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => setViewingItem(null)}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                >
+                  Close
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+
 
       {/* ========================================================
           Edit Equipment Modal
