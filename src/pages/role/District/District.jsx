@@ -19,7 +19,9 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Eye,
 } from "lucide-react";
+import UserDetailsModal from "../../../components/common/UserDetailsModal";
 
 const EMPTY_FORM = {
   name: "",
@@ -34,6 +36,7 @@ const ITEMS_PER_PAGE = 10;
 
 function District() {
   const [users, setUsers] = useState([]);
+  const [viewingUser, setViewingUser] = useState(null);
   const [districts, setDistricts] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -881,6 +884,15 @@ function District() {
                             ) : (
                               <>
                                 <button
+                                  type="button"
+                                  onClick={() => setViewingUser(u)}
+                                  className="rounded p-1.5 text-slate-400 transition-colors hover:bg-purple-50 hover:text-purple-600"
+                                  title="View"
+                                  aria-label={`View ${u.name}`}
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button
                                   onClick={() =>
                                     startEdit(u)
                                   }
@@ -993,8 +1005,17 @@ function District() {
               </div>
             </>
           )}
+
         </div>
       </div>
+      {viewingUser && (
+        <UserDetailsModal
+          user={viewingUser}
+          role="district"
+          location={{ district: getDistrictName(viewingUser) }}
+          onClose={() => setViewingUser(null)}
+        />
+      )}
     </div>
   );
 }

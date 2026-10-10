@@ -13,7 +13,9 @@ import {
   Trash2,
   Pencil,
   Search,
+  Eye,
 } from "lucide-react";
+import UserDetailsModal from "../../../components/common/UserDetailsModal";
 
 const EMPTY_FORM = {
   name: "",
@@ -54,6 +56,7 @@ function Admin() {
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [updatingUserId, setUpdatingUserId] = useState(null);
+  const [viewingUser, setViewingUser] = useState(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -143,7 +146,7 @@ function Admin() {
     setEditingUser({
       name: user.name || "",
       email: user.email || "",
-      phone: user.phone || "",
+      phone: user.phone || "",              
     });
 
     setError("");
@@ -792,6 +795,15 @@ function Admin() {
                             </div>
                           ) : (
                             <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setViewingUser(user)}
+                                className="rounded p-1.5 text-slate-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
+                                title="View"
+                                aria-label={`View ${user.name}`}
+                              >
+                                <Eye size={15} />
+                              </button>
                               {/* Edit */}
                               <button
                                 type="button"
@@ -888,6 +900,13 @@ function Admin() {
             )}
         </div>
       </div>
+      {viewingUser && (
+        <UserDetailsModal
+          user={viewingUser}
+          role="admin"
+          onClose={() => setViewingUser(null)}
+        />
+      )}
     </div>
   );
 }

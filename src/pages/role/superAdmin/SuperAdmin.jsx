@@ -12,7 +12,9 @@ import {
   RefreshCw,
   Trash2,
   ChevronDown,
+  Eye,
 } from "lucide-react";
+import UserDetailsModal from "../../../components/common/UserDetailsModal";
 
 const ROLE_STYLES = {
   super_admin: "bg-blue-100 text-blue-700",
@@ -42,6 +44,7 @@ function SuperAdmin() {
   const [form, setForm] = useState(EMPTY_FORM);
 
   const [filterRole, setFilterRole] = useState("");
+  const [viewingUser, setViewingUser] = useState(null);
 
   // --------------------------------------------------
   // Fetch users
@@ -481,6 +484,7 @@ function SuperAdmin() {
                     </th>
 
                     <th className="px-5 py-3 font-semibold">
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -539,19 +543,28 @@ function SuperAdmin() {
 
                       {/* Delete */}
                       <td className="px-5 py-3">
-
-                        <button
-                          onClick={() =>
-                            handleDelete(
-                              user.id,
-                              user.name
-                            )
-                          }
-                          className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                          title="Delete"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setViewingUser(user)}
+                            className="rounded p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                            title="View"
+                            aria-label={`View ${user.name}`}
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDelete(user.id, user.name)
+                            }
+                            className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            title="Delete"
+                            aria-label={`Delete ${user.name}`}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
 
                       </td>
 
@@ -565,6 +578,12 @@ function SuperAdmin() {
 
         </div>
       </div>
+      {viewingUser && (
+        <UserDetailsModal
+          user={viewingUser}
+          onClose={() => setViewingUser(null)}
+        />
+      )}
     </div>
   );
 }

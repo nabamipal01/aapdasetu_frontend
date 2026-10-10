@@ -20,7 +20,9 @@ import {
   Pencil,
   Check,
   Search,
+  Eye,
 } from "lucide-react";
+import UserDetailsModal from "../../../components/common/UserDetailsModal";
 
 const EMPTY_FORM = {
   name: "",
@@ -35,6 +37,7 @@ const EMPTY_FORM = {
 
 function Block() {
   const [users, setUsers] = useState([]);
+  const [viewingUser, setViewingUser] = useState(null);
 
   const [districts, setDistricts] = useState([]);
   const [subdivisions, setSubdivisions] = useState([]);
@@ -1123,6 +1126,15 @@ function Block() {
                             ) : (
                               <>
                                 <button
+                                  type="button"
+                                  onClick={() => setViewingUser(u)}
+                                  className="rounded p-1.5 text-slate-400 transition-colors hover:bg-cyan-50 hover:text-cyan-600"
+                                  title="View"
+                                  aria-label={`View ${u.name}`}
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button
                                   onClick={() =>
                                     startEdit(u)
                                   }
@@ -1156,6 +1168,28 @@ function Block() {
           )}
         </div>
       </div>
+      {viewingUser && (
+        <UserDetailsModal
+          user={viewingUser}
+          role="block"
+          location={{
+            district: getLinkedDistrict(
+              viewingUser,
+              getLinkedBlock(viewingUser),
+              getLinkedSubdivision(
+                viewingUser,
+                getLinkedBlock(viewingUser)
+              )
+            )?.name,
+            subdivision: getLinkedSubdivision(
+              viewingUser,
+              getLinkedBlock(viewingUser)
+            )?.name,
+            block: getLinkedBlock(viewingUser)?.name,
+          }}
+          onClose={() => setViewingUser(null)}
+        />
+      )}
     </div>
   );
 }

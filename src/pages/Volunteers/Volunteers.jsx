@@ -1099,9 +1099,7 @@ function Volunteers() {
                         <div>
                           <p className="font-medium text-slate-800">{v.name}</p>
 
-                          <p className="mt-0.5 text-xs text-slate-400">
-                            ID #{v.id}
-                          </p>
+                          
                         </div>
                       </td>
                       {/* REGISTRATION NO. */}
@@ -1222,167 +1220,254 @@ function Volunteers() {
           VIEW VOLUNTEER MODAL
       ===================================================== */}
 
-      {(viewLoading || viewModal) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-xl">
-            {viewLoading ? (
-              <div className="flex items-center justify-center py-20 text-sm text-slate-500">
-                <RefreshCw size={18} className="mr-2 animate-spin" />
-                Loading details...
+     {/* =====================================================
+    VIEW VOLUNTEER MODAL — NGO DESIGN
+===================================================== */}
+
+{(viewLoading || viewModal) && (
+  <div
+    className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+    onClick={() => {
+      if (!viewLoading) setViewModal(null);
+    }}
+  >
+    <section
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="volunteer-details-title"
+      className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {viewLoading ? (
+        <div className="flex items-center justify-center py-20 text-sm text-slate-500">
+          <RefreshCw size={18} className="mr-2 animate-spin" />
+          Loading volunteer details…
+        </div>
+      ) : (
+        <>
+          <div className="relative bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-800 px-6 py-6 text-white sm:px-8">
+            <button
+              type="button"
+              onClick={() => setViewModal(null)}
+              aria-label="Close volunteer details"
+              className="absolute right-4 top-4 rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-4 pr-10">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10">
+                <Users size={26} />
               </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-900">
-                      Volunteer Details
-                    </h3>
 
-                    <p className="text-sm text-slate-500">
-                      Complete volunteer information
-                    </p>
-                  </div>
+              <div className="min-w-0">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">
+                  Volunteer profile
+                </p>
 
-                  <button
-                    onClick={() => setViewModal(null)}
-                    className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
+                <h2
+                  id="volunteer-details-title"
+                  className="truncate text-xl font-semibold"
+                >
+                  {viewModal.name || "Volunteer"}
+                </h2>
 
-                <div className="p-6">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Detail label="Name" value={viewModal.name} />
+                <p className="mt-1 text-sm text-blue-100/80">
+                  {viewModal.volunteer_registration_no ||
+                    "Volunteer details"}
+                </p>
+              </div>
+            </div>
+          </div>
 
-                    <Detail label="Phone" value={viewModal.phone} />
+          {/* Modal body */}
+          <div className="space-y-5 px-6 py-6 sm:px-8">
+            {/* Status badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-700">
+                Volunteer
+              </span>
 
-                    <Detail label="Email" value={viewModal.email} />
+              <span
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  {
+                    approved: "bg-green-100 text-green-700",
+                    active: "bg-green-100 text-green-700",
+                    pending: "bg-amber-100 text-amber-700",
+                    pending_approval: "bg-amber-100 text-amber-700",
+                    rejected: "bg-red-100 text-red-700",
+                    inactive: "bg-slate-100 text-slate-600",
+                  }[viewModal.status] || "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {STATUS_LABELS?.[viewModal.status] ||
+                  viewModal.status?.replaceAll("_", " ") ||
+                  "Unknown"}
+              </span>
+            </div>
 
-                    <Detail label="Aadhaar No." value={viewModal.aadhaar_no} />
+            {/* Volunteer information */}
+            <div>
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Volunteer information
+              </h3>
 
-                    <Detail
-                      label="Registration No."
-                      value={viewModal.volunteer_registration_no}
-                    />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ["Name", viewModal.name],
+                  ["Phone number", viewModal.phone],
+                  ["Email address", viewModal.email],
+                  ["Aadhaar No.", viewModal.aadhaar_no],
+                  [
+                    "Registration No.",
+                    viewModal.volunteer_registration_no,
+                  ],
+                  ["Registration Date", viewModal.registration_date],
+                  ["Skills", viewModal.skills],
+                  ["Address", viewModal.address],
+                ]
+                  .filter(
+                    ([, value]) =>
+                      value !== null &&
+                      value !== undefined &&
+                      String(value).trim() !== ""
+                  )
+                  .map(([label, value]) => (
+                    <div
+                      key={label}
+                      className={`min-w-0 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 ${
+                        label === "Address" || label === "Skills"
+                          ? "sm:col-span-2"
+                          : ""
+                      }`}
+                    >
+                      <p className="text-xs font-medium text-slate-400">
+                        {label}
+                      </p>
 
-                    <Detail
-                      label="Registration Date"
-                      value={viewModal.registration_date}
-                    />
+                      <p className="mt-1 break-words text-sm font-medium capitalize text-slate-800">
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </div>
 
-                    <Detail label="Skills" value={viewModal.skills} />
+            {/* Volunteer ID card */}
+            <section className="rounded-xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-4">
+              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <Image size={17} className="text-rose-600" />
+               
+              </h3>
 
-                    <Detail
-                      label="Status"
-                      value={
-                        STATUS_LABELS[viewModal.status] || viewModal.status
-                      }
-                    />
+              {viewModal.id_card ? (
+                <a
+                  href={getFileUrl(viewModal.id_card)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:shadow-md sm:flex-row"
+                >
+                  <img
+                    src={getFileUrl(viewModal.id_card)}
+                    alt={`${viewModal.name || "Volunteer"} ID card`}
+                    className="h-48 w-full bg-slate-100 object-contain sm:h-36 sm:w-40"
+                  />
 
-                    <div className="sm:col-span-2">
-                      <Detail label="Address" value={viewModal.address} />
+                  <div className="flex flex-1 items-center justify-between gap-3 p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        ID card image
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Open the original image
+                      </p>
                     </div>
 
-                    <Detail label="Created At" value={viewModal.created_at} />
-
-                    <Detail label="Updated At" value={viewModal.updated_at} />
+                    <Eye
+                      size={18}
+                      className="shrink-0 text-rose-600 transition group-hover:scale-110"
+                    />
                   </div>
+                </a>
+              ) : (
+                <p className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+                  No ID card has been uploaded.
+                </p>
+              )}
+            </section>
 
-                  {/* ID CARD */}
-                  <section className="mt-6 rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4">
-                    <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                      <Image size={17} className="text-teal-600" />
-                      Volunteer ID Card
-                    </h4>
-                    {viewModal.id_card ? (
+            {/* Supporting documents */}
+            <section>
+              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <FileText size={17} className="text-rose-600" />
+                Supporting documents
+
+                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                  {viewModal.supporting_documents?.length || 0}
+                </span>
+              </h3>
+
+              {viewModal.supporting_documents?.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {viewModal.supporting_documents.map((doc, index) => (
+                    <div
+                      key={
+                        doc.document_id ||
+                        doc.document_path ||
+                        index
+                      }
+                      className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5"
+                    >
+                      <span className="rounded-lg bg-rose-100 p-2 text-rose-600">
+                        <FileText size={17} />
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {doc.document_name || "Supporting document"}
+                        </p>
+
+                        {doc.uploaded_at && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            Uploaded: {doc.uploaded_at}
+                          </p>
+                        )}
+                      </div>
+
                       <a
-                        href={getFileUrl(viewModal.id_card)}
+                        href={getFileUrl(doc.document_path)}
                         target="_blank"
                         rel="noreferrer"
-                        className="group flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:shadow-md sm:flex-row"
+                        className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 ring-1 ring-slate-200 transition hover:bg-rose-50"
                       >
-                        <img
-                          src={getFileUrl(viewModal.id_card)}
-                          alt={`${viewModal.name || "Volunteer"} ID card`}
-                          className="h-48 w-full bg-slate-100 object-contain sm:h-36 sm:w-56"
-                        />
-                        <div className="flex items-center justify-between gap-3 p-4">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-800">
-                              ID card image
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              Open the original image
-                            </p>
-                          </div>
-                          <Eye
-                            size={18}
-                            className="shrink-0 text-teal-600 transition group-hover:scale-110"
-                          />
-                        </div>
+                        View
                       </a>
-                    ) : (
-                      <p className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
-                        No ID card has been uploaded.
-                      </p>
-                    )}
-                  </section>
-
-                  {/* SUPPORTING DOCUMENTS */}
-                  <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                        <FileText size={17} className="text-indigo-600" />
-                        Supporting Documents
-                        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
-                          {viewModal.supporting_documents?.length || 0}
-                        </span>
-                      </h4>
-
-                      {viewModal.supporting_documents?.length > 0 ? (
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {viewModal.supporting_documents.map((doc, index) => (
-                          <div
-                            key={doc.document_id || doc.document_path || index}
-                            className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
-                          >
-                            <span className="rounded-lg bg-indigo-50 p-2 text-indigo-600">
-                              <FileText size={17} />
-                            </span>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-slate-700">
-                                {doc.document_name || "Supporting document"}
-                              </p>
-                              {doc.uploaded_at && (
-                                <p className="mt-0.5 text-xs text-slate-400">
-                                  Uploaded: {doc.uploaded_at}
-                                </p>
-                              )}
-                            </div>
-
-                            <a
-                              href={getFileUrl(doc.document_path)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="ml-4 shrink-0 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
-                            >
-                              View
-                            </a>
-                          </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
-                          No supporting documents have been uploaded.
-                        </p>
-                      )}
-                  </section>
+                    </div>
+                  ))}
                 </div>
-              </>
-            )}
+              ) : (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-500">
+                  No supporting documents have been uploaded.
+                </p>
+              )}
+            </section>
+
+            {/* Footer — same style as NGO modal */}
+            <div className="flex justify-end border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setViewModal(null)}
+                className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
+    </section>
+  </div>
+)}
 
       {/* =====================================================
           REJECT MODAL

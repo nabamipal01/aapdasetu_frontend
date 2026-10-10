@@ -12,6 +12,7 @@ import {
   approveAgency,
   rejectAgency,
   generateAgencyCredentials,
+  getAgency,
 } from "../../services";
 
 import {
@@ -30,6 +31,7 @@ import {
   FileSpreadsheet,
   FileText,
   FileType,
+  Eye,
 } from "lucide-react";
 
 import * as XLSX from "xlsx";
@@ -117,6 +119,12 @@ function Ngo() {
     useState(EMPTY_CRED);
 
   const [credSubmitting, setCredSubmitting] =
+    useState(false);
+
+  const [viewAgency, setViewAgency] =
+    useState(null);
+
+  const [viewLoading, setViewLoading] =
     useState(false);
 
   // Reject modal
@@ -399,6 +407,27 @@ function Ngo() {
         err.message ||
           "Failed to delete agency"
       );
+    }
+  };
+
+  const handleView = async (id) => {
+    setViewLoading(true);
+    setViewAgency(null);
+    setError("");
+
+    try {
+      const res = await getAgency(id);
+      const agency = res?.data?.agency ?? res?.data;
+
+      if (!agency || typeof agency !== "object") {
+        throw new Error("Agency details not found.");
+      }
+
+      setViewAgency(agency);
+    } catch (err) {
+      setError(err.message || "Failed to load agency details.");
+    } finally {
+      setViewLoading(false);
     }
   };
 
@@ -1341,6 +1370,15 @@ function Ngo() {
                             </>
                           ) : (
                             <>
+                              <button
+                                type="button"
+                                onClick={() => handleView(a.id)}
+                                title="View Details"
+                                aria-label={`View ${a.name}`}
+                                className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                              >
+                                <Eye size={15} />
+                              </button>
                               {a.status ===
                                 "pending_approval" && (
                                 <>
@@ -1464,6 +1502,126 @@ function Ngo() {
           )}
         </div>
       </div>
+
+      {(viewLoading || viewAgency) && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+          onClick={() => {
+            if (!viewLoading) setViewAgency(null);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agency-details-title"
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {viewLoading ? (
+              <div className="flex items-center justify-center py-20 text-sm text-slate-500">
+                <RefreshCw size={18} className="mr-2 animate-spin" />
+                Loading agency details…
+              </div>
+            ) : (
+              <>
+                <div className="relative bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-800 px-6 py-6 text-white sm:px-8">
+                  <button
+                    type="button"
+                    onClick={() => setViewAgency(null)}
+                    aria-label="Close agency details"
+                    className="absolute right-4 top-4 rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    <X size={20} />
+                  </button>
+                  <div className="flex items-center gap-4 pr-10">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10">
+                      <Building size={26} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">
+                        Agency profile
+                      </p>
+                      <h2
+                        id="agency-details-title"
+                        className="truncate text-xl font-semibold"
+                      >
+                        {viewAgency.name || "Agency"}
+                      </h2>
+                      <p className="mt-1 text-sm capitalize text-blue-100/80">
+                        {viewAgency.type || "NGO"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-5 px-6 py-6 sm:px-8">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-rose-100 px-3 py-1.5 text-xs font-semibold capitalize text-rose-700">
+                      {viewAgency.type || "NGO"}
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize ${
+                        STATUS_STYLES[viewAgency.status] ||
+                        "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      {viewAgency.status?.replaceAll("_", " ") || "Unknown"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Agency information
+                    </h3>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {[
+                        ["Contact person", viewAgency.contact_person],
+                        ["Phone number", viewAgency.phone],
+                        ["Email address", viewAgency.email],
+                        ["Address", viewAgency.address],
+                        ["Registered", viewAgency.created_at || viewAgency.createdAt],
+                      ]
+                        .filter(([, value]) =>
+                          value !== null &&
+                          value !== undefined &&
+                          String(value).trim() !== ""
+                        )
+                        .map(([label, value]) => (
+                          <div
+                            key={label}
+                            className={`min-w-0 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 ${
+                              label === "Address" ? "sm:col-span-2" : ""
+                            }`}
+                          >
+                            <p className="text-xs font-medium text-slate-400">
+                              {label}
+                            </p>
+                            <p className="mt-1 break-words text-sm font-medium text-slate-800">
+                              {label === "Registered" &&
+                              !Number.isNaN(Date.parse(value))
+                                ? new Date(value).toLocaleDateString()
+                                : value}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setViewAgency(null)}
+                      className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      )}
 
       {/* Reject Modal */}
       {rejectModal && (

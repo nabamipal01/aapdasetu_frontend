@@ -18,7 +18,9 @@ import {
   Pencil,
   Check,
   Search,
+  Eye,
 } from "lucide-react";
+import UserDetailsModal from "../../../components/common/UserDetailsModal";
 
 const EMPTY_FORM = {
   name: "",
@@ -32,6 +34,7 @@ const EMPTY_FORM = {
 
 function SubDivison() {
   const [users, setUsers] = useState([]);
+  const [viewingUser, setViewingUser] = useState(null);
   const [subdivisions, setSubdivisions] = useState([]);
   const [districts, setDistricts] = useState([]);
 
@@ -1112,6 +1115,16 @@ function SubDivison() {
                                 <>
 
                                   <button
+                                    type="button"
+                                    onClick={() => setViewingUser(u)}
+                                    className="rounded p-1.5 text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600"
+                                    title="View"
+                                    aria-label={`View ${u.name}`}
+                                  >
+                                    <Eye size={14} />
+                                  </button>
+
+                                  <button
                                     onClick={() =>
                                       startEdit(u)
                                     }
@@ -1258,6 +1271,20 @@ function SubDivison() {
 
         </div>
       </div>
+      {viewingUser && (
+        <UserDetailsModal
+          user={viewingUser}
+          role="subdivision"
+          location={{
+            district: getLinkedDistrict(
+              viewingUser,
+              getLinkedSubdivision(viewingUser)
+            )?.name,
+            subdivision: getLinkedSubdivision(viewingUser)?.name,
+          }}
+          onClose={() => setViewingUser(null)}
+        />
+      )}
     </div>
   );
 }
