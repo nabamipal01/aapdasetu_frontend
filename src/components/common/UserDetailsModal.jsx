@@ -130,28 +130,41 @@ function UserDetailsModal({ user, role, location = {}, onClose }) {
           </div>
 
           <div>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
               Account information
             </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {details.map(({ label, value, icon: Icon }) => (
-                <div
-                  key={label}
-                  className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5"
-                >
-                  <span className="mt-0.5 rounded-lg bg-white p-2 text-slate-500 shadow-sm">
-                    <Icon size={16} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-slate-400">{label}</p>
-                    <p className="mt-1 break-words text-sm font-medium text-slate-800">
-                      {label === "Joined" && !Number.isNaN(Date.parse(value))
-                        ? new Date(value).toLocaleDateString()
-                        : value}
-                    </p>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Field</th>
+                      <th className="px-4 py-3 font-semibold">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {details.map(({ label, value, icon: Icon }) => (
+                      <tr key={label} className="transition-colors hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5 text-slate-600">
+                            <span className="rounded-lg bg-slate-100 p-2 text-slate-500">
+                              <Icon size={14} />
+                            </span>
+                            <span className="font-medium">{label}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-800">
+                          <span className="font-medium">
+                            {label === "Joined" && !Number.isNaN(Date.parse(value))
+                              ? new Date(value).toLocaleDateString()
+                              : value}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 

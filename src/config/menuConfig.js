@@ -200,7 +200,7 @@ const commonMenus = [
   //   ],
   // },
   {
-    label: "Reports",
+    label: "MIS Reports",
     icon: FileBarChart,
     path: "/reports",
   },

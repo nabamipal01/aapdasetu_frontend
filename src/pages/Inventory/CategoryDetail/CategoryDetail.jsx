@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import DownloadMenu from "../../../components/common/DownloadMenu";
 
 const CARD_COLORS = [
   { border: "border-blue-500",    bg: "bg-blue-50",    text: "text-blue-700",    badge: "bg-blue-100 text-blue-700" },
@@ -164,6 +165,7 @@ function CategoryDetail() {
                 <span className="text-sm font-normal text-slate-500">({filteredItems.length})</span>
               )}
             </h2>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <div className="relative w-full sm:w-72">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -173,6 +175,13 @@ function CategoryDetail() {
                 placeholder="Search items…"
                 className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
               />
+            </div>
+            <DownloadMenu
+              records={filteredItems}
+              title={`${category?.equipment_type ?? "Category"} Inventory`}
+              disabled={loading}
+              onError={(err) => setError(err.message || "Failed to download category inventory.")}
+            />
             </div>
           </div>
 

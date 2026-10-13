@@ -16,6 +16,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { listIncidents } from "../../services/incidentService";
 import { listUsers } from "../../services/userService";
+import DownloadMenu from "../../components/common/DownloadMenu";
 
 // const TASK_ONLY_ROLES = new Set([
 //   "volunteer",
@@ -794,7 +795,7 @@ function Task() {
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
 
-          <div className="border-b border-slate-200 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
             <h2 className="font-semibold text-slate-900">
               All Tasks
 
@@ -804,6 +805,12 @@ function Task() {
                 </span>
               )}
             </h2>
+            <DownloadMenu
+              records={tasks}
+              title="Tasks"
+              disabled={loading}
+              onError={(err) => setError(err.message || "Failed to download tasks.")}
+            />
           </div>
 
           {loading ? (

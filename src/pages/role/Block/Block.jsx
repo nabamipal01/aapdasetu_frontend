@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
 import {
   listUsers,
@@ -21,7 +22,15 @@ import {
   Check,
   Search,
   Eye,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  FileDown,
+  ChevronDown,
 } from "lucide-react";
+
+import { downloadStyledPdf, downloadStyledXlsx } from "../../../utils/tableExport";
+
 import UserDetailsModal from "../../../components/common/UserDetailsModal";
 
 const EMPTY_FORM = {
@@ -70,6 +79,30 @@ function Block() {
   const [search, setSearch] = useState("");
 
   // ---------------------------------------------------------------------------
+  // Download dropdown
+  // ---------------------------------------------------------------------------
+
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        downloadMenuRef.current &&
+        !downloadMenuRef.current.contains(event.target)
+      ) {
+        setShowDownloadMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Fetch block users
   // ---------------------------------------------------------------------------
 
@@ -82,7 +115,7 @@ function Block() {
         role: "block",
         page: 1,
         per_page: 50,
-        status: "active"
+        status: "active",
       });
 
       setUsers(
@@ -186,12 +219,7 @@ function Block() {
     fetchDistricts();
     fetchSubdivisions();
     fetchBlocks();
-  }, [
-    fetchUsers,
-    fetchDistricts,
-    fetchSubdivisions,
-    fetchBlocks,
-  ]);
+  }, [fetchUsers, fetchDistricts, fetchSubdivisions, fetchBlocks]);
 
   // ---------------------------------------------------------------------------
   // Form
@@ -222,6 +250,7 @@ function Block() {
       Number(block.subdivision_id ?? block.subdivisionId) ===
       Number(form.subdivision_id)
   );
+
   const filteredEditBlocks = blocks.filter((block) => {
     const blockSubdivisionId =
       block.subdivision_id ??
@@ -232,6 +261,7 @@ function Block() {
 
     return Number(blockSubdivisionId) === Number(editData.subdivision_id);
   });
+
   const resetForm = () => {
     setForm({ ...EMPTY_FORM });
     setShowForm(false);
@@ -277,19 +307,14 @@ function Block() {
         email: form.email.trim(),
         phone: form.phone.trim(),
         password: form.password,
-
         role: "block",
-
         district_id: Number(form.district_id),
         subdivision_id: Number(form.subdivision_id),
         block_id: Number(form.block_id),
-
-        // Keep linked_id if your backend uses it for the block.
         linked_id: Number(form.block_id),
       };
 
       const res = await createUser(payload);
-
       const createdUser = res?.data;
 
       if (createdUser) {
@@ -379,16 +404,11 @@ function Block() {
         name: editData.name.trim(),
         email: editData.email.trim(),
         phone: editData.phone.trim(),
-
         role: "block",
-
         district_id: Number(editData.district_id),
         subdivision_id: Number(editData.subdivision_id),
         block_id: Number(editData.block_id),
-
-        // Keep linked_id for existing backend compatibility.
         linked_id: Number(editData.block_id),
-
         status: "active",
       });
 
@@ -396,9 +416,9 @@ function Block() {
         prev.map((u) =>
           u.id === id
             ? {
-              ...u,
-              ...res.data,
-            }
+                ...u,
+                ...res.data,
+              }
             : u
         )
       );
@@ -415,11 +435,7 @@ function Block() {
   // ---------------------------------------------------------------------------
 
   const handleDelete = async (id, name) => {
-    if (
-      !window.confirm(
-        `Deactivate block user "${name}"?`
-      )
-    ) {
+    if (!window.confirm(`Deactivate block user "${name}"?`)) {
       return;
     }
 
@@ -429,21 +445,16 @@ function Block() {
 
       await deleteUser(id);
 
-      setSuccess(
-        `Block user "${name}" deactivated successfully.`
-      );
+      setSuccess(`Block user "${name}" deactivated successfully.`);
 
-      // Reload only active block users
       await fetchUsers();
     } catch (err) {
-      setError(
-        err.message || "Failed to deactivate block user"
-      );
+      setError(err.message || "Failed to deactivate block user");
     }
   };
 
   // ---------------------------------------------------------------------------
-  // Search
+  // Linked entities
   // ---------------------------------------------------------------------------
 
   const getLinkedBlock = (user) =>
@@ -452,25 +463,28 @@ function Block() {
         Number(block.id) ===
         Number(
           user.block_id ??
-          user.blockId ??
-          user.linked_id ??
-          user.linkedId ??
-          user.block?.id ??
-          user.linked_entity?.id
+            user.blockId ??
+            user.linked_id ??
+            user.linkedId ??
+            user.block?.id ??
+            user.linked_entity?.id
         )
     );
 
-  const getLinkedSubdivision = (user, linkedBlock = getLinkedBlock(user)) =>
+  const getLinkedSubdivision = (
+    user,
+    linkedBlock = getLinkedBlock(user)
+  ) =>
     subdivisions.find(
       (subdivision) =>
         Number(subdivision.id) ===
         Number(
           user.subdivision_id ??
-          user.subdivisionId ??
-          user.subdivision?.id ??
-          linkedBlock?.subdivision_id ??
-          linkedBlock?.subdivisionId ??
-          linkedBlock?.subdivision?.id
+            user.subdivisionId ??
+            user.subdivision?.id ??
+            linkedBlock?.subdivision_id ??
+            linkedBlock?.subdivisionId ??
+            linkedBlock?.subdivision?.id
         )
     );
 
@@ -484,16 +498,20 @@ function Block() {
         Number(district.id) ===
         Number(
           user.district_id ??
-          user.districtId ??
-          user.district?.id ??
-          linkedBlock?.district_id ??
-          linkedBlock?.districtId ??
-          linkedBlock?.district?.id ??
-          linkedSubdivision?.district_id ??
-          linkedSubdivision?.districtId ??
-          linkedSubdivision?.district?.id
+            user.districtId ??
+            user.district?.id ??
+            linkedBlock?.district_id ??
+            linkedBlock?.districtId ??
+            linkedBlock?.district?.id ??
+            linkedSubdivision?.district_id ??
+            linkedSubdivision?.districtId ??
+            linkedSubdivision?.district?.id
         )
     );
+
+  // ---------------------------------------------------------------------------
+  // Search
+  // ---------------------------------------------------------------------------
 
   const filteredUsers = users.filter((u) => {
     const query = search.toLowerCase().trim();
@@ -541,13 +559,131 @@ function Block() {
   });
 
   // ---------------------------------------------------------------------------
+  // Download helpers
+  // ---------------------------------------------------------------------------
+
+  const getToday = () => new Date().toISOString().split("T")[0];
+
+  // Export every user matching the current search, not just visible rows.
+  const getExportRows = () =>
+    filteredUsers.map((user) => {
+      const linkedBlock = getLinkedBlock(user);
+      const linkedSubdivision = getLinkedSubdivision(user, linkedBlock);
+      const linkedDistrict = getLinkedDistrict(
+        user,
+        linkedBlock,
+        linkedSubdivision
+      );
+
+      return {
+        Name: user.name || "",
+        Email: user.email || "",
+        Phone: user.phone || "",
+        District:
+          linkedDistrict?.name ||
+          user.district_name ||
+          user.district?.name ||
+          linkedBlock?.district?.name ||
+          linkedSubdivision?.district?.name ||
+          "—",
+        Subdivision:
+          linkedSubdivision?.name ||
+          user.subdivision_name ||
+          user.subdivision?.name ||
+          linkedBlock?.subdivision?.name ||
+          "—",
+        Block:
+          linkedBlock?.name ||
+          user.linked_entity?.name ||
+          user.block_name ||
+          user.linked_name ||
+          "—",
+        Status: user.status || "active",
+      };
+    });
+
+  const downloadCSV = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("No block users available to download.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (value) =>
+      `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) =>
+        headers.map((header) => escapeCSV(row[header])).join(",")
+      ),
+    ].join("\r\n");
+
+    const blob = new Blob(["\uFEFF", csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `block_users_${getToday()}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+    setShowDownloadMenu(false);
+  };
+
+  const downloadExcel = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("No block users available to download.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    downloadStyledXlsx({
+      records: rows,
+      title: "Block Users",
+      filename: `block_users_${getToday()}.xlsx`,
+    });
+
+    setShowDownloadMenu(false);
+  };
+
+  const downloadPDF = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("No block users available to download.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    downloadStyledPdf({
+      records: rows,
+      title: "Block Users",
+      filename: `block_users_${getToday()}.pdf`,
+    });
+
+    setShowDownloadMenu(false);
+  };
+
+  // ---------------------------------------------------------------------------
   // UI
   // ---------------------------------------------------------------------------
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8">
       <div className="mx-auto max-w-7xl">
-
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -565,6 +701,70 @@ function Block() {
           </div>
 
           <div className="flex gap-2">
+            {/* Download dropdown */}
+            <div ref={downloadMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setShowDownloadMenu((prev) => !prev)}
+                disabled={loading || filteredUsers.length === 0}
+                className="flex items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download size={15} />
+                Download
+                <ChevronDown size={14} />
+              </button>
+
+              {showDownloadMenu && (
+                <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={downloadExcel}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-green-50"
+                  >
+                    <FileSpreadsheet
+                      size={17}
+                      className="text-green-600"
+                    />
+                    <div>
+                      <p className="font-medium">Download XLSX</p>
+                      <p className="text-xs text-slate-400">
+                        Excel workbook
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadCSV}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-blue-50"
+                  >
+                    <FileDown size={17} className="text-blue-600" />
+                    <div>
+                      <p className="font-medium">Download CSV</p>
+                      <p className="text-xs text-slate-400">
+                        Comma-separated data
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadPDF}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-red-50"
+                  >
+                    <FileText size={17} className="text-red-600" />
+                    <div>
+                      <p className="font-medium">Download PDF</p>
+                      <p className="text-xs text-slate-400">
+                        Printable report
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Refresh */}
             <button
               onClick={() => {
                 fetchUsers();
@@ -578,6 +778,7 @@ function Block() {
               Refresh
             </button>
 
+            {/* Add */}
             <button
               onClick={() => {
                 setShowForm(!showForm);
@@ -616,21 +817,20 @@ function Block() {
 
         {/* Create Form */}
         <div
-          className={`grid transition-all duration-300 ease-in-out ${showForm
-            ? "mb-6 grid-rows-[1fr] opacity-100"
-            : "grid-rows-[0fr] opacity-0 pointer-events-none"
-            }`}
+          className={`grid transition-all duration-300 ease-in-out ${
+            showForm
+              ? "mb-6 grid-rows-[1fr] opacity-100"
+              : "pointer-events-none grid-rows-[0fr] opacity-0"
+          }`}
         >
           <div className="overflow-hidden">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-
               <h2 className="mb-4 text-base font-semibold text-slate-900">
                 Add Block User
               </h2>
 
               <form onSubmit={handleCreate}>
                 <div className="grid gap-4 sm:grid-cols-2">
-
                   {/* Full Name */}
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -697,10 +897,7 @@ function Block() {
                       </option>
 
                       {districts.map((district) => (
-                        <option
-                          key={district.id}
-                          value={district.id}
-                        >
+                        <option key={district.id} value={district.id}>
                           {district.name}
                         </option>
                       ))}
@@ -761,10 +958,7 @@ function Block() {
                       </option>
 
                       {filteredBlocks.map((block) => (
-                        <option
-                          key={block.id}
-                          value={block.id}
-                        >
+                        <option key={block.id} value={block.id}>
                           {block.name}
                         </option>
                       ))}
@@ -828,11 +1022,9 @@ function Block() {
 
         {/* Table */}
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-
           {/* Table Header */}
           <div className="border-b border-slate-200 px-5 py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
               <h2 className="font-semibold text-slate-900">
                 Block Users{" "}
                 {!loading && (
@@ -902,40 +1094,16 @@ function Block() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-
                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="px-5 py-3 font-semibold">
-                      Name
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Email
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Phone
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      District
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Subdivision
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Block
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Status
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Actions
-                    </th>
+                    <th className="px-5 py-3 font-semibold">Name</th>
+                    <th className="px-5 py-3 font-semibold">Email</th>
+                    <th className="px-5 py-3 font-semibold">Phone</th>
+                    <th className="px-5 py-3 font-semibold">District</th>
+                    <th className="px-5 py-3 font-semibold">Subdivision</th>
+                    <th className="px-5 py-3 font-semibold">Block</th>
+                    <th className="px-5 py-3 font-semibold">Status</th>
+                    <th className="px-5 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
 
@@ -957,7 +1125,6 @@ function Block() {
                         key={u.id}
                         className="transition-colors hover:bg-slate-50"
                       >
-
                         {/* Name */}
                         <td className="px-5 py-3 font-medium text-slate-800">
                           {editId === u.id ? (
@@ -1065,15 +1232,10 @@ function Block() {
                               }
                               className="w-48 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-cyan-400"
                             >
-                              <option value="">
-                                Select Block
-                              </option>
+                              <option value="">Select Block</option>
 
                               {filteredEditBlocks.map((block) => (
-                                <option
-                                  key={block.id}
-                                  value={block.id}
-                                >
+                                <option key={block.id} value={block.id}>
                                   {block.name}
                                 </option>
                               ))}
@@ -1090,10 +1252,11 @@ function Block() {
                         {/* Status */}
                         <td className="px-5 py-3">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${u.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-slate-100 text-slate-500"
-                              }`}
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                              u.status === "active"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
                           >
                             {u.status || "active"}
                           </span>
@@ -1102,23 +1265,20 @@ function Block() {
                         {/* Actions */}
                         <td className="px-5 py-3">
                           <div className="flex gap-1">
-
                             {editId === u.id ? (
                               <>
                                 <button
-                                  onClick={() =>
-                                    handleUpdate(u.id)
-                                  }
+                                  onClick={() => handleUpdate(u.id)}
                                   className="rounded p-1.5 text-green-600 transition-colors hover:bg-green-50"
+                                  title="Save"
                                 >
                                   <Check size={14} />
                                 </button>
 
                                 <button
-                                  onClick={() =>
-                                    setEditId(null)
-                                  }
+                                  onClick={() => setEditId(null)}
                                   className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100"
+                                  title="Cancel"
                                 >
                                   <X size={14} />
                                 </button>
@@ -1134,29 +1294,24 @@ function Block() {
                                 >
                                   <Eye size={14} />
                                 </button>
+
                                 <button
-                                  onClick={() =>
-                                    startEdit(u)
-                                  }
+                                  onClick={() => startEdit(u)}
                                   className="rounded p-1.5 text-slate-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
+                                  title="Edit"
                                 >
                                   <Pencil size={14} />
                                 </button>
 
                                 <button
-                                  onClick={() =>
-                                    handleDelete(
-                                      u.id,
-                                      u.name
-                                    )
-                                  }
+                                  onClick={() => handleDelete(u.id, u.name)}
                                   className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                  title="Delete"
                                 >
                                   <Trash2 size={14} />
                                 </button>
                               </>
                             )}
-
                           </div>
                         </td>
                       </tr>
@@ -1168,6 +1323,7 @@ function Block() {
           )}
         </div>
       </div>
+
       {viewingUser && (
         <UserDetailsModal
           user={viewingUser}

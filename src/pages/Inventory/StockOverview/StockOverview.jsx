@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Eye,
 } from "lucide-react";
+import DownloadMenu from "../../../components/common/DownloadMenu";
 
 const EMPTY_EDIT_FORM = {
   equipment_id: "",
@@ -534,6 +535,7 @@ function StockOverview() {
                 )}
               </h2>
 
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <div className="relative w-full sm:w-80">
                 <Search
                   size={17}
@@ -562,6 +564,13 @@ function StockOverview() {
                     <X size={15} />
                   </button>
                 )}
+              </div>
+              <DownloadMenu
+                records={filteredItems}
+                title="Inventory Items"
+                disabled={loading}
+                onError={(err) => setError(err.message || "Failed to download inventory items.")}
+              />
               </div>
             </div>
           </div>

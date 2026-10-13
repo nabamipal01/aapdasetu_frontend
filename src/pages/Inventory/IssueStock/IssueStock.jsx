@@ -31,6 +31,7 @@ import {
   ChevronRight,
   Pencil,
 } from "lucide-react";
+import DownloadMenu from "../../../components/common/DownloadMenu";
 
 const EMPTY_FORM = {
   district_id: "",
@@ -1573,6 +1574,7 @@ function IssueStock() {
 
               {/* SEARCH */}
 
+              <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
               <div className="relative w-full md:w-96">
                 <Search
                   size={17}
@@ -1602,6 +1604,13 @@ function IssueStock() {
                     <X size={15} />
                   </button>
                 )}
+              </div>
+              <DownloadMenu
+                records={filteredIssues}
+                title="Stock Issues"
+                disabled={loading}
+                onError={(err) => showToast("error", err.message || "Failed to download stock issues.")}
+              />
               </div>
             </div>
 

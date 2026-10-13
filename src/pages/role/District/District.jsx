@@ -1,4 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+
+import { downloadStyledPdf, downloadStyledXlsx } from "../../../utils/tableExport";
 
 import {
   listUsers,
@@ -20,7 +28,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  FileDown,
+  ChevronDown,
 } from "lucide-react";
+
 import UserDetailsModal from "../../../components/common/UserDetailsModal";
 
 const EMPTY_FORM = {
@@ -58,13 +72,31 @@ function District() {
     linked_id: "",
   });
 
-  // Search + pagination
+  // Search, pagination and download menu
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef(null);
 
-  /* --------------------------------
-     Load district users
-  -------------------------------- */
+  // Close download menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        downloadMenuRef.current &&
+        !downloadMenuRef.current.contains(event.target)
+      ) {
+        setShowDownloadMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Load district users
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -74,9 +106,9 @@ function District() {
         role: "district",
         page: 1,
         per_page: 50,
-        status: "active"
+        status: "active",
       });
-      // console.log("DISTRICT USERS RESPONSE:", res);
+
       setUsers(
         Array.isArray(res?.data?.users)
           ? res.data.users
@@ -91,9 +123,7 @@ function District() {
     }
   }, []);
 
-  /* --------------------------------
-     Load districts
-  -------------------------------- */
+  // Load districts
   const fetchDistricts = useCallback(async () => {
     setDistrictsLoading(true);
 
@@ -120,9 +150,7 @@ function District() {
     fetchDistricts();
   }, [fetchUsers, fetchDistricts]);
 
-  /* --------------------------------
-     Form handling
-  -------------------------------- */
+  // Form handling
   const handleChange = (e) => {
     setForm((prev) => ({
       ...prev,
@@ -135,9 +163,7 @@ function District() {
     setShowForm(false);
   };
 
-  /* --------------------------------
-     Create District User
-  -------------------------------- */
+  // Create district user
   const handleCreate = async (e) => {
     e.preventDefault();
 
@@ -184,8 +210,7 @@ function District() {
       setUsers((prev) => [res.data, ...prev]);
 
       setSuccess(
-        `District user "${res.data?.name || form.name
-        }" created successfully.`
+        `District user "${res.data?.name || form.name}" created successfully.`
       );
 
       setCurrentPage(1);
@@ -197,9 +222,7 @@ function District() {
     }
   };
 
-  /* --------------------------------
-     Start inline edit
-  -------------------------------- */
+  // Start inline edit
   const startEdit = (user) => {
     setEditId(user.id);
 
@@ -219,9 +242,7 @@ function District() {
     setSuccess("");
   };
 
-  /* --------------------------------
-     Update District User
-  -------------------------------- */
+  // Update district user
   const handleUpdate = async (id) => {
     if (
       !editData.name.trim() ||
@@ -229,9 +250,7 @@ function District() {
       !editData.phone.trim() ||
       !editData.linked_id
     ) {
-      setError(
-        "Name, Email, Phone and District are required."
-      );
+      setError("Name, Email, Phone and District are required.");
       return;
     }
 
@@ -252,23 +271,18 @@ function District() {
 
       setUsers((prev) =>
         prev.map((user) =>
-          user.id === id
-            ? { ...user, ...res.data }
-            : user
+          user.id === id ? { ...user, ...res.data } : user
         )
       );
 
       setEditId(null);
-
       setSuccess("District user updated successfully.");
     } catch (err) {
       setError(err.message || "Failed to update user");
     }
   };
 
-  /* --------------------------------
-     Delete user
-  -------------------------------- */
+  // Delete user
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Deactivate district user "${name}"?`)) {
       return;
@@ -286,34 +300,17 @@ function District() {
 
       // Reload only active district users
       await fetchUsers();
-
     } catch (err) {
-      setError(
-        err.message || "Failed to deactivate district user"
-      );
+      setError(err.message || "Failed to deactivate district user");
     }
   };
 
-  /* --------------------------------
-     Get district name
-  -------------------------------- */
+  // Get district name
   const getDistrictName = (user) => {
-
-    if (user.district?.name) {
-      return user.district.name;
-    }
-
-    if (user.district_name) {
-      return user.district_name;
-    }
-
-    if (user.districtName) {
-      return user.districtName;
-    }
-
-    if (user.linked_name) {
-      return user.linked_name;
-    }
+    if (user.district?.name) return user.district.name;
+    if (user.district_name) return user.district_name;
+    if (user.districtName) return user.districtName;
+    if (user.linked_name) return user.linked_name;
 
     const districtId =
       user.district_id ??
@@ -323,46 +320,38 @@ function District() {
       user.district?.id;
 
     const district = districts.find(
-      (item) =>
-        String(item.id) === String(districtId)
+      (item) => String(item.id) === String(districtId)
     );
 
     return district?.name || "—";
   };
 
-  /* --------------------------------
-     Search
-  -------------------------------- */
+  // Search
   const filteredUsers = useMemo(() => {
     const query = search.toLowerCase().trim();
 
-    if (!query) {
-      return users;
-    }
+    if (!query) return users;
 
     return users.filter((user) => {
-      const districtName = getDistrictName(user);
+      const districtName = getDistrictName(user).toLowerCase();
 
       return (
         user.name?.toLowerCase().includes(query) ||
         user.email?.toLowerCase().includes(query) ||
         user.phone?.toLowerCase().includes(query) ||
-        districtName.toLowerCase().includes(query)
+        districtName.includes(query)
       );
     });
   }, [users, search, districts]);
 
-  /* --------------------------------
-     Pagination
-  -------------------------------- */
+  // Pagination
   const totalPages = Math.max(
     1,
     Math.ceil(filteredUsers.length / ITEMS_PER_PAGE)
   );
 
   const paginatedUsers = useMemo(() => {
-    const startIndex =
-      (currentPage - 1) * ITEMS_PER_PAGE;
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
 
     return filteredUsers.slice(
       startIndex,
@@ -370,16 +359,12 @@ function District() {
     );
   }, [filteredUsers, currentPage]);
 
-  /* --------------------------------
-     Reset pagination when search changes
-  -------------------------------- */
+  // Reset pagination when search changes
   useEffect(() => {
     setCurrentPage(1);
   }, [search]);
 
-  /* --------------------------------
-     Keep current page valid
-  -------------------------------- */
+  // Keep current page valid
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -396,25 +381,115 @@ function District() {
     filteredUsers.length
   );
 
-  /* --------------------------------
-     Page numbers
-  -------------------------------- */
+  // Page numbers
   const pageNumbers = Array.from(
     { length: totalPages },
     (_, index) => index + 1
   );
 
+  // ============================
+  // Download filtered district users
+  // ============================
+
+  // Export all filtered users, not just the current pagination page.
+  // Passwords are deliberately excluded.
+  const getExportRows = () =>
+    filteredUsers.map((user) => ({
+      Name: user.name || "",
+      Email: user.email || "",
+      Phone: user.phone || "",
+      District: getDistrictName(user),
+      Status: user.status || "active",
+    }));
+
+  const getToday = () => new Date().toISOString().split("T")[0];
+
+  // Download CSV
+  const downloadCSV = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("There are no district users to export.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (value) =>
+      `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+    const csv = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) =>
+        headers
+          .map((header) => escapeCSV(row[header]))
+          .join(",")
+      ),
+    ].join("\r\n");
+
+    const blob = new Blob(["\uFEFF", csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `district_users_${getToday()}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+    setShowDownloadMenu(false);
+  };
+
+  // Download Excel
+  const downloadExcel = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("There are no district users to export.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    downloadStyledXlsx({
+      records: rows,
+      title: "District Users",
+      filename: `district_users_${getToday()}.xlsx`,
+    });
+
+    setShowDownloadMenu(false);
+  };
+
+  // Download PDF
+  const downloadPDF = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("There are no district users to export.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    downloadStyledPdf({
+      records: rows,
+      title: "District Users",
+      filename: `district_users_${getToday()}.pdf`,
+    });
+    setShowDownloadMenu(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8">
       <div className="mx-auto max-w-7xl">
-
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <MapPin
-              className="text-purple-600"
-              size={28}
-            />
+            <MapPin className="text-purple-600" size={28} />
 
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -427,7 +502,79 @@ function District() {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {/* Download dropdown — same design as Admin.jsx */}
+            <div ref={downloadMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  setShowDownloadMenu((prev) => !prev)
+                }
+                disabled={loading || filteredUsers.length === 0}
+                className="flex items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download size={15} />
+                Download
+                <ChevronDown size={14} />
+              </button>
+
+              {showDownloadMenu && (
+                <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={downloadExcel}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-green-50"
+                  >
+                    <FileSpreadsheet
+                      size={17}
+                      className="text-green-600"
+                    />
+                    <div>
+                      <p className="font-medium">Download XLSX</p>
+                      <p className="text-xs text-slate-400">
+                        Excel workbook
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadCSV}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-blue-50"
+                  >
+                    <FileDown
+                      size={17}
+                      className="text-blue-600"
+                    />
+                    <div>
+                      <p className="font-medium">Download CSV</p>
+                      <p className="text-xs text-slate-400">
+                        Comma-separated data
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadPDF}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-red-50"
+                  >
+                    <FileText
+                      size={17}
+                      className="text-red-600"
+                    />
+                    <div>
+                      <p className="font-medium">Download PDF</p>
+                      <p className="text-xs text-slate-400">
+                        Printable report
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Refresh */}
             <button
               onClick={fetchUsers}
               disabled={loading}
@@ -435,13 +582,12 @@ function District() {
             >
               <RefreshCw
                 size={15}
-                className={
-                  loading ? "animate-spin" : ""
-                }
+                className={loading ? "animate-spin" : ""}
               />
               Refresh
             </button>
 
+            {/* Add district user */}
             <button
               onClick={() => {
                 setShowForm(!showForm);
@@ -484,21 +630,20 @@ function District() {
 
         {/* Create Form */}
         <div
-          className={`grid transition-all duration-300 ease-in-out ${showForm
-            ? "mb-6 grid-rows-[1fr] opacity-100"
-            : "pointer-events-none grid-rows-[0fr] opacity-0"
-            }`}
+          className={`grid transition-all duration-300 ease-in-out ${
+            showForm
+              ? "mb-6 grid-rows-[1fr] opacity-100"
+              : "pointer-events-none grid-rows-[0fr] opacity-0"
+          }`}
         >
           <div className="overflow-hidden">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-
               <h2 className="mb-4 text-base font-semibold text-slate-900">
                 Add District User
               </h2>
 
               <form onSubmit={handleCreate}>
                 <div className="grid gap-4 sm:grid-cols-2">
-
                   {/* Full Name */}
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -619,14 +764,10 @@ function District() {
 
                   <button
                     type="submit"
-                    disabled={
-                      submitting || districtsLoading
-                    }
+                    disabled={submitting || districtsLoading}
                     className="rounded-lg bg-purple-600 px-5 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {submitting
-                      ? "Creating…"
-                      : "Create User"}
+                    {submitting ? "Creating…" : "Create User"}
                   </button>
                 </div>
               </form>
@@ -634,13 +775,11 @@ function District() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Users Table */}
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-
           {/* Table Header + Search */}
           <div className="border-b border-slate-200 px-5 py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
               <h2 className="font-semibold text-slate-900">
                 District Users{" "}
                 {!loading && (
@@ -660,9 +799,7 @@ function District() {
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
-                  }
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search name, email, phone, district..."
                   className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-9 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
                 />
@@ -687,21 +824,14 @@ function District() {
             </div>
           ) : users.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
-              <MapPin
-                size={36}
-                className="mb-2 text-slate-200"
-              />
-
+              <MapPin size={36} className="mb-2 text-slate-200" />
               <p className="text-sm text-slate-500">
                 No district users yet. Add one above.
               </p>
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
-              <Search
-                size={36}
-                className="mb-2 text-slate-200"
-              />
+              <Search size={36} className="mb-2 text-slate-200" />
 
               <p className="text-sm text-slate-500">
                 No users found for "{search}".
@@ -720,32 +850,14 @@ function District() {
               {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-
                   <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                     <tr>
-                      <th className="px-5 py-3 font-semibold">
-                        Name
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Email
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Phone
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        District
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Status
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Actions
-                      </th>
+                      <th className="px-5 py-3 font-semibold">Name</th>
+                      <th className="px-5 py-3 font-semibold">Email</th>
+                      <th className="px-5 py-3 font-semibold">Phone</th>
+                      <th className="px-5 py-3 font-semibold">District</th>
+                      <th className="px-5 py-3 font-semibold">Status</th>
+                      <th className="px-5 py-3 font-semibold">Actions</th>
                     </tr>
                   </thead>
 
@@ -755,7 +867,6 @@ function District() {
                         key={u.id}
                         className="transition-colors hover:bg-slate-50"
                       >
-
                         {/* Name */}
                         <td className="px-5 py-3 font-medium text-slate-800">
                           {editId === u.id ? (
@@ -823,20 +934,16 @@ function District() {
                               }
                               className="w-44 rounded border border-slate-300 bg-white px-2 py-1 text-sm outline-none focus:border-purple-400"
                             >
-                              <option value="">
-                                Select District
-                              </option>
+                              <option value="">Select District</option>
 
-                              {districts.map(
-                                (district) => (
-                                  <option
-                                    key={district.id}
-                                    value={district.id}
-                                  >
-                                    {district.name}
-                                  </option>
-                                )
-                              )}
+                              {districts.map((district) => (
+                                <option
+                                  key={district.id}
+                                  value={district.id}
+                                >
+                                  {district.name}
+                                </option>
+                              ))}
                             </select>
                           ) : (
                             getDistrictName(u)
@@ -846,10 +953,11 @@ function District() {
                         {/* Status */}
                         <td className="px-5 py-3">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${u.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-slate-100 text-slate-500"
-                              }`}
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                              u.status === "active"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
                           >
                             {u.status || "active"}
                           </span>
@@ -858,13 +966,10 @@ function District() {
                         {/* Actions */}
                         <td className="px-5 py-3">
                           <div className="flex gap-1">
-
                             {editId === u.id ? (
                               <>
                                 <button
-                                  onClick={() =>
-                                    handleUpdate(u.id)
-                                  }
+                                  onClick={() => handleUpdate(u.id)}
                                   className="rounded p-1.5 text-green-600 transition-colors hover:bg-green-50"
                                   title="Save"
                                 >
@@ -872,9 +977,7 @@ function District() {
                                 </button>
 
                                 <button
-                                  onClick={() =>
-                                    setEditId(null)
-                                  }
+                                  onClick={() => setEditId(null)}
                                   className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100"
                                   title="Cancel"
                                 >
@@ -892,10 +995,9 @@ function District() {
                                 >
                                   <Eye size={14} />
                                 </button>
+
                                 <button
-                                  onClick={() =>
-                                    startEdit(u)
-                                  }
+                                  onClick={() => startEdit(u)}
                                   className="rounded p-1.5 text-slate-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
                                   title="Edit"
                                 >
@@ -904,10 +1006,7 @@ function District() {
 
                                 <button
                                   onClick={() =>
-                                    handleDelete(
-                                      u.id,
-                                      u.name
-                                    )
+                                    handleDelete(u.id, u.name)
                                   }
                                   className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
                                   title="Delete"
@@ -916,7 +1015,6 @@ function District() {
                                 </button>
                               </>
                             )}
-
                           </div>
                         </td>
                       </tr>
@@ -927,7 +1025,6 @@ function District() {
 
               {/* Pagination */}
               <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-
                 {/* Results info */}
                 <div className="text-sm text-slate-500">
                   Showing{" "}
@@ -947,7 +1044,6 @@ function District() {
 
                 {/* Pagination buttons */}
                 <div className="flex items-center gap-1">
-
                   {/* Previous */}
                   <button
                     type="button"
@@ -960,9 +1056,7 @@ function District() {
                     className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronLeft size={15} />
-                    <span className="hidden sm:inline">
-                      Previous
-                    </span>
+                    <span className="hidden sm:inline">Previous</span>
                   </button>
 
                   {/* Page Numbers */}
@@ -971,13 +1065,12 @@ function District() {
                       <button
                         key={page}
                         type="button"
-                        onClick={() =>
-                          setCurrentPage(page)
-                        }
-                        className={`min-w-[36px] rounded-lg px-3 py-2 text-sm font-medium ${currentPage === page
-                          ? "bg-purple-600 text-white"
-                          : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                          }`}
+                        onClick={() => setCurrentPage(page)}
+                        className={`min-w-[36px] rounded-lg px-3 py-2 text-sm font-medium ${
+                          currentPage === page
+                            ? "bg-purple-600 text-white"
+                            : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
                       >
                         {page}
                       </button>
@@ -995,19 +1088,16 @@ function District() {
                     }
                     className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <span className="hidden sm:inline">
-                      Next
-                    </span>
+                    <span className="hidden sm:inline">Next</span>
                     <ChevronRight size={15} />
                   </button>
-
                 </div>
               </div>
             </>
           )}
-
         </div>
       </div>
+
       {viewingUser && (
         <UserDetailsModal
           user={viewingUser}

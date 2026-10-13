@@ -10,6 +10,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
+import DownloadMenu from "../../../components/common/DownloadMenu";
 
 function ReturnHistory() {
   const [logs, setLogs] = useState([]);
@@ -125,18 +126,26 @@ function ReturnHistory() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => fetchHistory(true)}
-            disabled={loading || refreshing}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw
-              size={17}
-              className={refreshing ? "animate-spin" : ""}
+          <div className="flex flex-wrap items-center gap-2">
+            <DownloadMenu
+              records={filteredLogs}
+              title="Stock Return History"
+              disabled={loading}
+              onError={(err) => setError(err.message || "Failed to download return history.")}
             />
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
+            <button
+              type="button"
+              onClick={() => fetchHistory(true)}
+              disabled={loading || refreshing}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw
+                size={17}
+                className={refreshing ? "animate-spin" : ""}
+              />
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

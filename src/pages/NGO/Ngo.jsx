@@ -35,8 +35,7 @@ import {
 } from "lucide-react";
 
 import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { downloadStyledPdf, downloadStyledXlsx } from "../../utils/tableExport";
 
 const STATUS_STYLES = {
   pending_approval:
@@ -570,40 +569,17 @@ function Ngo() {
         const exportData =
           getAgencyExportData();
 
-        const worksheet =
-          XLSX.utils.json_to_sheet(
-            exportData
-          );
-
-        worksheet["!cols"] = [
-          { wch: 8 },
-          { wch: 30 },
-          { wch: 18 },
-          { wch: 28 },
-          { wch: 18 },
-          { wch: 30 },
-          { wch: 45 },
-          { wch: 20 },
-        ];
-
-        const workbook =
-          XLSX.utils.book_new();
-
-        XLSX.utils.book_append_sheet(
-          workbook,
-          worksheet,
-          "Agencies"
-        );
-
         const today =
           new Date()
             .toISOString()
             .split("T")[0];
 
-        XLSX.writeFile(
-          workbook,
-          `agencies_${today}.xlsx`
-        );
+        downloadStyledXlsx({
+          records: exportData,
+          title: "NGO / Agency List",
+          filename: `agencies_${today}.xlsx`,
+          sheetName: "Agencies",
+        });
 
         setSuccess(
           "Agency data exported as XLSX successfully."
@@ -705,130 +681,16 @@ function Ngo() {
       }
 
       try {
-        const doc = new jsPDF({
-          orientation: "landscape",
-          unit: "mm",
-          format: "a4",
-        });
-
-        doc.setFontSize(16);
-
-        doc.text(
-          "NGO / Agency List",
-          14,
-          15
-        );
-
-        doc.setFontSize(9);
-
-        doc.text(
-          `Generated on: ${new Date().toLocaleDateString(
-            "en-IN"
-          )}`,
-          14,
-          21
-        );
-
-        doc.text(
-          `Total Agencies: ${agencies.length}`,
-          14,
-          27
-        );
-
-        const rows =
-          agencies.map(
-            (agency, index) => [
-              index + 1,
-              agency.name || "",
-              agency.type || "",
-              agency.contact_person ||
-                "",
-              agency.phone || "",
-              agency.email || "",
-              agency.address || "",
-              agency.status
-                ? agency.status.replace(
-                    /_/g,
-                    " "
-                  )
-                : "",
-            ]
-          );
-
-        autoTable(doc, {
-          startY: 32,
-
-          head: [
-            [
-              "S.No.",
-              "Agency Name",
-              "Type",
-              "Contact Person",
-              "Phone",
-              "Email",
-              "Address",
-              "Status",
-            ],
-          ],
-
-          body: rows,
-
-          theme: "grid",
-
-          styles: {
-            fontSize: 7,
-            cellPadding: 2,
-            overflow:
-              "linebreak",
-          },
-
-          headStyles: {
-            fontStyle: "bold",
-          },
-
-          columnStyles: {
-            0: {
-              cellWidth: 12,
-            },
-
-            1: {
-              cellWidth: 32,
-            },
-
-            2: {
-              cellWidth: 20,
-            },
-
-            3: {
-              cellWidth: 30,
-            },
-
-            4: {
-              cellWidth: 25,
-            },
-
-            5: {
-              cellWidth: 35,
-            },
-
-            6: {
-              cellWidth: 55,
-            },
-
-            7: {
-              cellWidth: 25,
-            },
-          },
-        });
-
         const today =
           new Date()
             .toISOString()
             .split("T")[0];
 
-        doc.save(
-          `agencies_${today}.pdf`
-        );
+        downloadStyledPdf({
+          records: getAgencyExportData(),
+          title: "NGO / Agency List",
+          filename: `agencies_${today}.pdf`,
+        });
 
         setSuccess(
           "Agency data exported as PDF successfully."

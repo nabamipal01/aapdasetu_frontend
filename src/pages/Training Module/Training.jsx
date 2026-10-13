@@ -19,7 +19,14 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  Download,
+  ChevronDown,
+  FileSpreadsheet,
+  FileDown,
+  FileText,
 } from "lucide-react";
+import * as XLSX from "xlsx";
+import { downloadStyledPdf, downloadStyledXlsx } from "../../utils/tableExport";
 
 import {
   createTraining,
@@ -64,6 +71,9 @@ function Training() {
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const downloadMenuRef = useRef(null);
 
   const [showModal, setShowModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -410,6 +420,107 @@ function Training() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        downloadMenuRef.current &&
+        !downloadMenuRef.current.contains(event.target)
+      ) {
+        setShowDownloadMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const getTrainingExportData = async () => {
+    const limit = pagination.limit || 10;
+    const firstResponse = await getTrainings(1, limit, search);
+    const firstPageEvents = firstResponse?.data?.training_events ?? [];
+    const totalPages = Math.max(
+      1,
+      Number(firstResponse?.data?.pagination?.total_pages) || 1
+    );
+    const allEvents = [...firstPageEvents];
+
+    for (let pageNumber = 2; pageNumber <= totalPages; pageNumber += 1) {
+      const response = await getTrainings(pageNumber, limit, search);
+      allEvents.push(...(response?.data?.training_events ?? []));
+    }
+
+    return allEvents
+      .map((item) => normalizeTraining({ data: item }))
+      .filter(Boolean)
+      .map((training, index) => ({
+        "S.No.": index + 1,
+        "Training ID": training.training_event_id || "",
+        "Training Event": training.event_name || "",
+        Description: training.description || "",
+        Mode: training.event_mode || "",
+        Location: training.event_location || "",
+        "Meeting Link": training.meeting_link || "",
+        "Start Date": getDatePart(training.start_date),
+        "Start Time": getTimePart(training.start_date, training.start_time),
+        "End Date": getDatePart(training.end_date),
+        "End Time": getTimePart(training.end_date, training.end_time),
+        Districts: training.allocated_districts.join(", "),
+        Audience: training.allocated_audience.join(", "),
+        Organizer: training.event_organizer || "",
+        "Created At": training.created_at || "",
+        "Updated At": training.updated_at || "",
+      }));
+  };
+
+  const handleTrainingDownload = async (format) => {
+    setDownloading(true);
+    setError("");
+
+    try {
+      const exportData = await getTrainingExportData();
+      if (!exportData.length) {
+        throw new Error("There are no training events to export.");
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      if (format === "xlsx") {
+        downloadStyledXlsx({
+          records: exportData,
+          title: "Training Events",
+          filename: `trainings_${today}.xlsx`,
+          sheetName: "Trainings",
+        });
+      } else if (format === "csv") {
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const csv = XLSX.utils.sheet_to_csv(worksheet);
+        const blob = new Blob(["\uFEFF", csv], {
+          type: "text/csv;charset=utf-8;",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `trainings_${today}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        downloadStyledPdf({
+          records: exportData,
+          title: "Training Events",
+          filename: `trainings_${today}.pdf`,
+        });
+      }
+
+      setShowDownloadMenu(false);
+    } catch (err) {
+      console.error("DOWNLOAD TRAININGS ERROR:", err);
+      setError(err?.message || "Failed to download training events.");
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -1175,12 +1286,75 @@ function Training() {
             </p>
           </div>
 
-          {loading && (
-            <div className="flex items-center gap-2 text-xs font-medium text-blue-600">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-blue-600" />
-              Loading...
+          <div className="flex items-center gap-3">
+            {loading && (
+              <div className="flex items-center gap-2 text-xs font-medium text-blue-600">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-blue-600" />
+                Loading...
+              </div>
+            )}
+
+            <div ref={downloadMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setShowDownloadMenu((previous) => !previous)}
+                disabled={loading || downloading || trainings.length === 0}
+                aria-haspopup="menu"
+                aria-expanded={showDownloadMenu}
+                className="flex items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download size={15} />
+                {downloading ? "Preparing..." : "Download"}
+                <ChevronDown size={14} />
+              </button>
+
+              {showDownloadMenu && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => handleTrainingDownload("xlsx")}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-green-50"
+                  >
+                    <FileSpreadsheet size={17} className="text-green-600" />
+                    <div>
+                      <p className="font-medium">Download XLSX</p>
+                      <p className="text-xs text-slate-400">Excel workbook</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => handleTrainingDownload("csv")}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-blue-50"
+                  >
+                    <FileDown size={17} className="text-blue-600" />
+                    <div>
+                      <p className="font-medium">Download CSV</p>
+                      <p className="text-xs text-slate-400">Comma-separated data</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => handleTrainingDownload("pdf")}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-red-50"
+                  >
+                    <FileText size={17} className="text-red-600" />
+                    <div>
+                      <p className="font-medium">Download PDF</p>
+                      <p className="text-xs text-slate-400">Printable report</p>
+                    </div>
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -1210,13 +1384,14 @@ function Training() {
                   Venue / Meeting
                 </th>
 
-                <th className="w-[150px] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                {/* <th className="w-[150px] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Start
-                </th>
+                </th> */}
 
-                <th className="w-[150px] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                {/* <th className="w-[150px] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   End
-                </th>
+                </th> */}
+
 
                 <th className="min-w-[170px] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Districts
@@ -1452,7 +1627,7 @@ function Training() {
                       </td>
 
                       {/* START */}
-                      <td className="px-4 py-5 align-top">
+                      {/* <td className="px-4 py-5 align-top">
 
                         <div className="rounded-lg bg-slate-50 px-3 py-2">
 
@@ -1462,9 +1637,9 @@ function Training() {
                               className="text-slate-400"
                             />
 
-                            <span className="text-xs font-semibold text-slate-700">
+                             <span className="text-xs font-semibold text-slate-700">
                               {startDate}
-                            </span>
+                            </span> 
                           </div>
 
                           {startTime &&
@@ -1484,10 +1659,10 @@ function Training() {
 
                         </div>
 
-                      </td>
+                      </td> */}
 
                       {/* END */}
-                      <td className="px-4 py-5 align-top">
+                      {/* <td className="px-4 py-5 align-top">
 
                         <div className="rounded-lg bg-slate-50 px-3 py-2">
 
@@ -1519,7 +1694,7 @@ function Training() {
 
                         </div>
 
-                      </td>
+                      </td> */}
 
                       {/* DISTRICTS */}
                       <td className="px-4 py-5 align-top">
@@ -1836,9 +2011,9 @@ function Training() {
                     <div className="flex items-center gap-2 text-slate-400">
                       <Clock3 size={16} />
 
-                      <p className="text-[11px] font-bold uppercase tracking-wider">
+                       <p className="text-[11px] font-bold uppercase tracking-wider">
                         End
-                      </p>
+                      </p> 
                     </div>
 
                     <p className="mt-2 text-sm font-bold text-slate-900">

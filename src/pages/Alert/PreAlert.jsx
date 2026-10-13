@@ -3,6 +3,7 @@ import { listAlerts, createAlert, updateAlert, deleteAlert } from "../../service
 import { BellRing, Plus, X, RefreshCw, Trash2, Pencil, Check, Eye } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { addAlertNotification } from "../../utils/alertNotifications";
+import DownloadMenu from "../../components/common/DownloadMenu";
 
 const EMPTY_FORM = { title: "", description: "", instruction: "" };
 
@@ -190,6 +191,12 @@ function PreAlert() {
             </div>
           </div>
           <div className="flex gap-2">
+            <DownloadMenu
+              records={alerts}
+              title="Pre Alerts"
+              disabled={loading}
+              onError={(err) => setError(err.message || "Failed to download pre-alerts.")}
+            />
             <button onClick={fetchAlerts}
               className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
               <RefreshCw size={15} /> Refresh

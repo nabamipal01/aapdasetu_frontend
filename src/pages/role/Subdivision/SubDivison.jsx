@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
 import {
   listUsers,
@@ -19,7 +20,15 @@ import {
   Check,
   Search,
   Eye,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  FileDown,
+  ChevronDown,
 } from "lucide-react";
+
+import { downloadStyledPdf, downloadStyledXlsx } from "../../../utils/tableExport";
+
 import UserDetailsModal from "../../../components/common/UserDetailsModal";
 
 const EMPTY_FORM = {
@@ -73,6 +82,30 @@ function SubDivison() {
   const [itemsPerPage] = useState(10);
 
   // ---------------------------------------------------------------------------
+  // Download dropdown
+  // ---------------------------------------------------------------------------
+
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        downloadMenuRef.current &&
+        !downloadMenuRef.current.contains(event.target)
+      ) {
+        setShowDownloadMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Fetch subdivision users
   // ---------------------------------------------------------------------------
 
@@ -85,8 +118,9 @@ function SubDivison() {
         role: "subdivision",
         page: 1,
         per_page: 50,
-        status: "active"
+        status: "active",
       });
+
       setUsers(
         Array.isArray(res?.data?.users)
           ? res.data.users
@@ -120,9 +154,7 @@ function SubDivison() {
       setDistricts(districtList);
     } catch (err) {
       console.error("Failed to load districts:", err);
-
       setDistricts([]);
-
       setError(err.message || "Failed to load districts");
     } finally {
       setDistrictsLoading(false);
@@ -139,9 +171,7 @@ function SubDivison() {
     try {
       const res = await listSubdivisions();
 
-      const subdivisionList = Array.isArray(
-        res?.data?.subdivisions
-      )
+      const subdivisionList = Array.isArray(res?.data?.subdivisions)
         ? res.data.subdivisions
         : Array.isArray(res?.data)
           ? res.data
@@ -150,9 +180,7 @@ function SubDivison() {
       setSubdivisions(subdivisionList);
     } catch (err) {
       console.error("Failed to load subdivisions:", err);
-
       setSubdivisions([]);
-
       setError(err.message || "Failed to load subdivisions");
     } finally {
       setSubdivisionsLoading(false);
@@ -233,15 +261,12 @@ function SubDivison() {
         email: form.email.trim(),
         phone: form.phone.trim(),
         password: form.password,
-
         role: "subdivision",
-
         district_id: Number(form.district_id),
         linked_id: Number(form.linked_id),
       };
 
       const res = await createUser(payload);
-
       const createdUser = res?.data;
 
       if (createdUser) {
@@ -249,12 +274,10 @@ function SubDivison() {
       }
 
       setSuccess(
-        `Subdivision user "${createdUser?.name || form.name
-        }" created.`
+        `Subdivision user "${createdUser?.name || form.name}" created.`
       );
 
       setCurrentPage(1);
-
       resetForm();
     } catch (err) {
       setError(err.message || "Failed to create user");
@@ -269,10 +292,7 @@ function SubDivison() {
 
   const startEdit = (u) => {
     const linkedSubdivision = getLinkedSubdivision(u);
-    const linkedDistrict = getLinkedDistrict(
-      u,
-      linkedSubdivision
-    );
+    const linkedDistrict = getLinkedDistrict(u, linkedSubdivision);
 
     const districtId =
       u.district_id ??
@@ -313,10 +333,7 @@ function SubDivison() {
       !editData.district_id ||
       !editData.linked_id
     ) {
-      setError(
-        "Name, email, district and subdivision are required."
-      );
-
+      setError("Name, email, district and subdivision are required.");
       return;
     }
 
@@ -328,12 +345,9 @@ function SubDivison() {
         name: editData.name.trim(),
         email: editData.email.trim(),
         phone: editData.phone.trim(),
-
         role: "subdivision",
-
         district_id: Number(editData.district_id),
         linked_id: Number(editData.linked_id),
-
         status: "active",
       });
 
@@ -341,15 +355,14 @@ function SubDivison() {
         prev.map((u) =>
           u.id === id
             ? {
-              ...u,
-              ...res.data,
-            }
+                ...u,
+                ...res.data,
+              }
             : u
         )
       );
 
       setEditId(null);
-
       setSuccess("Subdivision user updated.");
     } catch (err) {
       setError(err.message || "Failed to update user");
@@ -361,11 +374,7 @@ function SubDivison() {
   // ---------------------------------------------------------------------------
 
   const handleDelete = async (id, name) => {
-    if (
-      !window.confirm(
-        `Deactivate subdivision user "${name}"?`
-      )
-    ) {
+    if (!window.confirm(`Deactivate subdivision user "${name}"?`)) {
       return;
     }
 
@@ -381,16 +390,13 @@ function SubDivison() {
 
       // Reload only active subdivision users
       await fetchUsers();
-
     } catch (err) {
-      setError(
-        err.message || "Failed to deactivate subdivision user"
-      );
+      setError(err.message || "Failed to deactivate subdivision user");
     }
   };
 
   // ---------------------------------------------------------------------------
-  // Search
+  // Linked district and subdivision helpers
   // ---------------------------------------------------------------------------
 
   const getLinkedSubdivision = (user) =>
@@ -399,26 +405,33 @@ function SubDivison() {
         Number(subdivision.id) ===
         Number(
           user.linked_id ??
-          user.subdivision_id ??
-          user.subdivisionId ??
-          user.subdivision?.id ??
-          user.linked_entity?.id
+            user.subdivision_id ??
+            user.subdivisionId ??
+            user.subdivision?.id ??
+            user.linked_entity?.id
         )
     );
 
-  const getLinkedDistrict = (user, linkedSubdivision = getLinkedSubdivision(user)) =>
+  const getLinkedDistrict = (
+    user,
+    linkedSubdivision = getLinkedSubdivision(user)
+  ) =>
     districts.find(
       (district) =>
         Number(district.id) ===
         Number(
           user.district_id ??
-          user.districtId ??
-          user.district?.id ??
-          linkedSubdivision?.district_id ??
-          linkedSubdivision?.districtId ??
-          linkedSubdivision?.district?.id
+            user.districtId ??
+            user.district?.id ??
+            linkedSubdivision?.district_id ??
+            linkedSubdivision?.districtId ??
+            linkedSubdivision?.district?.id
         )
     );
+
+  // ---------------------------------------------------------------------------
+  // Search
+  // ---------------------------------------------------------------------------
 
   const filteredUsers = users.filter((u) => {
     const query = search.toLowerCase().trim();
@@ -454,12 +467,117 @@ function SubDivison() {
   });
 
   // ---------------------------------------------------------------------------
+  // Download helpers
+  // ---------------------------------------------------------------------------
+
+  const getToday = () => new Date().toISOString().split("T")[0];
+
+  const getExportRows = () =>
+    filteredUsers.map((user) => {
+      const linkedSubdivision = getLinkedSubdivision(user);
+      const linkedDistrict = getLinkedDistrict(user, linkedSubdivision);
+
+      return {
+        Name: user.name || "",
+        Email: user.email || "",
+        Phone: user.phone || "",
+        District:
+          linkedDistrict?.name ||
+          user.district_name ||
+          user.district?.name ||
+          linkedSubdivision?.district?.name ||
+          user.linked_entity?.district?.name ||
+          "—",
+        Subdivision:
+          linkedSubdivision?.name ||
+          user.linked_entity?.name ||
+          user.subdivision_name ||
+          user.subdivision?.name ||
+          user.linked_name ||
+          "—",
+        Status: user.status || "active",
+      };
+    });
+
+  const downloadCSV = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("No subdivision users available to download.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (value) =>
+      `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) =>
+        headers.map((header) => escapeCSV(row[header])).join(",")
+      ),
+    ].join("\r\n");
+
+    const blob = new Blob(["\uFEFF", csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `subdivision_users_${getToday()}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+    setShowDownloadMenu(false);
+  };
+
+  const downloadExcel = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("No subdivision users available to download.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    downloadStyledXlsx({
+      records: rows,
+      title: "Subdivision Users",
+      filename: `subdivision_users_${getToday()}.xlsx`,
+    });
+
+    setShowDownloadMenu(false);
+  };
+
+  const downloadPDF = () => {
+    const rows = getExportRows();
+
+    if (!rows.length) {
+      setError("No subdivision users available to download.");
+      setShowDownloadMenu(false);
+      return;
+    }
+
+    downloadStyledPdf({
+      records: rows,
+      title: "Subdivision Users",
+      filename: `subdivision_users_${getToday()}.pdf`,
+    });
+    setShowDownloadMenu(false);
+  };
+
+  // ---------------------------------------------------------------------------
   // Pagination
   // ---------------------------------------------------------------------------
 
-  const totalPages = Math.ceil(
-    filteredUsers.length / itemsPerPage
-  );
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
 
   const paginatedUsers = filteredUsers.slice(
     (currentPage - 1) * itemsPerPage,
@@ -479,17 +597,11 @@ function SubDivison() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (
-      totalPages > 0 &&
-      currentPage > totalPages
-    ) {
+    if (totalPages > 0 && currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
 
-    if (
-      totalPages === 0 &&
-      currentPage !== 1
-    ) {
+    if (totalPages === 0 && currentPage !== 1) {
       setCurrentPage(1);
     }
   }, [totalPages, currentPage]);
@@ -502,24 +614,18 @@ function SubDivison() {
     (subdivision) =>
       Number(
         subdivision.district_id ??
-        subdivision.districtId ??
-        subdivision.district?.id
+          subdivision.districtId ??
+          subdivision.district?.id
       ) === Number(editData.district_id)
   );
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8">
       <div className="mx-auto max-w-7xl">
-
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
           <div className="flex items-center gap-3">
-
-            <Building2
-              className="text-orange-500"
-              size={28}
-            />
+            <Building2 className="text-orange-500" size={28} />
 
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -530,10 +636,82 @@ function SubDivison() {
                 Manage subdivisional office accounts
               </p>
             </div>
-
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {/* Download dropdown */}
+            <div ref={downloadMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  setShowDownloadMenu((prev) => !prev)
+                }
+                disabled={loading || filteredUsers.length === 0}
+                className="flex items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download size={15} />
+                Download
+                <ChevronDown size={14} />
+              </button>
+
+              {showDownloadMenu && (
+                <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={downloadExcel}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-green-50"
+                  >
+                    <FileSpreadsheet
+                      size={17}
+                      className="text-green-600"
+                    />
+
+                    <div>
+                      <p className="font-medium">Download XLSX</p>
+                      <p className="text-xs text-slate-400">
+                        Excel workbook
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadCSV}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-blue-50"
+                  >
+                    <FileDown
+                      size={17}
+                      className="text-blue-600"
+                    />
+
+                    <div>
+                      <p className="font-medium">Download CSV</p>
+                      <p className="text-xs text-slate-400">
+                        Comma-separated data
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadPDF}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-700 hover:bg-red-50"
+                  >
+                    <FileText
+                      size={17}
+                      className="text-red-600"
+                    />
+
+                    <div>
+                      <p className="font-medium">Download PDF</p>
+                      <p className="text-xs text-slate-400">
+                        Printable report
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Refresh */}
             <button
@@ -570,12 +748,10 @@ function SubDivison() {
                 </>
               )}
             </button>
-
           </div>
         </div>
 
         {/* Messages */}
-
         {success && (
           <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {success}
@@ -589,25 +765,21 @@ function SubDivison() {
         )}
 
         {/* Create Form */}
-
         <div
-          className={`grid transition-all duration-300 ease-in-out ${showForm
-            ? "mb-6 grid-rows-[1fr] opacity-100"
-            : "grid-rows-[0fr] opacity-0 pointer-events-none"
-            }`}
+          className={`grid transition-all duration-300 ease-in-out ${
+            showForm
+              ? "mb-6 grid-rows-[1fr] opacity-100"
+              : "pointer-events-none grid-rows-[0fr] opacity-0"
+          }`}
         >
           <div className="overflow-hidden">
-
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-
               <h2 className="mb-4 text-base font-semibold text-slate-900">
                 Add Subdivision User
               </h2>
 
               <form onSubmit={handleCreate}>
-
                 <div className="grid gap-4 sm:grid-cols-2">
-
                   {/* Full Name */}
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -659,10 +831,7 @@ function SubDivison() {
                       </option>
 
                       {districts.map((district) => (
-                        <option
-                          key={district.id}
-                          value={district.id}
-                        >
+                        <option key={district.id} value={district.id}>
                           {district.name}
                         </option>
                       ))}
@@ -694,16 +863,14 @@ function SubDivison() {
                             : "Select Subdivision"}
                       </option>
 
-                      {filteredSubdivisions.map(
-                        (subdivision) => (
-                          <option
-                            key={subdivision.id}
-                            value={subdivision.id}
-                          >
-                            {subdivision.name}
-                          </option>
-                        )
-                      )}
+                      {filteredSubdivisions.map((subdivision) => (
+                        <option
+                          key={subdivision.id}
+                          value={subdivision.id}
+                        >
+                          {subdivision.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -753,11 +920,9 @@ function SubDivison() {
                       className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                     />
                   </div>
-
                 </div>
 
                 <div className="mt-4 flex justify-end gap-3">
-
                   <button
                     type="button"
                     onClick={resetForm}
@@ -771,31 +936,21 @@ function SubDivison() {
                     disabled={submitting}
                     className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {submitting
-                      ? "Creating…"
-                      : "Create User"}
+                    {submitting ? "Creating…" : "Create User"}
                   </button>
-
                 </div>
-
               </form>
             </div>
           </div>
         </div>
 
         {/* Table */}
-
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-
           {/* Table Header + Search */}
-
           <div className="border-b border-slate-200 px-5 py-4">
-
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
               <h2 className="font-semibold text-slate-900">
                 Subdivision Users{" "}
-
                 {!loading && (
                   <span className="ml-1 text-sm font-normal text-slate-500">
                     ({filteredUsers.length})
@@ -804,9 +959,7 @@ function SubDivison() {
               </h2>
 
               {/* Search */}
-
               <div className="relative w-full sm:w-72">
-
                 <Search
                   size={17}
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -815,9 +968,7 @@ function SubDivison() {
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) =>
-                    setSearch(e.target.value)
-                  }
+                  onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search name, email, phone..."
                   className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-9 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                 />
@@ -831,43 +982,26 @@ function SubDivison() {
                     <X size={15} />
                   </button>
                 )}
-
               </div>
-
             </div>
           </div>
 
           {/* Loading */}
-
           {loading ? (
-
             <div className="flex items-center justify-center py-16 text-sm text-slate-500">
               Loading…
             </div>
-
           ) : users.length === 0 ? (
-
             <div className="flex flex-col items-center justify-center py-16">
-
-              <Building2
-                size={36}
-                className="mb-2 text-slate-200"
-              />
+              <Building2 size={36} className="mb-2 text-slate-200" />
 
               <p className="text-sm text-slate-500">
                 No subdivision users yet. Add one above.
               </p>
-
             </div>
-
           ) : filteredUsers.length === 0 ? (
-
             <div className="flex flex-col items-center justify-center py-16">
-
-              <Search
-                size={36}
-                className="mb-2 text-slate-200"
-              />
+              <Search size={36} className="mb-2 text-slate-200" />
 
               <p className="text-sm text-slate-500">
                 No users found for "{search}".
@@ -880,56 +1014,25 @@ function SubDivison() {
               >
                 Clear search
               </button>
-
             </div>
-
           ) : (
-
             <>
               {/* Table */}
-
               <div className="overflow-x-auto">
-
                 <table className="w-full text-left text-sm">
-
                   <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-
                     <tr>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Name
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Email
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Phone
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        District
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Subdivision
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Status
-                      </th>
-
-                      <th className="px-5 py-3 font-semibold">
-                        Actions
-                      </th>
-
+                      <th className="px-5 py-3 font-semibold">Name</th>
+                      <th className="px-5 py-3 font-semibold">Email</th>
+                      <th className="px-5 py-3 font-semibold">Phone</th>
+                      <th className="px-5 py-3 font-semibold">District</th>
+                      <th className="px-5 py-3 font-semibold">Subdivision</th>
+                      <th className="px-5 py-3 font-semibold">Status</th>
+                      <th className="px-5 py-3 font-semibold">Actions</th>
                     </tr>
-
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
-
                     {paginatedUsers.map((u) => {
                       const linkedSubdivision = getLinkedSubdivision(u);
                       const linkedDistrict = getLinkedDistrict(
@@ -942,11 +1045,8 @@ function SubDivison() {
                           key={u.id}
                           className="transition-colors hover:bg-slate-50"
                         >
-
                           {/* Name */}
-
                           <td className="px-5 py-3 font-medium text-slate-800">
-
                             {editId === u.id ? (
                               <input
                                 value={editData.name}
@@ -961,13 +1061,10 @@ function SubDivison() {
                             ) : (
                               u.name
                             )}
-
                           </td>
 
                           {/* Email */}
-
                           <td className="px-5 py-3 text-slate-600">
-
                             {editId === u.id ? (
                               <input
                                 value={editData.email}
@@ -982,13 +1079,10 @@ function SubDivison() {
                             ) : (
                               u.email
                             )}
-
                           </td>
 
                           {/* Phone */}
-
                           <td className="px-5 py-3 text-slate-500">
-
                             {editId === u.id ? (
                               <input
                                 value={editData.phone}
@@ -1003,11 +1097,9 @@ function SubDivison() {
                             ) : (
                               u.phone || "—"
                             )}
-
                           </td>
 
                           {/* District */}
-
                           <td className="px-5 py-3 text-slate-600">
                             {editId === u.id ? (
                               <div className="w-44 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-sm text-slate-700">
@@ -1029,7 +1121,6 @@ function SubDivison() {
                           </td>
 
                           {/* Subdivision */}
-
                           <td className="px-5 py-3 text-slate-600">
                             {editId === u.id ? (
                               <select
@@ -1064,34 +1155,25 @@ function SubDivison() {
                           </td>
 
                           {/* Status */}
-
                           <td className="px-5 py-3">
-
                             <span
-                              className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${u.status === "active"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-slate-100 text-slate-500"
-                                }`}
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                                u.status === "active"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-slate-100 text-slate-500"
+                              }`}
                             >
                               {u.status || "active"}
                             </span>
-
                           </td>
 
                           {/* Actions */}
-
                           <td className="px-5 py-3">
-
                             <div className="flex gap-1">
-
                               {editId === u.id ? (
-
                                 <>
-
                                   <button
-                                    onClick={() =>
-                                      handleUpdate(u.id)
-                                    }
+                                    onClick={() => handleUpdate(u.id)}
                                     className="rounded p-1.5 text-green-600 transition-colors hover:bg-green-50"
                                     title="Save"
                                   >
@@ -1099,21 +1181,15 @@ function SubDivison() {
                                   </button>
 
                                   <button
-                                    onClick={() =>
-                                      setEditId(null)
-                                    }
+                                    onClick={() => setEditId(null)}
                                     className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100"
                                     title="Cancel"
                                   >
                                     <X size={14} />
                                   </button>
-
                                 </>
-
                               ) : (
-
                                 <>
-
                                   <button
                                     type="button"
                                     onClick={() => setViewingUser(u)}
@@ -1125,9 +1201,7 @@ function SubDivison() {
                                   </button>
 
                                   <button
-                                    onClick={() =>
-                                      startEdit(u)
-                                    }
+                                    onClick={() => startEdit(u)}
                                     className="rounded p-1.5 text-slate-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
                                     title="Edit"
                                   >
@@ -1136,83 +1210,54 @@ function SubDivison() {
 
                                   <button
                                     onClick={() =>
-                                      handleDelete(
-                                        u.id,
-                                        u.name
-                                      )
+                                      handleDelete(u.id, u.name)
                                     }
                                     className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
                                     title="Delete"
                                   >
                                     <Trash2 size={14} />
                                   </button>
-
                                 </>
-
                               )}
-
                             </div>
-
                           </td>
-
                         </tr>
                       );
                     })}
-
                   </tbody>
-
                 </table>
-
               </div>
 
               {/* Pagination */}
-
               {totalPages > 1 && (
                 <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-
                   {/* Showing */}
-
                   <p className="text-sm text-slate-500">
-
                     Showing{" "}
-
                     <span className="font-medium text-slate-700">
-                      {(currentPage - 1) *
-                        itemsPerPage +
-                        1}
+                      {(currentPage - 1) * itemsPerPage + 1}
                     </span>
-
                     {" "}to{" "}
-
                     <span className="font-medium text-slate-700">
                       {Math.min(
-                        currentPage *
-                        itemsPerPage,
+                        currentPage * itemsPerPage,
                         filteredUsers.length
                       )}
                     </span>
-
                     {" "}of{" "}
-
                     <span className="font-medium text-slate-700">
                       {filteredUsers.length}
                     </span>
-
                   </p>
 
                   {/* Pagination Buttons */}
-
                   <div className="flex flex-wrap items-center gap-1">
-
                     {/* Previous */}
-
                     <button
                       type="button"
                       disabled={currentPage === 1}
                       onClick={() =>
-                        setCurrentPage((prev) =>
-                          Math.max(prev - 1, 1)
-                        )
+                        setCurrentPage((prev) => Math.max(prev - 1, 1))
                       }
                       className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
@@ -1220,57 +1265,45 @@ function SubDivison() {
                     </button>
 
                     {/* Page Numbers */}
-
                     {Array.from(
-                      {
-                        length: totalPages,
-                      },
+                      { length: totalPages },
                       (_, index) => index + 1
                     ).map((page) => (
                       <button
                         key={page}
                         type="button"
-                        onClick={() =>
-                          setCurrentPage(page)
-                        }
-                        className={`min-w-9 rounded-lg px-3 py-2 text-sm font-medium ${currentPage === page
-                          ? "bg-orange-500 text-white"
-                          : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                          }`}
+                        onClick={() => setCurrentPage(page)}
+                        className={`min-w-9 rounded-lg px-3 py-2 text-sm font-medium ${
+                          currentPage === page
+                            ? "bg-orange-500 text-white"
+                            : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
                       >
                         {page}
                       </button>
                     ))}
 
                     {/* Next */}
-
                     <button
                       type="button"
-                      disabled={
-                        currentPage === totalPages
-                      }
+                      disabled={currentPage === totalPages}
                       onClick={() =>
                         setCurrentPage((prev) =>
-                          Math.min(
-                            prev + 1,
-                            totalPages
-                          )
+                          Math.min(prev + 1, totalPages)
                         )
                       }
                       className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Next
                     </button>
-
                   </div>
-
                 </div>
               )}
             </>
           )}
-
         </div>
       </div>
+
       {viewingUser && (
         <UserDetailsModal
           user={viewingUser}

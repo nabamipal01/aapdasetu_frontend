@@ -14,6 +14,7 @@ import {
   Eye,
   Pencil,
 } from "lucide-react";
+import DownloadMenu from "../../components/common/DownloadMenu";
 
 const SEVERITY_STYLES = {
   low: "bg-green-100 text-green-700",
@@ -613,6 +614,12 @@ function Incident() {
                 </span>
               )}
             </h2>
+            <DownloadMenu
+              records={incidents}
+              title="Incidents"
+              disabled={loading}
+              onError={(err) => setError(err.message || "Failed to download incidents.")}
+            />
           </div>
 
           {/* Loading */}

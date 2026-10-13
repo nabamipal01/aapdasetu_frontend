@@ -18,6 +18,7 @@ import {
   TrendingDown,
   X,
 } from "lucide-react";
+import DownloadMenu from "../../../components/common/DownloadMenu";
 
 function IssueStockHistory() {
   const [history, setHistory] = useState([]);
@@ -338,23 +339,31 @@ function IssueStockHistory() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => fetchHistory(true)}
-            disabled={loading || refreshing}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw
-              size={17}
-              className={
-                refreshing ? "animate-spin" : ""
-              }
+          <div className="flex flex-wrap items-center gap-2">
+            <DownloadMenu
+              records={filteredHistory}
+              title="Issue Stock History"
+              disabled={loading}
+              onError={(err) => setError(err.message || "Failed to download issue history.")}
             />
+            <button
+              type="button"
+              onClick={() => fetchHistory(true)}
+              disabled={loading || refreshing}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw
+                size={17}
+                className={
+                  refreshing ? "animate-spin" : ""
+                }
+              />
 
-            {refreshing
-              ? "Refreshing..."
-              : "Refresh"}
-          </button>
+              {refreshing
+                ? "Refreshing..."
+                : "Refresh"}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
