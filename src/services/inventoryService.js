@@ -86,3 +86,11 @@ export const updateInventoryItem = (id, itemData) =>
  */
 export const deleteInventoryItem = (id) =>
   del(`/api/inventory/delete.php?id=${id}`);
+
+/**
+
+* Get district-wise inventory data for the dashboard chart.
+* Endpoint: /api/inventory/chart.php
+  */
+  export const getInventoryChartData = () =>
+  get("/api/inventory/chart.php");

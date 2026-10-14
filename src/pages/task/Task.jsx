@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  listTasks,
-  createTask,
-  updateTask,
-} from "../../services";
-import {
   ClipboardList,
   Plus,
   X,
@@ -13,16 +8,19 @@ import {
   MapPin,
   Pencil,
 } from "lucide-react";
+
+import {
+  listTasks,
+  createTask,
+  updateTask,
+} from "../../services";
+
 import { useAuth } from "../../context/AuthContext";
 import { listIncidents } from "../../services/incidentService";
-import { listUsers } from "../../services/userService";
+import { listVolunteers } from "../../services/volunteerService";
+import { listAgencies } from "../../services/agencyService";
+import { isOperationalUser } from "../../utils/roles";
 import DownloadMenu from "../../components/common/DownloadMenu";
-
-// const TASK_ONLY_ROLES = new Set([
-//   "volunteer",
-//   "ngo_contact",
-//   "ngo",
-// ]);
 
 const STATUS_STYLES = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -58,44 +56,53 @@ const EMPTY_FORM = {
   due_at: "",
 };
 
-const getDefaultAssignedUser = () => {
-  try {
-    const user = JSON.parse(
-      localStorage.getItem("user") || "null"
-    );
+/**
+ * Extract arrays from common API response formats.
+ */
+const extractRecords = (response, key) => {
+  const candidates = [
+    response?.data?.data?.[key],
+    response?.data?.[key],
+    response?.[key],
+    response?.data?.items,
+    response?.data?.data?.items,
+    response?.data?.data,
+    response?.data,
+  ];
 
-    return user?.id ? String(user.id) : "";
-  } catch {
-    return "";
-  }
+  return candidates.find(Array.isArray) ?? [];
 };
 
 /**
- * Converts different API response formats into one
- * consistent frontend task object.
- *
- * list.php:
- *   incident_id
- *   incident_no
- *   incident_title
- *   assigned_to
- *   assigned_to_name
- *   created_by
- *   created_by_name
- *
- * get.php / update.php:
- *   incident: {}
- *   assigned_to: {}
- *   created_by: {}
+ * Verify active status when the API returns it.
+ * If status is omitted, trust the API's status=active filter.
+ */
+const isActiveRecord = (record) => {
+  const status =
+    record?.status ??
+    record?.account_status ??
+    record?.user_status;
+
+  return (
+    status == null ||
+    String(status).trim().toLowerCase() === "active"
+  );
+};
+
+/**
+ * Normalize different task API response formats.
  */
 const normalizeTask = (task = {}) => {
   const incident = task.incident || {};
+
   const assignedUser =
+    task.assigned_to &&
     typeof task.assigned_to === "object"
       ? task.assigned_to
       : {};
 
   const createdBy =
+    task.created_by &&
     typeof task.created_by === "object"
       ? task.created_by
       : {};
@@ -149,12 +156,13 @@ const normalizeTask = (task = {}) => {
     // Assigned user
     assigned_to:
       typeof task.assigned_to === "object"
-        ? task.assigned_to.id
+        ? task.assigned_to?.id ?? null
         : task.assigned_to ?? null,
 
     assigned_to_name:
       task.assigned_to_name ??
       assignedUser.name ??
+      assignedUser.full_name ??
       "",
 
     assigned_to_email:
@@ -172,15 +180,16 @@ const normalizeTask = (task = {}) => {
       assignedUser.role ??
       "",
 
-    // Created by
+    // Task creator
     created_by:
       typeof task.created_by === "object"
-        ? task.created_by.id
+        ? task.created_by?.id ?? null
         : task.created_by ?? null,
 
     created_by_name:
       task.created_by_name ??
       createdBy.name ??
+      createdBy.full_name ??
       "",
 
     created_by_email:
@@ -201,50 +210,85 @@ const normalizeTask = (task = {}) => {
     status: task.status ?? "",
     due_at: task.due_at ?? null,
     started_at: task.started_at ?? null,
-    // completed_at: task.completed_at ?? null,
+    completed_at: task.completed_at ?? null,
     created_at: task.created_at ?? null,
     updated_at: task.updated_at ?? null,
   };
 };
 
-const formatDateTime = (value) => {
-  if (!value) return "—";
+/**
+ * Normalize volunteer records to login-user IDs.
+ *
+ * assigned_to must contain the users-table ID,
+ * not the volunteer profile ID.
+ */
+const normalizeVolunteer = (volunteer) => {
+  const userId =
+    volunteer.user_id ??
+    volunteer.account_id ??
+    volunteer.user?.id ??
+    volunteer.id;
 
-  const date = new Date(
-    String(value).replace(" ", "T")
-  );
+  const name =
+    volunteer.name ??
+    volunteer.full_name ??
+    volunteer.volunteer_name ??
+    volunteer.user?.name ??
+    volunteer.email ??
+    "Unnamed Volunteer";
 
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString();
+  return {
+    id: userId == null ? "" : String(userId),
+    name,
+    type: "volunteer",
+  };
 };
 
-const formatDateOnly = (value) => {
-  if (!value) return "—";
+/**
+ * Normalize agency records to the NGO contact's login-user ID.
+ */
+const normalizeAgency = (agency) => {
+  const userId =
+    agency.contact_user_id ??
+    agency.user_id ??
+    agency.account_id ??
+    agency.contact?.user_id ??
+    agency.contact?.id ??
+    agency.id;
 
-  const date = new Date(
-    String(value).replace(" ", "T")
-  );
+  const contactName =
+    agency.contact_person ??
+    agency.contact_person_name ??
+    agency.contact_name ??
+    agency.contact?.name ??
+    "";
 
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+  const agencyName =
+    agency.name ??
+    agency.agency_name ??
+    agency.organization_name ??
+    "Unnamed NGO";
 
-  return date.toLocaleDateString();
+  return {
+    id: userId == null ? "" : String(userId),
+    name: contactName
+      ? `${contactName} — ${agencyName}`
+      : agencyName,
+    type: "ngo",
+  };
 };
 
 function Task() {
   const { user } = useAuth();
 
-  const isTaskOnly =
-  user?.user_type === "volunteer" ||
-  user?.user_type === "ngo_contact_person";
+  // Volunteers and NGO operational users can only view
+  // their assigned tasks and cannot create or edit tasks.
+  const isTaskOnly = isOperationalUser(user);
 
   const [tasks, setTasks] = useState([]);
   const [incidents, setIncidents] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [assignees, setAssignees] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -254,118 +298,189 @@ function Task() {
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
-  const [form, setForm] = useState(() => ({
-    ...EMPTY_FORM,
-    assigned_to: getDefaultAssignedUser(),
-  }));
+  const [form, setForm] = useState({ ...EMPTY_FORM });
 
   /**
-   * Fetch tasks.
-   *
-   * list.php response:
-   *
-   * {
-   *   success: true,
-   *   data: {
-   *     tasks: [],
-   *     pagination: {}
-   *   }
-   * }
+   * Fetch tasks and form options.
    */
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const [taskResult, incidentResult, userResult] =
-        await Promise.allSettled([
-          listTasks({ page: 1, per_page: 50 }),
-          listIncidents({ page: 1, per_page: 100 }),
-          listUsers({ page: 1, per_page: 100 }),
-        ]);
-      if (taskResult.status === "rejected") {
-        throw taskResult.reason;
+      const taskParams = {
+        page: 1,
+        per_page: 50,
+      };
+
+      if (isTaskOnly) {
+        if (!user?.id) {
+          setTasks([]);
+          setError(
+            "Unable to identify the logged-in user."
+          );
+          return;
+        }
+
+        // Ask the API for tasks assigned to this account.
+        taskParams.assigned_to = Number(user.id);
       }
-      const response = taskResult.value;
 
-      const rawTasks =
-        response?.data?.tasks ??
-        response?.tasks ??
-        response?.data ??
-        [];
+      const taskResponse = await listTasks(taskParams);
+      const rawTasks = extractRecords(taskResponse, "tasks");
 
-      const normalizedTasks = Array.isArray(rawTasks)
-        ? rawTasks.map(normalizeTask)
-        : [];
+      const normalizedTasks = rawTasks.map(normalizeTask);
 
-      setTasks(normalizedTasks);
+      // Supplementary frontend filtering.
+      // Backend authorization must also enforce this restriction.
+      const visibleTasks = isTaskOnly
+        ? normalizedTasks.filter(
+            (task) =>
+              String(task.assigned_to ?? "") ===
+              String(user.id)
+          )
+        : normalizedTasks;
 
-      const incidentResponse =
-        incidentResult.status === "fulfilled"
-          ? incidentResult.value
-          : null;
-      const userResponse =
-        userResult.status === "fulfilled"
-          ? userResult.value
-          : null;
+      setTasks(visibleTasks);
+
+      // Operational users do not need admin form options.
+      if (isTaskOnly) {
+        setIncidents([]);
+        setAssignees([]);
+        return;
+      }
+
+      // Load incidents and active operational assignees.
+      const [
+        incidentResult,
+        volunteerResult,
+        agencyResult,
+      ] = await Promise.allSettled([
+        listIncidents({
+          page: 1,
+          per_page: 100,
+        }),
+
+        listVolunteers({
+          status: "active",
+          page: 1,
+          per_page: 100,
+        }),
+
+        listAgencies({
+          status: "active",
+          page: 1,
+          per_page: 100,
+        }),
+      ]);
+
       const rawIncidents =
-        incidentResponse?.data?.incidents ??
-        incidentResponse?.data?.items ??
-        incidentResponse?.data ??
-        [];
-      const rawUsers =
-        userResponse?.data?.users ??
-        userResponse?.data?.items ??
-        userResponse?.data ??
-        [];
-      setIncidents(Array.isArray(rawIncidents) ? rawIncidents : []);
-      setUsers(Array.isArray(rawUsers) ? rawUsers : []);
+        incidentResult.status === "fulfilled"
+          ? extractRecords(
+              incidentResult.value,
+              "incidents"
+            )
+          : [];
+
+      const rawVolunteers =
+        volunteerResult.status === "fulfilled"
+          ? extractRecords(
+              volunteerResult.value,
+              "volunteers"
+            )
+          : [];
+
+      const rawAgencies =
+        agencyResult.status === "fulfilled"
+          ? extractRecords(
+              agencyResult.value,
+              "agencies"
+            )
+          : [];
+
+      setIncidents(rawIncidents);
+
+      // Only active volunteers and active agencies are options.
+      const volunteerAssignees = rawVolunteers
+        .filter(isActiveRecord)
+        .map(normalizeVolunteer);
+
+      const agencyAssignees = rawAgencies
+        .filter(isActiveRecord)
+        .map(normalizeAgency);
+
+      // Deduplicate by login-account ID.
+      const uniqueAssignees = new Map();
+
+      [...volunteerAssignees, ...agencyAssignees].forEach(
+        (assignee) => {
+          if (
+            assignee.id &&
+            assignee.id !== "undefined" &&
+            assignee.id !== "null"
+          ) {
+            uniqueAssignees.set(
+              assignee.id,
+              assignee
+            );
+          }
+        }
+      );
+
+      setAssignees([...uniqueAssignees.values()]);
+
       if (
         incidentResult.status === "rejected" ||
-        userResult.status === "rejected"
+        volunteerResult.status === "rejected" ||
+        agencyResult.status === "rejected"
       ) {
-        setError("Tasks loaded, but incident or assignee options could not be loaded.");
+        setError(
+          "Some task form options could not be loaded. Please refresh and try again."
+        );
       }
     } catch (err) {
+      setTasks([]);
       setError(
-        err?.message || "Failed to load tasks"
+        err?.message || "Failed to load tasks."
       );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isTaskOnly, user?.id]);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
 
+  /**
+   * Form field changes.
+   */
   const handleChange = (e) => {
+    const { name, value } = e.target;
+
     setForm((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: value,
     }));
   };
 
+  /**
+   * Reset create/edit form.
+   */
   const resetForm = () => {
-    setForm({
-      ...EMPTY_FORM,
-      assigned_to: getDefaultAssignedUser(),
-    });
-
+    setForm({ ...EMPTY_FORM });
     setEditingTask(null);
     setShowForm(false);
   };
 
   /**
-   * CREATE TASK
+   * Create or update task.
    */
   const handleCreate = async (e) => {
     e.preventDefault();
 
     if (!form.incident_id || !form.title.trim()) {
-      setError(
-        "Incident and Title are required."
-      );
+      setError("Incident and Title are required.");
       return;
     }
 
@@ -378,7 +493,7 @@ function Task() {
         incident_id: Number(form.incident_id),
         title: form.title.trim(),
 
-        ...(form.description?.trim() && {
+        ...(form.description.trim() && {
           description: form.description.trim(),
         }),
 
@@ -399,75 +514,65 @@ function Task() {
         }),
       };
 
-      const response = editingTask
-        ? await updateTask(editingTask.id, payload)
-        : await createTask(payload);
+      if (editingTask) {
+        await updateTask(editingTask.id, payload);
+      } else {
+        await createTask(payload);
+      }
 
-      /**
-       * create.php returns:
-       *
-       * {
-       *   success: true,
-       *   data: {...}
-       * }
-       */
-      const createdTask =
-        response?.data?.data ??
-        response?.data ??
-        {};
-
-      const normalizedTask =
-        normalizeTask(createdTask);
-
-      /**
-       * The create response can be less detailed
-       * than list.php. Refresh after creation so
-       * the table gets the complete list format.
-       */
-      setTasks((prev) => [
-        normalizedTask,
-        ...prev.filter(
-          (task) => task.id !== normalizedTask.id
-        ),
-      ]);
-
-      setSuccess(editingTask
-        ? "Task updated successfully."
-        : "Task created successfully.");
+      setSuccess(
+        editingTask
+          ? "Task updated successfully."
+          : "Task created successfully."
+      );
 
       resetForm();
 
-      // Get complete server representation.
-      fetchTasks();
+      // Reload complete server data after the operation.
+      await fetchTasks();
     } catch (err) {
       setError(
         err?.message ||
           (editingTask
-            ? "Failed to update task"
-            : "Failed to create task")
+            ? "Failed to update task."
+            : "Failed to create task.")
       );
     } finally {
       setSubmitting(false);
     }
   };
 
+  /**
+   * Open the edit form.
+   */
   const startEditingTask = (task) => {
     setEditingTask(task);
+
     setForm({
       incident_id: String(task.incident_id ?? ""),
       title: task.title ?? "",
       description: task.description ?? "",
-      assigned_to: task.assigned_to ? String(task.assigned_to) : "",
+      assigned_to:
+        task.assigned_to != null
+          ? String(task.assigned_to)
+          : "",
       priority: task.priority ?? "",
       task_type: task.task_type ?? "",
       due_at: task.due_at
-        ? String(task.due_at).replace(" ", "T").slice(0, 16)
+        ? String(task.due_at)
+            .replace(" ", "T")
+            .slice(0, 19)
         : "",
     });
+
     setShowForm(true);
     setError("");
     setSuccess("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   return (
@@ -476,7 +581,6 @@ function Task() {
 
         {/* HEADER */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
           <div className="flex items-center gap-3">
             <ClipboardList
               className="text-indigo-500"
@@ -495,7 +599,6 @@ function Task() {
           </div>
 
           <div className="flex gap-2">
-
             <button
               type="button"
               onClick={fetchTasks}
@@ -505,12 +608,9 @@ function Task() {
               <RefreshCw
                 size={15}
                 className={
-                  loading
-                    ? "animate-spin"
-                    : ""
+                  loading ? "animate-spin" : ""
                 }
               />
-
               Refresh
             </button>
 
@@ -521,8 +621,9 @@ function Task() {
                   if (editingTask) {
                     resetForm();
                   } else {
-                    setShowForm(!showForm);
+                    setShowForm((prev) => !prev);
                   }
+
                   setError("");
                   setSuccess("");
                 }}
@@ -541,12 +642,10 @@ function Task() {
                 )}
               </button>
             )}
-
           </div>
         </div>
 
         {/* ALERTS */}
-
         {success && (
           <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {success}
@@ -559,29 +658,27 @@ function Task() {
           </div>
         )}
 
-        {/* CREATE FORM */}
-
+        {/* CREATE / EDIT FORM */}
         {!isTaskOnly && (
           <div
             className={`grid transition-all duration-300 ease-in-out ${
               showForm
                 ? "mb-6 grid-rows-[1fr] opacity-100"
-                : "grid-rows-[0fr] opacity-0 pointer-events-none"
+                : "pointer-events-none grid-rows-[0fr] opacity-0"
             }`}
           >
             <div className="overflow-hidden">
               <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-
                 <h2 className="mb-5 text-lg font-semibold text-slate-900">
-                  {editingTask ? "Edit Task" : "Create New Task"}
+                  {editingTask
+                    ? "Edit Task"
+                    : "Create New Task"}
                 </h2>
 
                 <form onSubmit={handleCreate}>
-
                   <div className="grid gap-4 sm:grid-cols-2">
 
                     {/* TITLE */}
-
                     <div className="sm:col-span-2">
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                         Title *
@@ -589,6 +686,7 @@ function Task() {
 
                       <input
                         name="title"
+                        required
                         value={form.title}
                         onChange={handleChange}
                         placeholder="e.g. Deploy rescue team to Zone B"
@@ -596,8 +694,7 @@ function Task() {
                       />
                     </div>
 
-                    {/* INCIDENT ID */}
-
+                    {/* INCIDENT */}
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                         Incident No *
@@ -605,22 +702,34 @@ function Task() {
 
                       <select
                         name="incident_id"
+                        required
                         value={form.incident_id}
                         onChange={handleChange}
                         className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                       >
-                        <option value="">Select incident</option>
+                        <option value="">
+                          Select incident
+                        </option>
+
                         {incidents.map((incident) => (
-                          <option key={incident.id} value={incident.id}>
-                            {incident.incident_no || `Incident #${incident.id}`}
-                            {incident.title ? ` — ${incident.title}` : ""}
+                          <option
+                            key={incident.id}
+                            value={incident.id}
+                          >
+                            {incident.incident_no ||
+                              `Incident #${incident.id}`}
+                            {incident.title
+                              ? ` — ${incident.title}`
+                              : ""}
                           </option>
                         ))}
+
                         {editingTask &&
                           form.incident_id &&
                           !incidents.some(
                             (incident) =>
-                              String(incident.id) === form.incident_id
+                              String(incident.id) ===
+                              form.incident_id
                           ) && (
                             <option value={form.incident_id}>
                               {editingTask.incident_no ||
@@ -630,8 +739,7 @@ function Task() {
                       </select>
                     </div>
 
-                    {/* ASSIGNED USER */}
-
+                    {/* ASSIGNEE */}
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                         Assign To
@@ -643,17 +751,31 @@ function Task() {
                         onChange={handleChange}
                         className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                       >
-                        <option value="">Unassigned</option>
-                        {users.map((assignee) => (
-                          <option key={assignee.id} value={assignee.id}>
-                            {assignee.name || assignee.full_name || assignee.email}
+                        <option value="">
+                          Unassigned
+                        </option>
+
+                        {assignees.map((assignee) => (
+                          <option
+                            key={`${assignee.type}-${assignee.id}`}
+                            value={assignee.id}
+                          >
+                            {assignee.name} (
+                            {assignee.type === "volunteer"
+                              ? "Volunteer"
+                              : "NGO Contact"}
+                            )
                           </option>
                         ))}
+
+                        {/* Preserve the current assignee when
+                            they are no longer in the active list. */}
                         {editingTask &&
                           form.assigned_to &&
-                          !users.some(
+                          !assignees.some(
                             (assignee) =>
-                              String(assignee.id) === form.assigned_to
+                              String(assignee.id) ===
+                              form.assigned_to
                           ) && (
                             <option value={form.assigned_to}>
                               {editingTask.assigned_to_name ||
@@ -661,10 +783,14 @@ function Task() {
                             </option>
                           )}
                       </select>
+
+                      <p className="mt-1 text-xs text-slate-500">
+                        Only active volunteers and active NGO
+                        contacts are listed for new assignments.
+                      </p>
                     </div>
 
                     {/* PRIORITY */}
-
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                         Priority
@@ -679,27 +805,14 @@ function Task() {
                         <option value="">
                           Select priority
                         </option>
-
-                        <option value="low">
-                          Low
-                        </option>
-
-                        <option value="medium">
-                          Medium
-                        </option>
-
-                        <option value="high">
-                          High
-                        </option>
-
-                        <option value="critical">
-                          Critical
-                        </option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
                       </select>
                     </div>
 
                     {/* TASK TYPE */}
-
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                         Task Type
@@ -714,21 +827,16 @@ function Task() {
                         <option value="">
                           Select type
                         </option>
-
-                        <option value="sop">
-                          SOP
-                        </option>
-
-                        <option value="manual">
-                          Manual
-                        </option>
-
-                       
+                        <option value="sop">SOP</option>
+                        <option value="manual">Manual</option>
+                        {/* <option value="field">Field</option>
+                        <option value="logistics">Logistics</option>
+                        <option value="medical">Medical</option>
+                        <option value="other">Other</option> */}
                       </select>
                     </div>
 
                     {/* DUE AT */}
-
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                         Due At
@@ -745,7 +853,6 @@ function Task() {
                     </div>
 
                     {/* DESCRIPTION */}
-
                     <div className="sm:col-span-2">
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                         Description
@@ -760,11 +867,9 @@ function Task() {
                         className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                       />
                     </div>
-
                   </div>
 
                   <div className="mt-5 flex justify-end gap-3">
-
                     <button
                       type="button"
                       onClick={resetForm}
@@ -779,25 +884,29 @@ function Task() {
                       className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {submitting
-                      ? editingTask ? "Saving..." : "Creating..."
-                      : editingTask ? "Save Changes" : "Create Task"}
+                        ? editingTask
+                          ? "Saving..."
+                          : "Creating..."
+                        : editingTask
+                          ? "Save Changes"
+                          : "Create Task"}
                     </button>
-
                   </div>
                 </form>
-
               </div>
             </div>
           </div>
         )}
 
         {/* TASK TABLE */}
-
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
 
-          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          {/* TABLE HEADER + DOWNLOAD MENU */}
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-semibold text-slate-900">
-              All Tasks
+              {isTaskOnly
+                ? "My Assigned Tasks"
+                : "All Tasks"}
 
               {!loading && (
                 <span className="ml-1 text-sm font-normal text-slate-500">
@@ -805,11 +914,22 @@ function Task() {
                 </span>
               )}
             </h2>
+
+            {/* Export only the records visible to this user. */}
             <DownloadMenu
               records={tasks}
-              title="Tasks"
+              title={
+                isTaskOnly
+                  ? "My Assigned Tasks"
+                  : "Tasks"
+              }
               disabled={loading}
-              onError={(err) => setError(err.message || "Failed to download tasks.")}
+              onError={(err) => {
+                setError(
+                  err?.message ||
+                    "Failed to download tasks."
+                );
+              }}
             />
           </div>
 
@@ -819,30 +939,29 @@ function Task() {
             </div>
           ) : tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-
               <CheckCircle2
                 size={40}
                 className="mb-3 text-slate-300"
               />
 
               <p className="font-medium text-slate-700">
-                No tasks found
+                {isTaskOnly
+                  ? "No tasks assigned to you"
+                  : "No tasks found"}
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
-                Create a task linked to an incident to get started.
+                {isTaskOnly
+                  ? "Tasks assigned to your account will appear here."
+                  : "Create a task linked to an incident to get started."}
               </p>
-
             </div>
           ) : (
             <div className="overflow-x-auto">
-
               <table className="w-full min-w-[1700px] text-left text-sm">
 
                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-
                   <tr>
-
                     <th className="px-5 py-3 font-semibold">
                       Task
                     </th>
@@ -871,10 +990,6 @@ function Task() {
                       Status
                     </th>
 
-                    {/* <th className="px-5 py-3 font-semibold">
-                      Completed
-                    </th> */}
-
                     <th className="px-5 py-3 font-semibold">
                       Created By
                     </th>
@@ -886,213 +1001,140 @@ function Task() {
                     <th className="px-5 py-3 font-semibold">
                       Action
                     </th>
-
                   </tr>
-
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-
                   {tasks.map((task) => (
-
                     <tr
                       key={task.id}
                       className="transition-colors hover:bg-slate-50"
                     >
 
                       {/* TASK */}
-
                       <td className="px-5 py-4">
-
-                        <div className="max-w-xs">
-
-                          <div className="font-semibold text-slate-800">
-                            {task.title || "—"}
-                          </div>
-
-                          
-
-                          
-
+                        <div className="max-w-xs font-semibold text-slate-800">
+                          {task.title || "—"}
                         </div>
-
                       </td>
 
                       {/* INCIDENT NO */}
-
                       <td className="px-5 py-4">
                         <span className="whitespace-nowrap font-medium text-slate-700">
-                          {task.incident_no || `#${task.incident_id}`}
+                          {task.incident_no ||
+                            `#${task.incident_id ?? "—"}`}
                         </span>
                       </td>
 
                       {/* INCIDENT */}
-
                       <td className="px-5 py-4">
-
                         <div className="min-w-[180px]">
-
                           <div className="font-medium text-slate-700">
-                            {task.incident_title ||
-                              "—"}
+                            {task.incident_title || "—"}
                           </div>
 
                           {task.incident_type && (
                             <div className="mt-1 text-xs capitalize text-slate-400">
-                              Type:{" "}
-                              {task.incident_type}
+                              Type: {task.incident_type}
                             </div>
                           )}
-
-                         
-
                         </div>
-
                       </td>
 
                       {/* ASSIGNED TO */}
-
                       <td className="px-5 py-4">
-
-                        <div className="min-w-[160px]">
-
-                          <div className="font-medium text-slate-700">
-                            {task.assigned_to_name ||
-                              users.find(
-                                (assignee) =>
-                                  String(assignee.id) ===
-                                  String(task.assigned_to)
-                              )?.name ||
-                              "Unassigned"}
-                          </div>
-
+                        <div className="min-w-[160px] font-medium text-slate-700">
+                          {task.assigned_to_name ||
+                            assignees.find(
+                              (assignee) =>
+                                String(assignee.id) ===
+                                String(task.assigned_to)
+                            )?.name ||
+                            "Unassigned"}
                         </div>
-
                       </td>
 
                       {/* TASK TYPE */}
-
                       <td className="px-5 py-4">
-
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                            TASK_TYPE_STYLES[
-                              task.task_type
-                            ] ??
+                            TASK_TYPE_STYLES[task.task_type] ??
                             "bg-slate-100 text-slate-600"
                           }`}
                         >
                           {task.task_type || "—"}
                         </span>
-
                       </td>
 
                       {/* PRIORITY */}
-
                       <td className="px-5 py-4">
-
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                            PRIORITY_STYLES[
-                              task.priority
-                            ] ??
+                            PRIORITY_STYLES[task.priority] ??
                             "bg-slate-100 text-slate-600"
                           }`}
                         >
                           {task.priority || "—"}
                         </span>
-
                       </td>
 
                       {/* STATUS */}
-
                       <td className="px-5 py-4">
-
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                            STATUS_STYLES[
-                              task.status
-                            ] ??
+                            STATUS_STYLES[task.status] ??
                             "bg-slate-100 text-slate-600"
                           }`}
                         >
-                          {String(
-                            task.status || "—"
-                          ).replace(
+                          {String(task.status || "—").replace(
                             "_",
                             " "
                           )}
                         </span>
-
                       </td>
 
-                      {/* COMPLETED */}
-{/* 
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-500">
-                        {formatDateTime(
-                          task.completed_at
-                        )}
-                      </td> */}
-
                       {/* CREATED BY */}
-
                       <td className="px-5 py-4">
-
-                        <div className="min-w-[150px]">
-
-                          <div className="font-medium text-slate-700">
-                            {task.created_by_name ||
-                              "—"}
-                          </div>
-
+                        <div className="min-w-[150px] font-medium text-slate-700">
+                          {task.created_by_name || "—"}
                         </div>
-
                       </td>
 
                       {/* LOCATION */}
-
                       <td className="px-5 py-4">
-
-                        {task.latitude &&
-                        task.longitude ? (
+                        {task.latitude != null &&
+                        task.longitude != null ? (
                           <div className="min-w-[150px]">
-
                             <div className="flex items-center gap-1 text-slate-700">
                               <MapPin
                                 size={14}
                                 className="text-red-500"
                               />
-
-                              <span>
-                                Location
-                              </span>
+                              <span>Location</span>
                             </div>
 
                             <div className="mt-1 text-xs text-slate-400">
-                              Lat:{" "}
-                              {task.latitude}
+                              Lat: {task.latitude}
                             </div>
 
                             <div className="text-xs text-slate-400">
-                              Lng:{" "}
-                              {task.longitude}
+                              Lng: {task.longitude}
                             </div>
-
                           </div>
                         ) : (
                           "—"
                         )}
-
                       </td>
 
                       {/* ACTION */}
-
                       <td className="px-5 py-4">
                         <div className="flex min-w-[150px] items-start">
                           {!isTaskOnly && (
                             <button
                               type="button"
-                              onClick={() => startEditingTask(task)}
+                              onClick={() =>
+                                startEditingTask(task)
+                              }
                               className="inline-flex items-center gap-1 rounded-md border border-indigo-200 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
                             >
                               <Pencil size={13} />
@@ -1100,22 +1142,15 @@ function Task() {
                             </button>
                           )}
                         </div>
-
                       </td>
-
                     </tr>
-
                   ))}
-
                 </tbody>
 
               </table>
-
             </div>
           )}
-
         </div>
-
       </div>
     </div>
   );

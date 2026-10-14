@@ -13,6 +13,7 @@ import {
   listTasks,
   listVolunteers,
   getInventoryOverview,
+  getInventoryChartData,
 } from "../../services";
 
 import {
@@ -26,11 +27,14 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  Cell,
 } from "recharts";
-import L from "leaflet";
 import { MapContainer } from "react-leaflet";
-import FloodRasterLayer from "../../components/map/FloodRasterLayer";
 import RainfallForecastLayer from "../../components/map/RainfallForecastLayer";
+import WestBengalBasemap from "../../components/map/WestBengalBasemap";
+import FitWestBengalBounds from "../../components/map/FitWestBengalBounds";
+import MapTilerSatelliteBasemap from "../../components/map/MapTilerSatelliteBasemap";
+import ImdAlertsLayer from "../../components/map/IMDAlertsLayer";
 
 const HISTORICAL_FLOOD_EVENTS = [
   { layer: "wb_020711_flood", date: "Jul 2, 2011" },
@@ -64,11 +68,10 @@ function StatCard({
           </p>
 
           <p
-            className={`mt-2 text-3xl font-bold ${
-              loading
-                ? "animate-pulse text-slate-300"
-                : "text-slate-900"
-            }`}
+            className={`mt-2 text-3xl font-bold ${loading
+              ? "animate-pulse text-slate-300"
+              : "text-slate-900"
+              }`}
           >
             {loading ? "—" : value}
           </p>
@@ -113,7 +116,20 @@ function Dashboard() {
 
   const [selectedDistrict, setSelectedDistrict] = useState(null);
   const [districtLayerError, setDistrictLayerError] = useState("");
+  const [basemapError, setBasemapError] = useState("");
   const [historicalLayerError, setHistoricalLayerError] = useState("");
+
+  const [imdStatus, setImdStatus] = useState({
+    loading: false,
+    error: "",
+    counts: null,
+    updatedAt: "",
+  });
+  // const [sentinel2Status, setSentinel2Status] = useState({
+  //   loading: false,
+  //   error: "",
+  //   config: null,
+  // })
   const [mapMode, setMapMode] = useState("rainfall");
   const [historicalEventLayer, setHistoricalEventLayer] = useState(
     HISTORICAL_FLOOD_EVENTS[0].layer
@@ -124,6 +140,15 @@ function Dashboard() {
     updatedAt: "",
     rainfallByDistrict: {},
   });
+  // const [sentinel2Date, setSentinel2Date] = useState(
+  //   new Date().toISOString().slice(0, 10)
+  // );
+  // const [sentinel2Opacity, setSentinel2Opacity] = useState(70);
+  const [inventoryChartData, setInventoryChartData] = useState([]);
+  const [inventoryChartLoading, setInventoryChartLoading] = useState(true);
+  const [inventoryChartError, setInventoryChartError] = useState("");
+  const [selectedInventoryDistrict, setSelectedInventoryDistrict] =
+    useState("all");
 
   // ==========================================================
   // LOAD DASHBOARD DATA
@@ -138,6 +163,7 @@ function Dashboard() {
         taskResponse,
         volunteerResponse,
         inventoryResponse,
+        chartResponse
       ] = await Promise.allSettled([
         listIncidents({
           page: 1,
@@ -156,7 +182,60 @@ function Dashboard() {
         }),
 
         getInventoryOverview(),
+        getInventoryChartData(),
       ]);
+
+
+      const chartPayload =
+        chartResponse.status === "fulfilled"
+          ? chartResponse.value?.data?.data?.chart_data ??
+          chartResponse.value?.data?.chart_data ??
+          chartResponse.value?.chart_data ??
+          []
+          : [];
+
+      if (chartResponse.status === "fulfilled") {
+        const normalizedData = Array.isArray(chartPayload)
+          ? chartPayload
+            .filter((item) => item && typeof item === "object")
+            .map((item) => {
+              const districtName = String(item.district_name ?? "").trim();
+
+              const safeDistrictName =
+                !districtName || districtName.toLowerCase() === "null"
+                  ? "Unmapped District"
+                  : districtName;
+
+              const productName = item.product_name || "Unnamed Product";
+
+              return {
+                ...item,
+                district_name: safeDistrictName,
+                product_name: productName,
+                storage_location:
+                  item.storage_location || "Not specified",
+                equipment_type:
+                  item.equipment_type || "Not specified",
+                current_quantity: Number(item.current_quantity) || 0,
+                chartLabel: `${safeDistrictName} — ${productName}`,
+              };
+            })
+          : [];
+
+        setInventoryChartData(normalizedData);
+        setInventoryChartError("");
+      } else {
+        console.error(
+          "Inventory chart loading error:",
+          chartResponse.reason
+        );
+
+        setInventoryChartData([]);
+        setInventoryChartError(
+          chartResponse.reason?.message ||
+          "Unable to load district-wise inventory data."
+        );
+      }
 
       // --------------------------------------------------------
       // INCIDENTS
@@ -165,11 +244,11 @@ function Dashboard() {
       const incidentList =
         incidentResponse.status === "fulfilled"
           ? (
-              incidentResponse.value?.data?.incidents ??
-              incidentResponse.value?.data?.items ??
-              incidentResponse.value?.data ??
-              []
-            )
+            incidentResponse.value?.data?.incidents ??
+            incidentResponse.value?.data?.items ??
+            incidentResponse.value?.data ??
+            []
+          )
           : [];
 
       // --------------------------------------------------------
@@ -179,11 +258,11 @@ function Dashboard() {
       const taskList =
         taskResponse.status === "fulfilled"
           ? (
-              taskResponse.value?.data?.tasks ??
-              taskResponse.value?.data?.items ??
-              taskResponse.value?.data ??
-              []
-            )
+            taskResponse.value?.data?.tasks ??
+            taskResponse.value?.data?.items ??
+            taskResponse.value?.data ??
+            []
+          )
           : [];
 
       // --------------------------------------------------------
@@ -193,12 +272,12 @@ function Dashboard() {
       const volunteerTotal =
         volunteerResponse.status === "fulfilled"
           ? (
-              volunteerResponse.value?.data?.pagination?.total ??
-              volunteerResponse.value?.data?.total ??
-              volunteerResponse.value?.data?.volunteers?.length ??
-              volunteerResponse.value?.data?.length ??
-              0
-            )
+            volunteerResponse.value?.data?.pagination?.total ??
+            volunteerResponse.value?.data?.total ??
+            volunteerResponse.value?.data?.volunteers?.length ??
+            volunteerResponse.value?.data?.length ??
+            0
+          )
           : 0;
 
       // --------------------------------------------------------
@@ -292,6 +371,8 @@ function Dashboard() {
       setError(
         err?.message || "Failed to load dashboard data."
       );
+    } finally {
+      setInventoryChartLoading(false);
     }
   };
 
@@ -420,11 +501,37 @@ function Dashboard() {
     cancelled: "bg-slate-100 text-slate-500",
   };
 
-    const selectedDistrictRainfall =
+  const selectedDistrictRainfall =
     selectedDistrict?.dist_lgd == null
       ? selectedDistrict?.precipitationMm
       : rainfallStatus.rainfallByDistrict[String(selectedDistrict.dist_lgd)] ??
-        selectedDistrict.precipitationMm;
+      selectedDistrict.precipitationMm;
+
+
+  const inventoryDistrictOptions = useMemo(() => {
+    return [
+      ...new Set(
+        inventoryChartData.map(
+          (item) => item.district_name || "Unmapped District"
+        )
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+  }, [inventoryChartData]);
+
+  const filteredInventoryChartData = useMemo(() => {
+    const filtered =
+      selectedInventoryDistrict === "all"
+        ? inventoryChartData
+        : inventoryChartData.filter(
+          (item) =>
+            (item.district_name || "Unmapped District") ===
+            selectedInventoryDistrict
+        );
+
+    return [...filtered].sort(
+      (a, b) => b.current_quantity - a.current_quantity
+    );
+  }, [inventoryChartData, selectedInventoryDistrict]);
 
   // ==========================================================
   // RENDER
@@ -548,6 +655,250 @@ function Dashboard() {
         {/* ====================================================
             CHARTS
         ==================================================== */}
+
+
+        {/* ====================================================
+    DISTRICT-WISE INVENTORY DISTRIBUTION
+==================================================== */}
+
+        <div className="mb-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
+          {/* Chart header */}
+          <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-slate-900">
+                District-wise Inventory Distribution
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Current stock by district, product and storage location
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label
+                htmlFor="inventory-district-filter"
+                className="text-xs font-medium text-slate-600"
+              >
+                District
+              </label>
+
+              <select
+                id="inventory-district-filter"
+                value={selectedInventoryDistrict}
+                onChange={(event) =>
+                  setSelectedInventoryDistrict(event.target.value)
+                }
+                className="max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="all">All Districts</option>
+
+                {inventoryDistrictOptions.map((district) => (
+                  <option key={district} value={district}>
+                    {district}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Chart body */}
+          <div className="p-4 sm:p-5">
+
+            {inventoryChartLoading ? (
+              <div className="flex h-[320px] items-center justify-center">
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <RefreshCw size={16} className="animate-spin" />
+                  Loading inventory chart...
+                </div>
+              </div>
+            ) : inventoryChartError ? (
+              <div
+                role="alert"
+                className="flex h-[280px] flex-col items-center justify-center gap-3 text-center"
+              >
+                <p className="text-sm text-red-600">
+                  {inventoryChartError}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : filteredInventoryChartData.length === 0 ? (
+              <div className="flex h-[280px] items-center justify-center text-sm text-slate-400">
+                {inventoryChartData.length === 0
+                  ? "No inventory chart data available."
+                  : "No inventory records found for this district."}
+              </div>
+            ) : (
+              <div className="w-full overflow-x-auto">
+                <div
+                  style={{
+                    minWidth: "600px",
+                    height: Math.max(
+                      300,
+                      filteredInventoryChartData.length * 58 + 50
+                    ),
+                    maxHeight: "650px",
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={filteredInventoryChartData}
+                      margin={{
+                        top: 12,
+                        right: 45,
+                        left: 8,
+                        bottom: 12,
+                      }}
+                      barCategoryGap="30%"
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        horizontal={false}
+                        stroke="#e2e8f0"
+                      />
+
+                      <XAxis
+                        type="number"
+                        allowDecimals={false}
+                        domain={[0, "dataMax"]}
+                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+
+                      <YAxis
+                        type="category"
+                        dataKey="chartLabel"
+                        width={235}
+                        interval={0}
+                        tick={{
+                          fontSize: 11,
+                          fill: "#334155",
+                        }}
+                        tickFormatter={(value) =>
+                          value.length > 34
+                            ? `${value.slice(0, 31)}...`
+                            : value
+                        }
+                        axisLine={false}
+                        tickLine={false}
+                      />
+
+                      <Tooltip
+                        cursor={{ fill: "#f1f5f9" }}
+                        contentStyle={{
+                          borderRadius: "10px",
+                          border: "1px solid #e2e8f0",
+                          fontSize: "12px",
+                          padding: "12px",
+                        }}
+                        labelStyle={{
+                          color: "#0f172a",
+                          fontWeight: 600,
+                          marginBottom: "6px",
+                        }}
+                        formatter={(value) => [
+                          value,
+                          "Current Quantity",
+                        ]}
+                        labelFormatter={(label, payload) => {
+                          const item = payload?.[0]?.payload;
+
+                          return item
+                            ? `${item.district_name || "Unmapped District"} — ${item.product_name || "Unnamed Product"}`
+                            : label;
+                        }}
+                        content={(props) => {
+                          const item = props.payload?.[0]?.payload;
+
+                          if (!props.active || !item) {
+                            return null;
+                          }
+
+                          return (
+                            <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                              <p className="mb-2 font-semibold text-slate-900">
+                                {item.product_name || "Unnamed Product"}
+                              </p>
+
+                              <div className="space-y-1 text-xs text-slate-600">
+                                <p>
+                                  <span className="font-medium">District:</span>{" "}
+                                  {item.district_name || "Unmapped District"}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Storage:</span>{" "}
+                                  {item.storage_location || "Not specified"}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Equipment type:</span>{" "}
+                                  {item.equipment_type || "Not specified"}
+                                </p>
+
+                                <p className="pt-1 font-semibold text-blue-700">
+                                  Current quantity: {item.current_quantity}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
+
+                      <Bar
+                        dataKey="current_quantity"
+                        name="Current Quantity"
+                        fill="#0d9488"
+                        radius={[0, 5, 5, 0]}
+                        maxBarSize={28}
+                        isAnimationActive={false}
+                      >
+                        {filteredInventoryChartData.map((item, index) => (
+                          <Cell
+                            key={`${item.inventory_id}-${item.district_id ?? "unmapped"}-${index}`}
+                            fill={
+                              item.district_id == null
+                                ? "#94a3b8"
+                                : "#0d9488"
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {!inventoryChartLoading &&
+              !inventoryChartError &&
+              filteredInventoryChartData.length > 0 && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                  <p className="text-xs text-slate-500">
+                    Showing {filteredInventoryChartData.length} inventory records
+                  </p>
+
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-teal-600" />
+                    Mapped district
+
+                    <span className="ml-2 h-2.5 w-2.5 rounded-sm bg-slate-400" />
+                    Unmapped district
+                  </div>
+                </div>
+              )}
+          </div>
+        </div>
 
         <div className="mb-8 grid gap-6 lg:grid-cols-2">
 
@@ -755,7 +1106,9 @@ function Dashboard() {
             <h2 className="font-semibold text-slate-900">
               {mapMode === "rainfall"
                 ? "West Bengal Rainfall Forecast"
-                : "West Bengal Historical Flood Inundation"}
+                : mapMode === "historical"
+                  ? "West Bengal Historical Flood Inundation"
+                  : "West Bengal Satellite Basemap"}
             </h2>
             <div className="flex flex-col gap-3 sm:flex-row">
               <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
@@ -769,7 +1122,12 @@ function Dashboard() {
                   className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
                 >
                   <option value="rainfall">Next 24-hour rainfall</option>
-                  <option value="historical">Historical inundation (Bhuvan)</option>
+                  <option value="historical">
+                    Historical inundation (Bhuvan)
+                  </option>
+                  <option value="satellite-alerts">
+                    Satellite
+                  </option>
                 </select>
               </label>
               {mapMode === "historical" && (
@@ -799,24 +1157,21 @@ function Dashboard() {
         MAP CONTAINER
     ------------------------------------------ */}
             <div className="h-[700px] w-full">
-
               <MapContainer
                 center={[24.2726, 88.1]}
-                crs={L.CRS.EPSG4326}
-                zoom={6}
-                minZoom={5}
+                zoom={7}
+                minZoom={2}
                 maxZoom={12}
-                scrollWheelZoom={true}
+                scrollWheelZoom
                 maxBounds={[
                   [21.45, 84.75],
                   [27.25, 89.90],
                 ]}
-                maxBoundsViscosity={1.0}
+                maxBoundsViscosity={1}
                 className="h-full w-full"
-                style={{
-                  background: "#f1f5f9",
-                }}
+                style={{ background: "#f1f5f9" }}
               >
+                <FitWestBengalBounds />
                 <RainfallForecastLayer
                   mapMode={mapMode}
                   historicalEventLayer={historicalEventLayer}
@@ -826,8 +1181,25 @@ function Dashboard() {
                   onForecastStatus={setRainfallStatus}
                   onHistoricalLayerError={setHistoricalLayerError}
                 />
+                {/* {mapMode === "sentinel2-satellite" && (
+                  <Sentinel2SatelliteLayer
+                    date={sentinel2Date}
+                    opacity={sentinel2Opacity}
+                    selectedDistrict={selectedDistrict}
+                    onStatus={setSentinel2Status}
+                  />
+                )} */}
+                {mapMode === "satellite-alerts" ? (
+                  <>
+                    <MapTilerSatelliteBasemap
+                      onMapError={setBasemapError}
+                    />
+                    <ImdAlertsLayer onStatus={setImdStatus} />
+                  </>
+                ) : (
+                  <WestBengalBasemap onMapError={setBasemapError} />
+                )}
               </MapContainer>
-
             </div>
 
             {/* -----------------------------------------
@@ -842,16 +1214,20 @@ function Dashboard() {
                   <p className="text-sm font-semibold text-slate-800">
                     {mapMode === "rainfall"
                       ? "Next 24-hour rainfall"
-                      : "Historical flood inundation"}
+                      : mapMode === "historical"
+                        ? "Historical flood inundation"
+                        : "Satellite Basemap"}
                   </p>
+
                   <p className="mt-1 text-xs leading-5 text-slate-500">
                     {mapMode === "rainfall"
                       ? "Forecast precipitation by district, accumulated in millimetres."
-                      : `Bhuvan satellite-derived inundation snapshot for ${
-                        HISTORICAL_FLOOD_EVENTS.find(
+                      : mapMode === "historical"
+                        ? `Bhuvan satellite-derived inundation snapshot for ${HISTORICAL_FLOOD_EVENTS.find(
                           ({ layer }) => layer === historicalEventLayer
                         )?.date
-                      }.`}
+                        }.`
+                        : ""}
                   </p>
                 </div>
 
@@ -876,7 +1252,7 @@ function Dashboard() {
                       </div>
                     ))}
                   </div>
-                ) : (
+                ) : mapMode === "historical" ? (
                   <p className="mt-6 text-xs leading-5 text-slate-600">
                     The WMS serves its own inundation imagery; no numeric
                     severity scale is published. These 2011/2013 event
@@ -885,6 +1261,18 @@ function Dashboard() {
                     endpoint needs no API key; the service does not specify a
                     data reuse licence.
                   </p>
+                ) : (
+                  <div className="mt-6 space-y-3 text-xs leading-5 text-slate-600">
+                    <p>
+                      The satellite imagery provides geographic context. IMD warning
+                      and cyclone overlays are shown when data is available.
+                    </p>
+
+                    <p>
+                      Check the data status below and consult official IMD bulletins
+                      before making operational decisions.
+                    </p>
+                  </div>
                 )}
 
                 <div className="mt-5 border-t border-slate-200 pt-4">
@@ -893,16 +1281,7 @@ function Dashboard() {
                       Loading district forecasts…
                     </p>
                   )}
-                  
-                  {mapMode === "rainfall" && (
-                <p className="mt-2 text-xs text-slate-500">
-                  24-hour forecast:{" "}
-                  {Number.isFinite(selectedDistrictRainfall)
-                    ? `${selectedDistrictRainfall.toFixed(1)} mm`
-                    : "Loading…"}
-                </p>
-              )}
-              {mapMode === "rainfall" && rainfallStatus.updatedAt && !rainfallStatus.error && (
+                  {mapMode === "rainfall" && rainfallStatus.updatedAt && !rainfallStatus.error && (
                     <p className="mt-3 text-xs text-slate-500">
                       Updated {new Date(rainfallStatus.updatedAt).toLocaleTimeString()}
                     </p>
@@ -910,6 +1289,11 @@ function Dashboard() {
                   {districtLayerError && (
                     <p role="alert" className="mt-3 text-xs text-red-700">
                       {districtLayerError}
+                    </p>
+                  )}
+                  {basemapError && (
+                    <p role="status" className="mt-3 text-xs text-amber-700">
+                      {basemapError}
                     </p>
                   )}
                   {mapMode === "rainfall" && rainfallStatus.error && (
@@ -922,19 +1306,63 @@ function Dashboard() {
                       {historicalLayerError}
                     </p>
                   )}
+                  {/* {mapMode === "sentinel2-satellite" && sentinel2Status.loading && (
+                    <p className="mt-3 text-xs text-blue-700" role="status">
+                      Loading Sentinel-2 imagery…
+                    </p>
+                  )}
+                  {mapMode === "sentinel2-satellite" && sentinel2Status.error && (
+                    <p role="alert" className="mt-3 text-xs text-red-700">
+                      {sentinel2Status.error}
+                    </p>
+                  )} */}
+
+                  {mapMode === "satellite-alerts" && imdStatus.loading && (
+                    <p className="mt-3 text-xs text-blue-700" role="status">
+                      Loading IMD warnings and cyclone data…
+                    </p>
+                  )}
+
+                  {mapMode === "satellite-alerts" && imdStatus.updatedAt && (
+                    <p className="mt-3 text-xs text-slate-500">
+                      IMD data updated{" "}
+                      {new Date(imdStatus.updatedAt).toLocaleTimeString()}
+                    </p>
+                  )}
+
+                  {mapMode === "satellite-alerts" && imdStatus.counts && (
+                    <div className="mt-3 space-y-1 text-xs text-slate-600">
+                      <p>District warnings: {imdStatus.counts.districtWarnings}</p>
+                      <p>Cyclone wind features: {imdStatus.counts.cycloneWind}</p>
+                      <p>Cyclone track features: {imdStatus.counts.cycloneTrack}</p>
+                    </div>
+                  )}
+
+                  {mapMode === "satellite-alerts" && imdStatus.error && (
+                    <p role="alert" className="mt-3 text-xs text-amber-700">
+                      {imdStatus.error}
+                    </p>
+                  )}
+
                 </div>
                 <div className="mt-auto pt-5">
                   <a
-                    href={mapMode === "rainfall"
-                      ? "https://open-meteo.com/"
-                      : "https://bhuvan-ras2.nrsc.gov.in/cgi-bin/flood.exe?SERVICE=WMS&REQUEST=GetCapabilities"}
+                    href={
+                      mapMode === "rainfall"
+                        ? "https://open-meteo.com/"
+                        : mapMode === "historical"
+                          ? "https://bhuvan-ras2.nrsc.gov.in/cgi-bin/flood.exe?SERVICE=WMS&REQUEST=GetCapabilities"
+                          : "https://mausam.imd.gov.in/"
+                    }
                     target="_blank"
                     rel="noreferrer"
                     className="inline-block text-xs font-medium text-blue-700 hover:underline"
                   >
                     {mapMode === "rainfall"
                       ? "Free forecast data by Open-Meteo"
-                      : "NRSC Bhuvan flood WMS capabilities"}
+                      : mapMode === "historical"
+                        ? "NRSC Bhuvan flood WMS capabilities"
+                        : "India Meteorological Department"}
                   </a>
                 </div>
 
@@ -973,7 +1401,14 @@ function Dashboard() {
                 </div>
 
               </div>
-              
+              {mapMode === "rainfall" && (
+                <p className="mt-2 text-right text-xs text-slate-500">
+                  24-hour forecast:{" "}
+                  {Number.isFinite(selectedDistrictRainfall)
+                    ? `${selectedDistrictRainfall.toFixed(1)} mm`
+                    : "Loading…"}
+                </p>
+              )}
 
             </div>
           )}
@@ -999,9 +1434,9 @@ function Dashboard() {
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_240px]"> */}
 
-            {/* MAP */}
+        {/* MAP */}
 
-            {/* <div className="h-[700px] w-full">
+        {/* <div className="h-[700px] w-full">
 
               <MapContainer
                 center={[24.2726, 88.3639]}
@@ -1025,9 +1460,9 @@ function Dashboard() {
             </div> */}
 
 
-            {/* LEGEND */}
+        {/* LEGEND */}
 
-            {/* <div className="border-t border-slate-200 bg-slate-50 p-5 lg:border-l lg:border-t-0">
+        {/* <div className="border-t border-slate-200 bg-slate-50 p-5 lg:border-l lg:border-t-0">
 
               <div>
                 <p className="text-sm font-semibold text-slate-800">
@@ -1205,23 +1640,21 @@ function Dashboard() {
                     <div className="ml-3 flex shrink-0 gap-2">
 
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-                          SEVERITY_STYLES[
-                            incident.severity
-                          ] ??
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${SEVERITY_STYLES[
+                          incident.severity
+                        ] ??
                           "bg-slate-100 text-slate-600"
-                        }`}
+                          }`}
                       >
                         {incident.severity || "—"}
                       </span>
 
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-                          STATUS_STYLES[
-                            incident.status
-                          ] ??
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[
+                          incident.status
+                        ] ??
                           "bg-slate-100 text-slate-600"
-                        }`}
+                          }`}
                       >
                         {incident.status || "—"}
                       </span>
@@ -1312,12 +1745,11 @@ function Dashboard() {
 
 
                     <span
-                      className={`ml-3 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-                        STATUS_STYLES[
-                          task.status
-                        ] ??
+                      className={`ml-3 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[
+                        task.status
+                      ] ??
                         "bg-slate-100 text-slate-600"
-                      }`}
+                        }`}
                     >
                       {task.status || "—"}
                     </span>

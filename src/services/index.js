@@ -30,3 +30,4 @@ export * from "./stockHistoryService";
 export * from "./returnHistoryService";
 export * from "./returnStockService";
 export * from "./PostAlertService";
+export * from "./IMDAlertService";

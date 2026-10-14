@@ -1,4 +1,3 @@
-import React from 'react'
 import {
   LayoutDashboard,
   Users,
@@ -22,7 +21,6 @@ import {
   BellRing,
   Radio,
   ClipboardCheck,
-  Package,
   Wrench,
   GraduationCap,
   FileBarChart,
@@ -31,6 +29,7 @@ import {
   PackageCheck,
   ClipboardMinus,
 } from "lucide-react";
+import { isOperationalUser } from "../utils/roles";
 
 const commonMenus = [
   {
@@ -45,7 +44,7 @@ const commonMenus = [
     label: "Department",
     icon: Building2,
     children: [
-      
+
       {
         label: "Electricity",
         icon: Zap,
@@ -89,87 +88,87 @@ const commonMenus = [
     ],
   },
 
-{
-  label: "Inventory",
-  icon: Boxes,
-  children: [
-    {
-      label: "Equipment Inventory",
-      icon: BarChart3,
-      path: "/inventory/overview",
-    },
-    {
-      label: "Equipment Category",
-      icon: Wrench,
-      path: "/inventory/equipment",
-    },
-    {
-      label: "Add Stock",
-      icon: PackagePlus,
-      path: "/inventory/add",
-    },
-    {
-      label: "Issue Stock",
-      icon: PackageMinus,
-      path: "/inventory/issue",
-    },
-    {
-      label: "Return Stock",
-      icon: PackageCheck,
-      path: "/inventory/return",
-    },
-    {
-      label: "Stock History",
-      icon: History,
-      children: [
-        {
-          label: "Stock Issue History",
-          icon: ClipboardMinus,
-          path: "/inventory/history/issue",
-        },
-        {
-          label: "Stock Return History",
-          icon: ClipboardCheck,
-          path: "/inventory/history/return",
-        },
-      ],
-    },
-  ],
-},
+  {
+    label: "Inventory",
+    icon: Boxes,
+    children: [
+      {
+        label: "Equipment Inventory",
+        icon: BarChart3,
+        path: "/inventory/overview",
+      },
+      {
+        label: "Equipment Category",
+        icon: Wrench,
+        path: "/inventory/equipment",
+      },
+      {
+        label: "Add Stock",
+        icon: PackagePlus,
+        path: "/inventory/add",
+      },
+      {
+        label: "Issue Stock",
+        icon: PackageMinus,
+        path: "/inventory/issue",
+      },
+      {
+        label: "Return Stock",
+        icon: PackageCheck,
+        path: "/inventory/return",
+      },
+      {
+        label: "Stock History",
+        icon: History,
+        children: [
+          {
+            label: "Stock Issue History",
+            icon: ClipboardMinus,
+            path: "/inventory/history/issue",
+          },
+          {
+            label: "Stock Return History",
+            icon: ClipboardCheck,
+            path: "/inventory/history/return",
+          },
+        ],
+      },
+    ],
+  },
 
 
-   {
+  {
     label: "Alerts",
     icon: BellRing,
     children: [
       {
         label: "Pre-Alerts",
         icon: Radio,
-        path: "/alerts/pre-alerts",
+        path: "/pre-alerts",
       },
-       {
+      {
         label: "Post-Alerts",
         icon: FileBarChart,
-        path: "/alerts/post-alerts",
-      }, 
+        path: "/post-alerts",
+      },
 
-      
-  {
-    label: "Incident",
-    icon: Siren,
-    path: "/incident",
-  },
 
       {
-    label: "Task",
-    icon: ClipboardCheck,
-    path: "/task",
-  },
-     
-     
+        label: "Incident",
+        icon: Siren,
+        path: "/incident",
+      },
+
+      {
+        label: "Task",
+        icon: ClipboardCheck,
+        path: "/task",
+      },
+
+
     ],
   },
-  
+
 
   // // {
   //   label: "Resources",
@@ -181,7 +180,7 @@ const commonMenus = [
     icon: GraduationCap,
     path: "/training",
   },
-  
+
 
   //   {
   //   label: "Disaster Management",
@@ -252,9 +251,9 @@ const locationMenus = {
     ],
   },
 
-  
 
-  
+
+
 };
 
 
@@ -284,17 +283,17 @@ const userMenus = {
         icon: Layers,
         path: "/users/block",
       },
-        {
-    label: "Volunteers",
-    icon: Users,
-    path: "/volunteers",
-  },
+      {
+        label: "Volunteers",
+        icon: Users,
+        path: "/volunteers",
+      },
 
-  {
-    label: "NGO",
-    icon: HandHelping ,
-    path: "/ngo",
-  }
+      {
+        label: "NGO",
+        icon: HandHelping,
+        path: "/ngo",
+      }
     ],
   },
 
@@ -319,17 +318,17 @@ const userMenus = {
         icon: Layers,
         path: "/users/block",
       },
-           {
-    label: "Volunteers",
-    icon: Users,
-    path: "/volunteers",
-  },
+      {
+        label: "Volunteers",
+        icon: Users,
+        path: "/volunteers",
+      },
 
-  {
-    label: "NGO",
-    icon: HandHelping,
-    path: "/ngo",
-  }
+      {
+        label: "NGO",
+        icon: HandHelping,
+        path: "/ngo",
+      }
     ],
   },
 
@@ -347,17 +346,17 @@ const userMenus = {
         icon: Layers,
         path: "/users/block",
       },
-           {
-    label: "Volunteers",
-    icon: Users,
-    path: "/volunteers",
-  },
+      {
+        label: "Volunteers",
+        icon: Users,
+        path: "/volunteers",
+      },
 
-  {
-    label: "NGO",
-    icon: HandHelping,
-    path: "/ngo",
-  }
+      {
+        label: "NGO",
+        icon: HandHelping,
+        path: "/ngo",
+      }
     ],
   },
 
@@ -370,53 +369,94 @@ const userMenus = {
         icon: Layers,
         path: "/users/block",
       },
-           {
-    label: "Volunteers",
-    icon: Users,
-    path: "/volunteers",
-  },
+      {
+        label: "Volunteers",
+        icon: Users,
+        path: "/volunteers",
+      },
 
-  {
-    label: "NGO",
-    icon: HandHelping,
-    path: "/ngo",
-  }
+      {
+        label: "NGO",
+        icon: HandHelping,
+        path: "/ngo",
+      }
     ],
   },
 
   block: null,
 };
 
-export const getMenuForRole = (role) => {
-    if (!role) {
-    return [
-      {
-        label: "Task",
-        icon: ClipboardCheck,
-        path: "/task",
-      },
-    ];
-  }
-  const normalizedRole = String(role).trim().toLowerCase();
+const getOperationalMenus = () => {
+  const alertsMenu = commonMenus.find(
+    (menu) => menu.label === "Alerts"
+  );
 
-  // if (isTaskOnlyRole(normalizedRole)) {
-  //   return commonMenus.filter((menu) => menu.path === "/task");
-  // }
+  const allowedAlertPaths = [
+    "/pre-alerts",
+    "/post-alerts",
+    "/incident",
+    "/task",
+  ];
+
+  const sosMenu = {
+    label: "SOS Emergency",
+    icon: Siren,
+    path: "/emergency",
+  };
+
+  return [
+    ...(alertsMenu?.children || []).filter((item) =>
+      allowedAlertPaths.includes(item.path)
+    ),
+    sosMenu,
+  ];
+};
+
+export const getMenuForUser = (user) => {
+  if (!user) return [];
+
+  const role =
+    user.role == null
+      ? null
+      : String(user.role).trim().toLowerCase();
+
+  // Volunteers and NGO contact persons
+  if (isOperationalUser(user)) {
+    return getOperationalMenus();
+  }
+
+  // Only recognized staff roles get the staff menu
+  const staffRoles = [
+    "super_admin",
+    "admin",
+    "district",
+    "subdivision",
+    "block",
+  ];
+
+  if (!role || !staffRoles.includes(role)) {
+    return [];
+  }
 
   const menus = [...commonMenus];
 
-  const locationMenu = locationMenus[normalizedRole];
-  const userMenu = userMenus[normalizedRole];
+  const locationMenu = locationMenus[role];
+  const userMenu = userMenus[role];
 
-  // Add Location Management first
   if (locationMenu) {
     menus.splice(1, 0, locationMenu);
   }
 
-  // Add Users immediately after Location Management
   if (userMenu) {
-    menus.splice(2, 0, userMenu);
+    menus.splice(locationMenu ? 2 : 1, 0, userMenu);
   }
 
   return menus;
+};
+
+// Backward compatibility if another component still uses this function.
+export const getMenuForRole = (role) => {
+  if (!role) return [];
+
+  return getMenuForUser({ role, user_type: "staff" });
 };

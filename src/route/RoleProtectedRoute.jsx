@@ -1,39 +1,26 @@
 import React from "react";
-import {
-  Navigate,
-  Outlet,
-} from "react-router-dom";
-
+import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getUserRole } from "../utils/roles";
+import { getUserRole, getUserType } from "../utils/roles";
 
-function RoleProtectedRoute({ allowedRoles = [] }) {
+function RoleProtectedRoute({
+  allowedRoles = [],
+  allowedUserTypes = [],
+  fallbackPath = "/task",
+}) {
   const { user } = useAuth();
 
   const role = getUserRole(user);
+  const userType = getUserType(user);
 
-  /*
-   * Null role = Task-only user.
-   */
-  if (!role) {
-    return (
-      <Navigate
-        to="/task"
-        replace
-      />
-    );
-  }
+  const roleAllowed =
+    role !== null && allowedRoles.includes(role);
 
-  /*
-   * Check role-specific permission.
-   */
-  if (!allowedRoles.includes(role)) {
-    return (
-      <Navigate
-        to="/dashboard"
-        replace
-      />
-    );
+  const userTypeAllowed =
+    userType !== null && allowedUserTypes.includes(userType);
+
+  if (!roleAllowed && !userTypeAllowed) {
+    return <Navigate to={fallbackPath} replace />;
   }
 
   return <Outlet />;

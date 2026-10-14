@@ -9,10 +9,7 @@ import {
   useLocation,
 } from "react-router-dom";
 
-import {
-  AuthProvider,
-  useAuth,
-} from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 import ProtectedRoute from "./route/ProtectedRoute";
 import RoleProtectedRoute from "./route/RoleProtectedRoute";
@@ -52,6 +49,7 @@ import ERSS from "./pages/DisasterManagement/ERSS/ERSS";
 import CCTNS from "./pages/DisasterManagement/CCTNS/CCTNS";
 
 import PreAlert from "./pages/Alert/PreAlert";
+import PostAlert from "./pages/Alert/PostAlert";
 
 import Volunteers from "./pages/Volunteers/Volunteers";
 import Ngo from "./pages/NGO/Ngo";
@@ -60,15 +58,14 @@ import DistrictLocation from "./pages/location/DistrictLocation";
 import SubdivisionLocation from "./pages/location/SubdivisionLocation";
 import BlockLocation from "./pages/location/BlockLocation";
 
-import { isTaskOnlyRole } from "./utils/roles";
 import ReturnStock from "./pages/Inventory/ReturnStock/ReturnStock";
-import ReturnHistory from "./pages/Inventory/ReturnHistory/returnHistory";
+import ReturnHistory from "./pages/Inventory/ReturnHistory/ReturnHistory";
 import IssueStockHistory from "./pages/Inventory/IssueStockHistory/IssueStockHistory";
-import PostAlert from "./pages/Alert/PostAlert";
 
+import { isOperationalUser } from "./utils/roles";
 
 /* =========================================================
-   Roles
+   ROLE CONFIGURATION
 ========================================================= */
 
 const GENERAL_ROLES = [
@@ -79,29 +76,26 @@ const GENERAL_ROLES = [
   "block",
 ];
 
+const OPERATIONAL_USER_TYPES = [
+  "volunteers",
+  "ngo_contact_person",
+];
+
 /* =========================================================
-   Login Redirect
-=========================================================
-
-If the user is already logged in and manually visits:
-
-    /login
-
-don't show the login page again.
-
-Send them to dashboard.
+   LOGIN REDIRECT
 ========================================================= */
 
 function LoginRedirect() {
-  const {
-    isLoggedIn,
-    user,
-  } = useAuth();
+  const { isLoggedIn, user } = useAuth();
 
   if (isLoggedIn && user) {
     return (
       <Navigate
-        to={isTaskOnlyRole(user) ? "/task" : "/dashboard"}
+        to={
+          isOperationalUser(user)
+            ? "/pre-alerts"
+            : "/dashboard"
+        }
         replace
       />
     );
@@ -111,69 +105,53 @@ function LoginRedirect() {
 }
 
 /* =========================================================
-   Home Redirect
-=========================================================
-
-If user visits:
-
-    /
-
-Not logged in:
-    -> /login
-
-Already logged in:
-    -> /dashboard
+   HOME REDIRECT
 ========================================================= */
 
 function HomeRedirect() {
-  const {
-    isLoggedIn,
-    user,
-  } = useAuth();
+  const { isLoggedIn, user } = useAuth();
 
   if (!isLoggedIn || !user) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
 
   return (
     <Navigate
-      to={isTaskOnlyRole(user) ? "/task" : "/dashboard"}
+      to={
+        isOperationalUser(user)
+          ? "/pre-alerts"
+          : "/dashboard"
+      }
       replace
     />
   );
 }
 
 /* =========================================================
-   Catch All
+   CATCH-ALL REDIRECT
 ========================================================= */
 
 function CatchAll() {
-  const { user } = useAuth();
+  const { isLoggedIn, user } = useAuth();
 
-  if (user && isTaskOnlyRole(user)) {
-    return (
-      <Navigate
-        to="/task"
-        replace
-      />
-    );
+  if (!isLoggedIn || !user) {
+    return <Navigate to="/login" replace />;
   }
 
   return (
     <Navigate
-      to="/dashboard"
+      to={
+        isOperationalUser(user)
+          ? "/pre-alerts"
+          : "/dashboard"
+      }
       replace
     />
   );
 }
 
 /* =========================================================
-   Session Expired Alert
+   SESSION EXPIRED ALERT
 ========================================================= */
 
 function SessionExpiredAlert() {
@@ -190,13 +168,7 @@ function SessionExpiredAlert() {
 
   const handleLoginRedirect = () => {
     dismissSessionExpired();
-
-    navigate(
-      "/login",
-      {
-        replace: true,
-      }
-    );
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -207,7 +179,6 @@ function SessionExpiredAlert() {
       aria-labelledby="session-expired-title"
     >
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-
         <h2
           id="session-expired-title"
           className="text-lg font-semibold text-slate-900"
@@ -221,7 +192,6 @@ function SessionExpiredAlert() {
         </p>
 
         <div className="mt-5 flex justify-end">
-
           <button
             type="button"
             onClick={handleLoginRedirect}
@@ -229,7 +199,6 @@ function SessionExpiredAlert() {
           >
             Let's Login
           </button>
-
         </div>
       </div>
     </div>
@@ -237,7 +206,7 @@ function SessionExpiredAlert() {
 }
 
 /* =========================================================
-   Scroll To Top
+   SCROLL TO TOP
 ========================================================= */
 
 function ScrollToTop() {
@@ -255,19 +224,16 @@ function ScrollToTop() {
 }
 
 /* =========================================================
-   App
+   APP
 ========================================================= */
 
 function App() {
   return (
     <AuthProvider>
-
       <BrowserRouter>
-
         <ScrollToTop />
 
         <Routes>
-
           {/* =====================================================
               PUBLIC ROUTES
           ===================================================== */}
@@ -282,69 +248,77 @@ function App() {
             element={<HomeRedirect />}
           />
 
-
           {/* =====================================================
-              PROTECTED ROUTES
+              AUTHENTICATED ROUTES
           ===================================================== */}
 
           <Route element={<ProtectedRoute />}>
-
             <Route element={<DashboardLayout />}>
 
               {/* =================================================
-                  COMMON ROUTES
+                  OPERATIONAL ROUTES
 
-                  ALL logged-in users can access these.
+                  Staff roles, volunteers and NGO contacts can
+                  access ONLY these shared operational pages.
 
-                  volunteer
-                  ngo
-                  ngo_contact
-
-                  are allowed here as well.
-              ================================================= */}
-
-              <Route
-                path="/dashboard"
-                element={<Dashboard />}
-              />
-
-              <Route
-                path="/task"
-                element={<Task />}
-              />
-
-
-              {/* =================================================
-                  GENERAL APPLICATION ROUTES
-
-                  NOT AVAILABLE TO:
-
-                  volunteer
-                  ngo
-                  ngo_contact
+                  The paths match menuConfig.js.
               ================================================= */}
 
               <Route
                 element={
                   <RoleProtectedRoute
                     allowedRoles={GENERAL_ROLES}
+                    allowedUserTypes={OPERATIONAL_USER_TYPES}
+                    fallbackPath="/pre-alerts"
                   />
                 }
               >
+                <Route
+                  path="/pre-alerts"
+                  element={<PreAlert />}
+                />
 
-                {/* -------------------------------------------------
-                    Emergency
-                ------------------------------------------------- */}
+                <Route
+                  path="/post-alerts"
+                  element={<PostAlert />}
+                />
+
+                <Route
+                  path="/incident"
+                  element={<Incident />}
+                />
+
+                <Route
+                  path="/task"
+                  element={<Task />}
+                />
 
                 <Route
                   path="/emergency"
                   element={<Emergency />}
                 />
+              </Route>
 
+              {/* =================================================
+                  STAFF-ONLY APPLICATION ROUTES
 
-                {/* -------------------------------------------------
-                    Departments
-                ------------------------------------------------- */}
+                  Volunteers and NGO contacts are NOT allowed.
+              ================================================= */}
+
+              <Route
+                element={
+                  <RoleProtectedRoute
+                    allowedRoles={GENERAL_ROLES}
+                    fallbackPath="/pre-alerts"
+                  />
+                }
+              >
+                <Route
+                  path="/dashboard"
+                  element={<Dashboard />}
+                />
+
+                {/* Department */}
 
                 <Route
                   path="/department/electricity"
@@ -376,10 +350,7 @@ function App() {
                   element={<Law />}
                 />
 
-
-                {/* -------------------------------------------------
-                    Inventory
-                ------------------------------------------------- */}
+                {/* Inventory */}
 
                 <Route
                   path="/inventory/overview"
@@ -415,19 +386,18 @@ function App() {
                   path="/inventory/category/:id"
                   element={<CategoryDetail />}
                 />
+
                 <Route
                   path="/inventory/history/return"
                   element={<ReturnHistory />}
                 />
+
                 <Route
                   path="/inventory/history/issue"
-                  element={<IssueStockHistory/>}
+                  element={<IssueStockHistory />}
                 />
 
-
-                {/* -------------------------------------------------
-                    Disaster Management
-                ------------------------------------------------- */}
+                {/* Disaster Management */}
 
                 <Route
                   path="/disaster/erss"
@@ -439,110 +409,59 @@ function App() {
                   element={<CCTNS />}
                 />
 
-
-                {/* -------------------------------------------------
-                    Incident
-                ------------------------------------------------- */}
-
-                <Route
-                  path="/incident"
-                  element={<Incident />}
-                />
-
-
-                {/* -------------------------------------------------
-                    Resources
-                ------------------------------------------------- */}
+                {/* Resources */}
 
                 <Route
                   path="/resources"
                   element={<Resources />}
                 />
 
-
-                {/* -------------------------------------------------
-                    Training
-                ------------------------------------------------- */}
+                {/* Training */}
 
                 <Route
                   path="/training"
                   element={<Training />}
                 />
 
-
-                {/* -------------------------------------------------
-                    Reports
-                ------------------------------------------------- */}
+                {/* Reports */}
 
                 <Route
                   path="/reports"
                   element={<Report />}
                 />
-
-
-                {/* -------------------------------------------------
-                    Alerts
-                ------------------------------------------------- */}
-
-                <Route
-                  path="/alerts/pre-alerts"
-                  element={<PreAlert />}
-                />
-
-                <Route
-                  path="/alerts/post-alerts"
-                  element={<PostAlert />}
-                />
-
               </Route>
 
-
               {/* =================================================
-                  ADMIN / USER MANAGEMENT
+                  SUPER ADMIN ONLY
               ================================================= */}
-
-
-              {/* -------------------------------------------------
-                  Admin
-
-                  Only super_admin
-              ------------------------------------------------- */}
 
               <Route
                 element={
                   <RoleProtectedRoute
-                    allowedRoles={[
-                      "super_admin",
-                    ]}
+                    allowedRoles={["super_admin"]}
+                    fallbackPath="/dashboard"
                   />
                 }
               >
-
                 <Route
                   path="/users/admin"
                   element={<Admin />}
                 />
-
               </Route>
 
-
-              {/* -------------------------------------------------
-                  Location Management
-
+              {/* =================================================
+                  LOCATION MANAGEMENT
                   super_admin + admin
-              ------------------------------------------------- */}
+              ================================================= */}
 
               <Route
                 element={
                   <RoleProtectedRoute
-                    allowedRoles={[
-                      "super_admin",
-                      "admin",
-                    ]}
+                    allowedRoles={["super_admin", "admin"]}
+                    fallbackPath="/dashboard"
                   />
                 }
               >
-
                 <Route
                   path="/location/district"
                   element={<DistrictLocation />}
@@ -557,40 +476,31 @@ function App() {
                   path="/location/block"
                   element={<BlockLocation />}
                 />
-
               </Route>
 
-
-              {/* -------------------------------------------------
-                  District Users
-
+              {/* =================================================
+                  DISTRICT USERS
                   super_admin + admin
-              ------------------------------------------------- */}
+              ================================================= */}
 
               <Route
                 element={
                   <RoleProtectedRoute
-                    allowedRoles={[
-                      "super_admin",
-                      "admin",
-                    ]}
+                    allowedRoles={["super_admin", "admin"]}
+                    fallbackPath="/dashboard"
                   />
                 }
               >
-
                 <Route
                   path="/users/district"
                   element={<District />}
                 />
-
               </Route>
 
-
-              {/* -------------------------------------------------
-                  Subdivision Users
-
+              {/* =================================================
+                  SUBDIVISION USERS
                   super_admin + admin + district
-              ------------------------------------------------- */}
+              ================================================= */}
 
               <Route
                 element={
@@ -600,23 +510,20 @@ function App() {
                       "admin",
                       "district",
                     ]}
+                    fallbackPath="/dashboard"
                   />
                 }
               >
-
                 <Route
                   path="/users/subdivision"
                   element={<SubDivison />}
                 />
-
               </Route>
 
-
-              {/* -------------------------------------------------
-                  Block Users
-
+              {/* =================================================
+                  BLOCK USERS
                   super_admin + admin + district + subdivision
-              ------------------------------------------------- */}
+              ================================================= */}
 
               <Route
                 element={
@@ -627,23 +534,20 @@ function App() {
                       "district",
                       "subdivision",
                     ]}
+                    fallbackPath="/dashboard"
                   />
                 }
               >
-
                 <Route
                   path="/users/block"
                   element={<Block />}
                 />
-
               </Route>
 
-
-              {/* -------------------------------------------------
-                  Volunteers
-
+              {/* =================================================
+                  VOLUNTEER MANAGEMENT
                   super_admin + admin + district + subdivision
-              ------------------------------------------------- */}
+              ================================================= */}
 
               <Route
                 element={
@@ -654,23 +558,20 @@ function App() {
                       "district",
                       "subdivision",
                     ]}
+                    fallbackPath="/dashboard"
                   />
                 }
               >
-
                 <Route
                   path="/volunteers"
                   element={<Volunteers />}
                 />
-
               </Route>
 
-
-              {/* -------------------------------------------------
-                  NGO
-
+              {/* =================================================
+                  NGO MANAGEMENT
                   super_admin + admin + district + subdivision
-              ------------------------------------------------- */}
+              ================================================= */}
 
               <Route
                 element={
@@ -681,41 +582,31 @@ function App() {
                       "district",
                       "subdivision",
                     ]}
+                    fallbackPath="/dashboard"
                   />
                 }
               >
-
                 <Route
                   path="/ngo"
                   element={<Ngo />}
                 />
-
               </Route>
 
             </Route>
           </Route>
 
-
           {/* =====================================================
-              CATCH ALL
+              UNKNOWN ROUTES
           ===================================================== */}
 
           <Route
             path="*"
             element={<CatchAll />}
           />
-
         </Routes>
 
-
-        {/* =======================================================
-            SESSION EXPIRED MODAL
-        ======================================================= */}
-
         <SessionExpiredAlert />
-
       </BrowserRouter>
-
     </AuthProvider>
   );
 }
