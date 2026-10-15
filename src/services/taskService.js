@@ -40,8 +40,18 @@ export const getTask = (id) =>
  *   per_page?: number
  * }} params
  */
-export const listTasks = (params = {}) =>
-  get("/api/tasks/list.php", params);
+// export const listTasks = (params = {}) =>
+//   get("/api/tasks/list.php", params);
+export const listTasks = (params = {}) => {
+  const { per_page, ...rest } = params;
+
+  return get("/api/tasks/list.php", {
+    ...rest,
+    ...(rest.limit == null && per_page != null
+      ? { limit: per_page }
+      : {}),
+  });
+};
 
 /**
  * Update a task by ID.

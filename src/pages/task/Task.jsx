@@ -13,14 +13,16 @@ import {
   listTasks,
   createTask,
   updateTask,
+  listUsers,
 } from "../../services";
 
 import { useAuth } from "../../context/AuthContext";
 import { listIncidents } from "../../services/incidentService";
 import { listVolunteers } from "../../services/volunteerService";
 import { listAgencies } from "../../services/agencyService";
-import { isOperationalUser } from "../../utils/roles";
+import { isOperationalUser, isVolunteer } from "../../utils/roles";
 import DownloadMenu from "../../components/common/DownloadMenu";
+import { getUser } from "../../services/userService";
 
 const STATUS_STYLES = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -222,18 +224,32 @@ const normalizeTask = (task = {}) => {
  * assigned_to must contain the users-table ID,
  * not the volunteer profile ID.
  */
+const getVolunteerUserId = (volunteer) =>
+  volunteer.user_id ??
+  volunteer.account_id ??
+  volunteer.user?.id ??
+  volunteer.account?.id ??
+  volunteer.login_user?.id ??
+  null;
+
+const getVolunteerProfileIdFromUser = (user) =>
+  user?.linked_id ??
+  user?.volunteer_id ??
+  user?.volunteerId ??
+  user?.volunteer_profile_id ??
+  user?.volunteerProfileId ??
+  user?.volunteer?.id ??
+  null;
+
 const normalizeVolunteer = (volunteer) => {
-  const userId =
-    volunteer.user_id ??
-    volunteer.account_id ??
-    volunteer.user?.id ??
-    volunteer.id;
+  const userId = getVolunteerUserId(volunteer);
 
   const name =
     volunteer.name ??
     volunteer.full_name ??
     volunteer.volunteer_name ??
     volunteer.user?.name ??
+    volunteer.user?.full_name ??
     volunteer.email ??
     "Unnamed Volunteer";
 
@@ -241,7 +257,57 @@ const normalizeVolunteer = (volunteer) => {
     id: userId == null ? "" : String(userId),
     name,
     type: "volunteer",
+    profileId: volunteer.id,
+    profileStatus: volunteer.status,
+    accountStatus:
+      volunteer.user?.status ??
+      volunteer.user?.account_status ??
+      volunteer.account?.status ??
+      volunteer.account?.account_status ??
+      volunteer.account_status ??
+      volunteer.user_status ??
+      null,
   };
+};
+
+
+const isAssignableVolunteer = (volunteer) => {
+  // The volunteer profile itself must be active.
+  if (
+    String(volunteer?.status ?? "")
+      .trim()
+      .toLowerCase() !== "active"
+  ) {
+    return false;
+  }
+
+  // Never substitute a volunteer profile ID for a user ID.
+  const userId = getVolunteerUserId(volunteer);
+
+  if (userId == null || String(userId).trim() === "") {
+    return false;
+  }
+
+  // If account status is available, it must be active.
+  const accountStatus =
+    volunteer.user?.status ??
+    volunteer.user?.account_status ??
+    volunteer.user?.user_status ??
+    volunteer.account?.status ??
+    volunteer.account?.account_status ??
+    volunteer.account_status ??
+    volunteer.user_status;
+
+  if (
+    accountStatus != null &&
+    String(accountStatus).trim().toLowerCase() !== "active"
+  ) {
+    return false;
+  }
+
+  // Account status isn't exposed by every volunteer-list API.
+  // In that case, the backend must validate the account.
+  return true;
 };
 
 /**
@@ -284,7 +350,7 @@ function Task() {
   // Volunteers and NGO operational users can only view
   // their assigned tasks and cannot create or edit tasks.
   const isTaskOnly = isOperationalUser(user);
-
+  const [volunteers, setVolunteers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [assignees, setAssignees] = useState([]);
@@ -299,154 +365,520 @@ function Task() {
   const [editingTask, setEditingTask] = useState(null);
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [creatorNames, setCreatorNames] = useState({});
+
+useEffect(() => {
+  const fetchCreatorNames = async () => {
+    const creatorIds = [
+      ...new Set(
+        tasks
+          .map((task) => task.created_by)
+          .filter((id) => id != null && id !== "")
+          .map(String)
+      ),
+    ];
+
+    const missingIds = creatorIds.filter(
+      (id) => !creatorNames[id]
+    );
+
+    if (missingIds.length === 0) return;
+
+    try {
+      const results = await Promise.all(
+        missingIds.map(async (id) => {
+          try {
+            const response = await getUser(id);
+
+            const user =
+              response?.data?.data?.user ??
+              response?.data?.user ??
+              response?.data?.data ??
+              response?.data;
+
+            return [
+              id,
+              user?.name ??
+                user?.full_name ??
+                user?.username ??
+                `User #${id}`,
+            ];
+          } catch (error) {
+            console.error(
+              `Failed to fetch creator ${id}:`,
+              error
+            );
+            return [id, `User #${id}`];
+          }
+        })
+      );
+
+      setCreatorNames((previous) => ({
+        ...previous,
+        ...Object.fromEntries(results),
+      }));
+    } catch (error) {
+      console.error("Failed to load creator names:", error);
+    }
+  };
+
+  fetchCreatorNames();
+}, [tasks, creatorNames]);
+
+const getCreatorName = (createdBy) => {
+  if (createdBy == null || createdBy === "") {
+    return "Unknown";
+  }
+
+  return creatorNames[String(createdBy)] ??
+    `User #${createdBy}`;
+};
+
 
   /**
    * Fetch tasks and form options.
    */
-  const fetchTasks = useCallback(async () => {
-    setLoading(true);
-    setError("");
+//   const fetchTasks = useCallback(async () => {
+//     setLoading(true);
+//     setError("");
 
-    try {
-      const taskParams = {
-        page: 1,
-        per_page: 50,
-      };
+//     try {
+//       const taskParams = {
+//         page: 1,
+//         limit: 50,
+//       };
 
-      if (isTaskOnly) {
-        if (!user?.id) {
-          setTasks([]);
-          setError(
-            "Unable to identify the logged-in user."
-          );
-          return;
-        }
+//       let taskAssigneeId = user?.id;
 
-        // Ask the API for tasks assigned to this account.
-        taskParams.assigned_to = Number(user.id);
-      }
+//       if (isTaskOnly && isVolunteer(user)) {
+//         let volunteerProfileId =
+//           getVolunteerProfileIdFromUser(user);
 
-      const taskResponse = await listTasks(taskParams);
-      const rawTasks = extractRecords(taskResponse, "tasks");
+//         if (
+//           (volunteerProfileId == null ||
+//             String(volunteerProfileId).trim() === "") &&
+//           user?.id != null
+//         ) {
+//           const volunteerResponse = await listVolunteers({
+//             page: 1,
+//             per_page: 100,
+//           });
+//           const currentVolunteer = extractRecords(
+//             volunteerResponse,
+//             "volunteers"
+//           ).find(
+//             (volunteer) =>
+//               String(getVolunteerUserId(volunteer)) ===
+//               String(user.id)
+//           );
 
-      const normalizedTasks = rawTasks.map(normalizeTask);
+//           volunteerProfileId = currentVolunteer?.id ?? null;
+//         }
 
-      // Supplementary frontend filtering.
-      // Backend authorization must also enforce this restriction.
-      const visibleTasks = isTaskOnly
-        ? normalizedTasks.filter(
-            (task) =>
-              String(task.assigned_to ?? "") ===
-              String(user.id)
-          )
-        : normalizedTasks;
+//         if (
+//           volunteerProfileId == null ||
+//           String(volunteerProfileId).trim() === ""
+//         ) {
+//           setTasks([]);
+//           setError(
+//             "Unable to identify your volunteer profile. Please contact an administrator."
+//           );
+//           return;
+//         }
 
-      setTasks(visibleTasks);
+//         taskAssigneeId = volunteerProfileId;
+//       }
 
-      // Operational users do not need admin form options.
-      if (isTaskOnly) {
-        setIncidents([]);
-        setAssignees([]);
-        return;
-      }
+//       // if (isTaskOnly) {
+//       //   if (!user?.id) {
+//       //     setTasks([]);
+//       //     setError(
+//       //       "Unable to identify the logged-in user."
+//       //     );
+//       //     return;
+//       //   }
+//       //   const volunteerProfileId = user.volunteer_id;
+//       //   if (!volunteerProfileId) {
+//       //     setTasks([]);
+//       //     setError(
+//       //       "Your volunteer profile ID is missing from your login details."
+//       //     );
+//       //     return;
+//       //   }
 
-      // Load incidents and active operational assignees.
-      const [
-        incidentResult,
-        volunteerResult,
-        agencyResult,
-      ] = await Promise.allSettled([
-        listIncidents({
-          page: 1,
-          per_page: 100,
-        }),
+//       //   taskParams.assigned_to = Number(volunteerProfileId);
+//         // Ask the API for tasks assigned to this account.
+//         // taskParams.assigned_to = Number(user.id);
+//       // }
 
-        listVolunteers({
-          status: "active",
-          page: 1,
-          per_page: 100,
-        }),
+// //       const taskResponse = await listTasks(taskParams);
+// //       const rawTasks = extractRecords(taskResponse, "tasks");
 
-        listAgencies({
-          status: "active",
-          page: 1,
-          per_page: 100,
-        }),
-      ]);
+// //       console.log("Logged-in user:", user);
+// // console.log("Task request params:", taskParams);
+// // console.log("Task API response:", taskResponse);
 
-      const rawIncidents =
-        incidentResult.status === "fulfilled"
-          ? extractRecords(
-              incidentResult.value,
-              "incidents"
-            )
-          : [];
+// // console.log(
+// //   "Task response JSON:",
+// //   JSON.stringify(taskResponse, null, 2)
+// // );
 
-      const rawVolunteers =
-        volunteerResult.status === "fulfilled"
-          ? extractRecords(
-              volunteerResult.value,
-              "volunteers"
-            )
-          : [];
+// // console.table(
+// //   rawTasks.map((task) => ({
+// //     taskId: task.id,
+// //     title: task.title,
+// //     createdBy: task.created_by,
+// //     createdByName: task.created_by_name,
+// //     createdByEmail: task.created_by_email,
+// //     createdByRole: task.created_by_role,
+// //     assignedTo:
+// //       typeof task.assigned_to === "object"
+// //         ? task.assigned_to?.id
+// //         : task.assigned_to,
+// //     status: task.status,
+// //   }))
+// // );
 
-      const rawAgencies =
-        agencyResult.status === "fulfilled"
-          ? extractRecords(
-              agencyResult.value,
-              "agencies"
-            )
-          : [];
 
-      setIncidents(rawIncidents);
+// //       const normalizedTasks = rawTasks.map(normalizeTask);
 
-      // Only active volunteers and active agencies are options.
-      const volunteerAssignees = rawVolunteers
-        .filter(isActiveRecord)
-        .map(normalizeVolunteer);
+// //       const visibleTasks = isTaskOnly
+// //   ? normalizedTasks.filter(
+// //       (task) =>
+// //         String(task.assigned_to ?? "") ===
+// //         String(user.volunteer_id)
+// //     )
+// //   : normalizedTasks;
 
-      const agencyAssignees = rawAgencies
-        .filter(isActiveRecord)
-        .map(normalizeAgency);
+// // setTasks(visibleTasks);
 
-      // Deduplicate by login-account ID.
-      const uniqueAssignees = new Map();
+//       // Supplementary frontend filtering.
+//       // Backend authorization must also enforce this restriction.
+// //       const currentVolunteer = volunteers.find(
+// // (volunteer) =>
+// // String(getVolunteerUserId(volunteer)) === String(user?.id)
+// // );
 
-      [...volunteerAssignees, ...agencyAssignees].forEach(
-        (assignee) => {
-          if (
-            assignee.id &&
-            assignee.id !== "undefined" &&
-            assignee.id !== "null"
-          ) {
-            uniqueAssignees.set(
-              assignee.id,
-              assignee
-            );
-          }
-        }
-      );
+// // const currentVolunteerId = currentVolunteer?.profileId;
+// // const visibleTasks = isTaskOnly
+// // ? normalizedTasks.filter(
+// // (task) =>
+// // String(task.assigned_to ?? "") === String(currentVolunteerId ?? "")
+// // )
+// // : normalizedTasks;
+// // setTasks(visibleTasks);
 
-      setAssignees([...uniqueAssignees.values()]);
+//       // const visibleTasks = isTaskOnly
+//       //   ? normalizedTasks.filter(
+//       //       (task) =>
+//       //         String(task.assigned_to ?? "") ===
+//       //         String(user.id)
+//       //     )
+//       //   : normalizedTasks;
 
-      if (
-        incidentResult.status === "rejected" ||
-        volunteerResult.status === "rejected" ||
-        agencyResult.status === "rejected"
-      ) {
-        setError(
-          "Some task form options could not be loaded. Please refresh and try again."
-        );
-      }
-    } catch (err) {
-      setTasks([]);
-      setError(
-        err?.message || "Failed to load tasks."
-      );
-    } finally {
-      setLoading(false);
+//       // setTasks(visibleTasks);
+
+//       const taskResponse = await listTasks(taskParams);
+// const rawTasks = extractRecords(taskResponse, "tasks");
+// const normalizedTasks = rawTasks.map(normalizeTask);
+
+// let visibleTasks = normalizedTasks;
+
+// if (isTaskOnly) {
+//   visibleTasks = normalizedTasks.filter(
+//     (task) =>
+//       String(task.assigned_to ?? "") ===
+//       String(taskAssigneeId ?? "")
+//   );
+// }
+
+// setTasks(visibleTasks);
+
+//       // Operational users do not need admin form options.
+//       if (isTaskOnly) {
+//         setIncidents([]);
+//         setAssignees([]);
+//         return;
+//       }
+
+//       // Load incidents and active operational assignees.
+//       const [
+//         incidentResult,
+//         volunteerResult,
+//         agencyResult,
+//       ] = await Promise.allSettled([
+//         listIncidents({
+//           page: 1,
+//           per_page: 100,
+//         }),
+
+//         listVolunteers({
+//           status: "active",
+//           page: 1,
+//           per_page: 100,
+//         }),
+
+//         listAgencies({
+//           status: "active",
+//           page: 1,
+//           per_page: 100,
+//         }),
+//       ]);
+
+//       const rawIncidents =
+//         incidentResult.status === "fulfilled"
+//           ? extractRecords(
+//               incidentResult.value,
+//               "incidents"
+//             )
+//           : [];
+
+//       const rawVolunteers =
+//         volunteerResult.status === "fulfilled"
+//           ? extractRecords(
+//               volunteerResult.value,
+//               "volunteers"
+//             )
+//           : [];
+
+//       const rawAgencies =
+//         agencyResult.status === "fulfilled"
+//           ? extractRecords(
+//               agencyResult.value,
+//               "agencies"
+//             )
+//           : [];
+
+//       setIncidents(rawIncidents);
+
+//       // Only active volunteers and active agencies are options.
+//       const volunteerAssignees = rawVolunteers
+//         .filter(
+//           (volunteer) =>
+//             String(volunteer.status ?? "").trim().toLowerCase() === "active"
+//         )
+//         .map((volunteer) => ({
+//           id: String(volunteer.id),
+//           name:
+//             volunteer.name ??
+//             volunteer.full_name ??
+//             volunteer.volunteer_name ??
+//             volunteer.email ??
+//             "Unnamed Volunteer",
+//           type: "volunteer",
+//           profileId: volunteer.id,
+//         }));
+
+//       const agencyAssignees = rawAgencies
+//         .filter(isActiveRecord)
+//         .map(normalizeAgency);
+
+//       // Deduplicate by login-account ID.
+//       const uniqueAssignees = new Map();
+
+//       [...volunteerAssignees, ...agencyAssignees].forEach(
+//         (assignee) => {
+//           if (
+//             assignee.id &&
+//             assignee.id !== "undefined" &&
+//             assignee.id !== "null"
+//           ) {
+//             uniqueAssignees.set(
+//               assignee.id,
+//               assignee
+//             );
+//           }
+//         }
+//       );
+
+//       setAssignees([...uniqueAssignees.values()]);
+
+//       if (
+//         incidentResult.status === "rejected" ||
+//         volunteerResult.status === "rejected" ||
+//         agencyResult.status === "rejected"
+//       ) {
+//         setError(
+//           "Some task form options could not be loaded. Please refresh and try again."
+//         );
+//       }
+//     } catch (err) {
+//       setTasks([]);
+//       setError(
+//         err?.message || "Failed to load tasks."
+//       );
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, [isTaskOnly, user?.id]);
+
+  
+const fetchTasks = useCallback(async () => {
+  setLoading(true);
+  setError("");
+
+  try {
+    const taskParams = {
+      page: 1,
+      limit: 50,
+    };
+
+    if (isTaskOnly) {
+      // let assigneeId = user?.id;
+
+      // if (isVolunteer(user)) {
+      //   assigneeId = getVolunteerProfileIdFromUser(user);
+
+      //   if (
+      //     assigneeId == null ||
+      //     String(assigneeId).trim() === ""
+      //   ) {
+      //     setTasks([]);
+      //     setError(
+      //       "Your volunteer profile ID is missing. " +
+      //       "The task API requires the volunteer profile ID, " +
+      //       "not your login user ID. Please contact an administrator."
+      //     );
+      //     return;
+      //   }
+      // }
+
+      // taskParams.assigned_to = Number(assigneeId);
+      
+let assigneeId = user?.id;
+
+if (isTaskOnly && isVolunteer(user)) {
+  let volunteerProfileId =
+    getVolunteerProfileIdFromUser(user);
+
+  // Login data may not contain linked_id, so fetch user details.
+  if (
+    volunteerProfileId == null ||
+    String(volunteerProfileId).trim() === ""
+  ) {
+    const userResponse = await getUser(user.id);
+
+    const userDetails =
+      userResponse?.data?.data?.user ??
+      userResponse?.data?.user ??
+      userResponse?.data?.data ??
+      userResponse?.data;
+
+    volunteerProfileId =
+      getVolunteerProfileIdFromUser(userDetails);
+  }
+
+  if (
+    volunteerProfileId == null ||
+    String(volunteerProfileId).trim() === ""
+  ) {
+    setTasks([]);
+    setError(
+      "Unable to identify your volunteer profile. Please contact an administrator."
+    );
+    return;
+  }
+
+  assigneeId = volunteerProfileId;
+}
+
+taskParams.assigned_to = Number(assigneeId);
+
     }
-  }, [isTaskOnly, user?.id]);
+
+    const response = await listTasks(taskParams);
+    const rawTasks = extractRecords(response, "tasks");
+    const normalizedTasks = rawTasks.map(normalizeTask);
+
+    // Keep the frontend filter as an additional safeguard.
+    const visibleTasks = isTaskOnly
+      ? normalizedTasks.filter(
+          (task) =>
+            String(task.assigned_to ?? "") ===
+            String(taskParams.assigned_to)
+        )
+      : normalizedTasks;
+
+    setTasks(visibleTasks);
+
+    if (isTaskOnly) {
+      setIncidents([]);
+      setAssignees([]);
+      return;
+    }
+
+    const [
+      incidentResult,
+      volunteerResult,
+      agencyResult,
+    ] = await Promise.allSettled([
+      listIncidents({ page: 1, per_page: 100 }),
+      listVolunteers({
+        status: "active",
+        page: 1,
+        per_page: 100,
+      }),
+      listAgencies({
+        status: "active",
+        page: 1,
+        per_page: 100,
+      }),
+    ]);
+
+    const rawIncidents =
+      incidentResult.status === "fulfilled"
+        ? extractRecords(incidentResult.value, "incidents")
+        : [];
+
+    const rawVolunteers =
+      volunteerResult.status === "fulfilled"
+        ? extractRecords(volunteerResult.value, "volunteers")
+        : [];
+
+    const rawAgencies =
+      agencyResult.status === "fulfilled"
+        ? extractRecords(agencyResult.value, "agencies")
+        : [];
+
+    setIncidents(rawIncidents);
+
+    const volunteerAssignees = rawVolunteers
+      .filter(isAssignableVolunteer)
+      .map(normalizeVolunteer);
+
+    const agencyAssignees = rawAgencies
+      .filter(isActiveRecord)
+      .map(normalizeAgency);
+
+    const uniqueAssignees = new Map();
+
+    [...volunteerAssignees, ...agencyAssignees].forEach(
+      (assignee) => {
+        if (assignee.id) {
+          uniqueAssignees.set(assignee.id, assignee);
+        }
+      }
+    );
+
+    setAssignees([...uniqueAssignees.values()]);
+
+    if (
+      incidentResult.status === "rejected" ||
+      volunteerResult.status === "rejected" ||
+      agencyResult.status === "rejected"
+    ) {
+      setError(
+        "Some task form options could not be loaded. Please refresh and try again."
+      );
+    }
+  } catch (err) {
+    setTasks([]);
+    setError(err?.message || "Failed to load tasks.");
+  } finally {
+    setLoading(false);
+  }
+}, [isTaskOnly, user]);
+
 
   useEffect(() => {
     fetchTasks();
@@ -1050,7 +1482,7 @@ function Task() {
                                 String(assignee.id) ===
                                 String(task.assigned_to)
                             )?.name ||
-                            "Unassigned"}
+                            "Unassigned"} 
                         </div>
                       </td>
 
@@ -1096,7 +1528,7 @@ function Task() {
                       {/* CREATED BY */}
                       <td className="px-5 py-4">
                         <div className="min-w-[150px] font-medium text-slate-700">
-                          {task.created_by_name || "—"}
+                          {getCreatorName(task.created_by)}
                         </div>
                       </td>
 
