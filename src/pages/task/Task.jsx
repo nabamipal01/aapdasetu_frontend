@@ -1,1591 +1,1054 @@
+
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  ClipboardList,
-  Plus,
-  X,
-  RefreshCw,
-  CheckCircle2,
-  MapPin,
-  Pencil,
+    ClipboardList,
+    Plus,
+    X,
+    RefreshCw,
+    MapPin,
+    Pencil,
+    Eye,
+    CalendarDays,
+    AlertTriangle,
 } from "lucide-react";
 
 import {
-  listTasks,
-  createTask,
-  updateTask,
-  listUsers,
+    listTasks,
+    createTask,
+    updateTask,
 } from "../../services";
 
 import { useAuth } from "../../context/AuthContext";
 import { listIncidents } from "../../services/incidentService";
 import { listVolunteers } from "../../services/volunteerService";
 import { listAgencies } from "../../services/agencyService";
-import { isOperationalUser, isVolunteer } from "../../utils/roles";
-import DownloadMenu from "../../components/common/DownloadMenu";
-import { getUser } from "../../services/userService";
-
-const STATUS_STYLES = {
-  pending: "bg-yellow-100 text-yellow-700",
-  assigned: "bg-blue-100 text-blue-700",
-  in_progress: "bg-indigo-100 text-indigo-700",
-  completed: "bg-green-100 text-green-700",
-  cancelled: "bg-slate-100 text-slate-500",
-};
-
-const PRIORITY_STYLES = {
-  low: "bg-slate-100 text-slate-600",
-  medium: "bg-yellow-100 text-yellow-700",
-  high: "bg-orange-100 text-orange-700",
-  critical: "bg-red-100 text-red-700",
-};
-
-const TASK_TYPE_STYLES = {
-  sop: "bg-purple-100 text-purple-700",
-  manual: "bg-blue-100 text-blue-700",
-  field: "bg-indigo-100 text-indigo-700",
-  logistics: "bg-cyan-100 text-cyan-700",
-  medical: "bg-pink-100 text-pink-700",
-  other: "bg-slate-100 text-slate-600",
-};
+import { isOperationalUser } from "../../utils/roles";
 
 const EMPTY_FORM = {
-  incident_id: "",
-  title: "",
-  description: "",
-  assigned_to: "",
-  priority: "",
-  task_type: "",
-  due_at: "",
+    title: "",
+    description: "",
+    incident_id: "",
+    assigned_to: "",
+    priority: "medium",
+    status: "assigned",
+    due_at: "",
 };
 
-/**
- * Extract arrays from common API response formats.
- */
+const PRIORITIES = ["low", "medium", "high", "critical"];
+
+const STATUSES = [
+    "pending",
+    "assigned",
+    "in_progress",
+    "completed",
+    "cancelled",
+];
+
+const PRIORITY_STYLES = {
+    low: "bg-green-100 text-green-700",
+    medium: "bg-yellow-100 text-yellow-700",
+    high: "bg-orange-100 text-orange-700",
+    critical: "bg-red-100 text-red-700",
+};
+
+const STATUS_STYLES = {
+    pending: "bg-slate-100 text-slate-700",
+    assigned: "bg-blue-100 text-blue-700",
+    in_progress: "bg-indigo-100 text-indigo-700",
+    completed: "bg-green-100 text-green-700",
+    cancelled: "bg-red-100 text-red-700",
+};
+
 const extractRecords = (response, key) => {
-  const candidates = [
-    response?.data?.data?.[key],
-    response?.data?.[key],
-    response?.[key],
-    response?.data?.items,
-    response?.data?.data?.items,
-    response?.data?.data,
-    response?.data,
-  ];
-
-  return candidates.find(Array.isArray) ?? [];
-};
-
-/**
- * Verify active status when the API returns it.
- * If status is omitted, trust the API's status=active filter.
- */
-const isActiveRecord = (record) => {
-  const status =
-    record?.status ??
-    record?.account_status ??
-    record?.user_status;
-
-  return (
-    status == null ||
-    String(status).trim().toLowerCase() === "active"
-  );
-};
-
-/**
- * Normalize different task API response formats.
- */
-const normalizeTask = (task = {}) => {
-  const incident = task.incident || {};
-
-  const assignedUser =
-    task.assigned_to &&
-    typeof task.assigned_to === "object"
-      ? task.assigned_to
-      : {};
-
-  const createdBy =
-    task.created_by &&
-    typeof task.created_by === "object"
-      ? task.created_by
-      : {};
-
-  return {
-    ...task,
-
-    id: task.id,
-
-    // Incident
-    incident_id:
-      task.incident_id ??
-      incident.id ??
-      null,
-
-    incident_no:
-      task.incident_no ??
-      incident.incident_no ??
-      "",
-
-    incident_title:
-      task.incident_title ??
-      incident.title ??
-      "",
-
-    incident_type:
-      task.incident_type ??
-      incident.incident_type ??
-      "",
-
-    incident_status:
-      task.incident_status ??
-      incident.status ??
-      "",
-
-    incident_severity:
-      task.incident_severity ??
-      incident.severity ??
-      "",
-
-    latitude:
-      task.latitude ??
-      incident.latitude ??
-      null,
-
-    longitude:
-      task.longitude ??
-      incident.longitude ??
-      null,
-
-    // Assigned user
-    assigned_to:
-      typeof task.assigned_to === "object"
-        ? task.assigned_to?.id ?? null
-        : task.assigned_to ?? null,
-
-    assigned_to_name:
-      task.assigned_to_name ??
-      assignedUser.name ??
-      assignedUser.full_name ??
-      "",
-
-    assigned_to_email:
-      task.assigned_to_email ??
-      assignedUser.email ??
-      "",
-
-    assigned_to_phone:
-      task.assigned_to_phone ??
-      assignedUser.phone ??
-      "",
-
-    assigned_to_role:
-      task.assigned_to_role ??
-      assignedUser.role ??
-      "",
-
-    // Task creator
-    created_by:
-      typeof task.created_by === "object"
-        ? task.created_by?.id ?? null
-        : task.created_by ?? null,
-
-    created_by_name:
-      task.created_by_name ??
-      createdBy.name ??
-      createdBy.full_name ??
-      "",
-
-    created_by_email:
-      task.created_by_email ??
-      createdBy.email ??
-      "",
-
-    created_by_role:
-      task.created_by_role ??
-      createdBy.role ??
-      "",
-
-    // Task fields
-    title: task.title ?? "",
-    description: task.description ?? "",
-    task_type: task.task_type ?? "",
-    priority: task.priority ?? "",
-    status: task.status ?? "",
-    due_at: task.due_at ?? null,
-    started_at: task.started_at ?? null,
-    completed_at: task.completed_at ?? null,
-    created_at: task.created_at ?? null,
-    updated_at: task.updated_at ?? null,
-  };
-};
-
-/**
- * Normalize volunteer records to login-user IDs.
- *
- * assigned_to must contain the users-table ID,
- * not the volunteer profile ID.
- */
-const getVolunteerUserId = (volunteer) =>
-  volunteer.user_id ??
-  volunteer.account_id ??
-  volunteer.user?.id ??
-  volunteer.account?.id ??
-  volunteer.login_user?.id ??
-  null;
-
-const getVolunteerProfileIdFromUser = (user) =>
-  user?.linked_id ??
-  user?.volunteer_id ??
-  user?.volunteerId ??
-  user?.volunteer_profile_id ??
-  user?.volunteerProfileId ??
-  user?.volunteer?.id ??
-  null;
-
-const normalizeVolunteer = (volunteer) => {
-  const userId = getVolunteerUserId(volunteer);
-
-  const name =
-    volunteer.name ??
-    volunteer.full_name ??
-    volunteer.volunteer_name ??
-    volunteer.user?.name ??
-    volunteer.user?.full_name ??
-    volunteer.email ??
-    "Unnamed Volunteer";
-
-  return {
-    id: userId == null ? "" : String(userId),
-    name,
-    type: "volunteer",
-    profileId: volunteer.id,
-    profileStatus: volunteer.status,
-    accountStatus:
-      volunteer.user?.status ??
-      volunteer.user?.account_status ??
-      volunteer.account?.status ??
-      volunteer.account?.account_status ??
-      volunteer.account_status ??
-      volunteer.user_status ??
-      null,
-  };
-};
-
-
-const isAssignableVolunteer = (volunteer) => {
-  // The volunteer profile itself must be active.
-  if (
-    String(volunteer?.status ?? "")
-      .trim()
-      .toLowerCase() !== "active"
-  ) {
-    return false;
-  }
-
-  // Never substitute a volunteer profile ID for a user ID.
-  const userId = getVolunteerUserId(volunteer);
-
-  if (userId == null || String(userId).trim() === "") {
-    return false;
-  }
-
-  // If account status is available, it must be active.
-  const accountStatus =
-    volunteer.user?.status ??
-    volunteer.user?.account_status ??
-    volunteer.user?.user_status ??
-    volunteer.account?.status ??
-    volunteer.account?.account_status ??
-    volunteer.account_status ??
-    volunteer.user_status;
-
-  if (
-    accountStatus != null &&
-    String(accountStatus).trim().toLowerCase() !== "active"
-  ) {
-    return false;
-  }
-
-  // Account status isn't exposed by every volunteer-list API.
-  // In that case, the backend must validate the account.
-  return true;
-};
-
-/**
- * Normalize agency records to the NGO contact's login-user ID.
- */
-const normalizeAgency = (agency) => {
-  const userId =
-    agency.contact_user_id ??
-    agency.user_id ??
-    agency.account_id ??
-    agency.contact?.user_id ??
-    agency.contact?.id ??
-    agency.id;
-
-  const contactName =
-    agency.contact_person ??
-    agency.contact_person_name ??
-    agency.contact_name ??
-    agency.contact?.name ??
-    "";
-
-  const agencyName =
-    agency.name ??
-    agency.agency_name ??
-    agency.organization_name ??
-    "Unnamed NGO";
-
-  return {
-    id: userId == null ? "" : String(userId),
-    name: contactName
-      ? `${contactName} — ${agencyName}`
-      : agencyName,
-    type: "ngo",
-  };
-};
-
-function Task() {
-  const { user } = useAuth();
-
-  // Volunteers and NGO operational users can only view
-  // their assigned tasks and cannot create or edit tasks.
-  const isTaskOnly = isOperationalUser(user);
-  const [volunteers, setVolunteers] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [incidents, setIncidents] = useState([]);
-  const [assignees, setAssignees] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const [showForm, setShowForm] = useState(false);
-  const [editingTask, setEditingTask] = useState(null);
-
-  const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [creatorNames, setCreatorNames] = useState({});
-
-useEffect(() => {
-  const fetchCreatorNames = async () => {
-    const creatorIds = [
-      ...new Set(
-        tasks
-          .map((task) => task.created_by)
-          .filter((id) => id != null && id !== "")
-          .map(String)
-      ),
+    const candidates = [
+        response?.data?.data?.[key],
+        response?.data?.[key],
+        response?.[key],
+        response?.data?.items,
+        response?.data?.data?.items,
+        response?.data?.data,
+        response?.data,
     ];
 
-    const missingIds = creatorIds.filter(
-      (id) => !creatorNames[id]
-    );
-
-    if (missingIds.length === 0) return;
-
-    try {
-      const results = await Promise.all(
-        missingIds.map(async (id) => {
-          try {
-            const response = await getUser(id);
-
-            const user =
-              response?.data?.data?.user ??
-              response?.data?.user ??
-              response?.data?.data ??
-              response?.data;
-
-            return [
-              id,
-              user?.name ??
-                user?.full_name ??
-                user?.username ??
-                `User #${id}`,
-            ];
-          } catch (error) {
-            console.error(
-              `Failed to fetch creator ${id}:`,
-              error
-            );
-            return [id, `User #${id}`];
-          }
-        })
-      );
-
-      setCreatorNames((previous) => ({
-        ...previous,
-        ...Object.fromEntries(results),
-      }));
-    } catch (error) {
-      console.error("Failed to load creator names:", error);
-    }
-  };
-
-  fetchCreatorNames();
-}, [tasks, creatorNames]);
-
-const getCreatorName = (createdBy) => {
-  if (createdBy == null || createdBy === "") {
-    return "Unknown";
-  }
-
-  return creatorNames[String(createdBy)] ??
-    `User #${createdBy}`;
+    return candidates.find(Array.isArray) || [];
 };
 
+const getId = (value) => {
+    if (value && typeof value === "object") {
+        return value.id ?? value.user_id ?? value.account_id ?? "";
+    }
 
-  /**
-   * Fetch tasks and form options.
-   */
-//   const fetchTasks = useCallback(async () => {
-//     setLoading(true);
-//     setError("");
+    return value ?? "";
+};
 
-//     try {
-//       const taskParams = {
-//         page: 1,
-//         limit: 50,
-//       };
+const normalizeTask = (task) => {
+    const assignee =
+        task.assigned_to && typeof task.assigned_to === "object"
+            ? task.assigned_to
+            : null;
 
-//       let taskAssigneeId = user?.id;
+    const incident =
+        task.incident && typeof task.incident === "object"
+            ? task.incident
+            : null;
 
-//       if (isTaskOnly && isVolunteer(user)) {
-//         let volunteerProfileId =
-//           getVolunteerProfileIdFromUser(user);
+    const creator =
+        task.created_by && typeof task.created_by === "object"
+            ? task.created_by
+            : null;
 
-//         if (
-//           (volunteerProfileId == null ||
-//             String(volunteerProfileId).trim() === "") &&
-//           user?.id != null
-//         ) {
-//           const volunteerResponse = await listVolunteers({
-//             page: 1,
-//             per_page: 100,
-//           });
-//           const currentVolunteer = extractRecords(
-//             volunteerResponse,
-//             "volunteers"
-//           ).find(
-//             (volunteer) =>
-//               String(getVolunteerUserId(volunteer)) ===
-//               String(user.id)
-//           );
+    return {
+        ...task,
+        id: task.id,
+        title: task.title ?? "Untitled task",
+        description: task.description ?? "",
+        incident_id: getId(task.incident_id ?? incident?.id),
+        incident_title:
+            task.incident_title ??
+            incident?.title ??
+            incident?.incident_no ??
+            (task.incident_id ? `Incident #${task.incident_id}` : "Not linked"),
+        assigned_to: getId(task.assigned_to),
+        assigned_to_name:
+            assignee?.name ??
+            task.assigned_to_name ??
+            task.assignee_name ??
+            "Unassigned",
+        assigned_to_type:
+            assignee?.type ??
+            task.assigned_to_type ??
+            task.assignee_type ??
+            "",
+        priority: String(task.priority ?? "medium").toLowerCase(),
+        status: String(task.status ?? "pending").toLowerCase(),
+        due_at: task.due_at ?? task.due_date ?? "",
+        location:
+            task.latitude != null &&
+                task.longitude != null &&
+                task.latitude !== "" &&
+                task.longitude !== ""
+                ? `Lat: ${task.latitude}, Lng: ${task.longitude}`
+                : task.location ||
+                task.incident_location ||
+                incident?.location ||
+                incident?.address ||
+                "",
+        created_by_name:
+            creator?.name ??
+            task.created_by_name ??
+            task.creator_name ??
+            `#User ${task.created_by}` ??
+            "Department",
+        // created_at: task.created_at ?? "",
+    };
+};
 
-//           volunteerProfileId = currentVolunteer?.id ?? null;
-//         }
+const normalizeVolunteer = (volunteer) => ({
+    // tasks.assigned_to stores the volunteer profile ID.
+    id: String(volunteer.id),
+    name:
+        volunteer.name ??
+        volunteer.full_name ??
+        volunteer.volunteer_name ??
+        "Unnamed volunteer",
+    type: "volunteer",
+});
 
-//         if (
-//           volunteerProfileId == null ||
-//           String(volunteerProfileId).trim() === ""
-//         ) {
-//           setTasks([]);
-//           setError(
-//             "Unable to identify your volunteer profile. Please contact an administrator."
-//           );
-//           return;
-//         }
+const normalizeAgency = (agency) => ({
+    // tasks.assigned_to stores the agency profile ID.
+    id: String(agency.id),
+    name: agency.contact_person
+        ? `${agency.contact_person} — ${agency.name}`
+        : agency.name ?? "Unnamed NGO",
+    type: "ngo",
+});
 
-//         taskAssigneeId = volunteerProfileId;
-//       }
+const formatDate = (value) => {
+    if (!value) return "—";
 
-//       // if (isTaskOnly) {
-//       //   if (!user?.id) {
-//       //     setTasks([]);
-//       //     setError(
-//       //       "Unable to identify the logged-in user."
-//       //     );
-//       //     return;
-//       //   }
-//       //   const volunteerProfileId = user.volunteer_id;
-//       //   if (!volunteerProfileId) {
-//       //     setTasks([]);
-//       //     setError(
-//       //       "Your volunteer profile ID is missing from your login details."
-//       //     );
-//       //     return;
-//       //   }
+    const date = new Date(
+        String(value).includes("T") ? value : String(value).replace(" ", "T")
+    );
 
-//       //   taskParams.assigned_to = Number(volunteerProfileId);
-//         // Ask the API for tasks assigned to this account.
-//         // taskParams.assigned_to = Number(user.id);
-//       // }
+    if (Number.isNaN(date.getTime())) return String(value);
 
-// //       const taskResponse = await listTasks(taskParams);
-// //       const rawTasks = extractRecords(taskResponse, "tasks");
+    return date.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
+};
 
-// //       console.log("Logged-in user:", user);
-// // console.log("Task request params:", taskParams);
-// // console.log("Task API response:", taskResponse);
+const formatLabel = (value) =>
+    String(value || "—")
+        .replaceAll("_", " ")
+        .replace(/\b\w/g, (character) => character.toUpperCase());
 
-// // console.log(
-// //   "Task response JSON:",
-// //   JSON.stringify(taskResponse, null, 2)
-// // );
+export default function Task() {
+    const { user } = useAuth();
 
-// // console.table(
-// //   rawTasks.map((task) => ({
-// //     taskId: task.id,
-// //     title: task.title,
-// //     createdBy: task.created_by,
-// //     createdByName: task.created_by_name,
-// //     createdByEmail: task.created_by_email,
-// //     createdByRole: task.created_by_role,
-// //     assignedTo:
-// //       typeof task.assigned_to === "object"
-// //         ? task.assigned_to?.id
-// //         : task.assigned_to,
-// //     status: task.status,
-// //   }))
-// // );
+    // This utility should identify volunteer and NGO task-only accounts.
+    const isTaskOnly = isOperationalUser(user);
 
+    const [tasks, setTasks] = useState([]);
+    const [incidents, setIncidents] = useState([]);
+    const [assignees, setAssignees] = useState([]);
 
-// //       const normalizedTasks = rawTasks.map(normalizeTask);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
 
-// //       const visibleTasks = isTaskOnly
-// //   ? normalizedTasks.filter(
-// //       (task) =>
-// //         String(task.assigned_to ?? "") ===
-// //         String(user.volunteer_id)
-// //     )
-// //   : normalizedTasks;
+    const [showForm, setShowForm] = useState(false);
+    const [editingTask, setEditingTask] = useState(null);
+    const [selectedTask, setSelectedTask] = useState(null);
+    const [form, setForm] = useState(EMPTY_FORM);
 
-// // setTasks(visibleTasks);
+    // ------------------------------------------------------------
+    // Fetch tasks
+    // Operational users rely on the PHP API to return only their
+    // assigned tasks. Do not fetch volunteer or user profiles here.
+    // ------------------------------------------------------------
+    const fetchTasks = useCallback(async () => {
+        setLoading(true);
+        setError("");
 
-//       // Supplementary frontend filtering.
-//       // Backend authorization must also enforce this restriction.
-// //       const currentVolunteer = volunteers.find(
-// // (volunteer) =>
-// // String(getVolunteerUserId(volunteer)) === String(user?.id)
-// // );
+        try {
+            const response = await listTasks({
+                page: 1,
+                limit: 50,
+            });
 
-// // const currentVolunteerId = currentVolunteer?.profileId;
-// // const visibleTasks = isTaskOnly
-// // ? normalizedTasks.filter(
-// // (task) =>
-// // String(task.assigned_to ?? "") === String(currentVolunteerId ?? "")
-// // )
-// // : normalizedTasks;
-// // setTasks(visibleTasks);
+            const records = extractRecords(response, "tasks");
+            const normalized = records.map(normalizeTask);
 
-//       // const visibleTasks = isTaskOnly
-//       //   ? normalizedTasks.filter(
-//       //       (task) =>
-//       //         String(task.assigned_to ?? "") ===
-//       //         String(user.id)
-//       //     )
-//       //   : normalizedTasks;
+            setTasks(normalized);
 
-//       // setTasks(visibleTasks);
+            // Volunteers and NGO contacts do not need admin data.
+            if (isTaskOnly) {
+                setIncidents([]);
+                setAssignees([]);
+                return;
+            }
 
-//       const taskResponse = await listTasks(taskParams);
-// const rawTasks = extractRecords(taskResponse, "tasks");
-// const normalizedTasks = rawTasks.map(normalizeTask);
+            // Only management users load assignment form options.
+            const results = await Promise.allSettled([
+                listIncidents({ page: 1, per_page: 100 }),
+                listVolunteers({ status: "active", page: 1, per_page: 100 }),
+                listAgencies({ status: "active", page: 1, per_page: 100 }),
+            ]);
 
-// let visibleTasks = normalizedTasks;
+            const [incidentResult, volunteerResult, agencyResult] = results;
 
-// if (isTaskOnly) {
-//   visibleTasks = normalizedTasks.filter(
-//     (task) =>
-//       String(task.assigned_to ?? "") ===
-//       String(taskAssigneeId ?? "")
-//   );
-// }
+            if (incidentResult.status === "fulfilled") {
+                setIncidents(
+                    extractRecords(incidentResult.value, "incidents")
+                );
+            } else {
+                setIncidents([]);
+            }
 
-// setTasks(visibleTasks);
+            const volunteers =
+                volunteerResult.status === "fulfilled"
+                    ? extractRecords(volunteerResult.value, "volunteers")
+                    : [];
 
-//       // Operational users do not need admin form options.
-//       if (isTaskOnly) {
-//         setIncidents([]);
-//         setAssignees([]);
-//         return;
-//       }
+            const agencies =
+                agencyResult.status === "fulfilled"
+                    ? extractRecords(agencyResult.value, "agencies")
+                    : [];
 
-//       // Load incidents and active operational assignees.
-//       const [
-//         incidentResult,
-//         volunteerResult,
-//         agencyResult,
-//       ] = await Promise.allSettled([
-//         listIncidents({
-//           page: 1,
-//           per_page: 100,
-//         }),
+            const activeAssignees = [
+                ...volunteers.map(normalizeVolunteer),
+                ...agencies
+                    .filter((agency) =>
+                        String(agency.type ?? "ngo").toLowerCase() === "ngo"
+                    )
+                    .map(normalizeAgency),
+            ];
 
-//         listVolunteers({
-//           status: "active",
-//           page: 1,
-//           per_page: 100,
-//         }),
+            // Deduplicate profile options by type and profile ID.
+            const uniqueAssignees = Array.from(
+                new Map(
+                    activeAssignees.map((item) => [
+                        `${item.type}:${item.id}`,
+                        item,
+                    ])
+                ).values()
+            );
 
-//         listAgencies({
-//           status: "active",
-//           page: 1,
-//           per_page: 100,
-//         }),
-//       ]);
+            setAssignees(uniqueAssignees);
 
-//       const rawIncidents =
-//         incidentResult.status === "fulfilled"
-//           ? extractRecords(
-//               incidentResult.value,
-//               "incidents"
-//             )
-//           : [];
+            if (
+                incidentResult.status === "rejected" ||
+                volunteerResult.status === "rejected" ||
+                agencyResult.status === "rejected"
+            ) {
+                setError(
+                    "Tasks loaded, but some incident or assignee options could not be loaded."
+                );
+            }
+        } catch (err) {
+            console.error("[Tasks] Fetch error:", err);
+            setTasks([]);
+            setError(err?.message || "Failed to load tasks.");
+        } finally {
+            setLoading(false);
+        }
+    }, [isTaskOnly]);
 
-//       const rawVolunteers =
-//         volunteerResult.status === "fulfilled"
-//           ? extractRecords(
-//               volunteerResult.value,
-//               "volunteers"
-//             )
-//           : [];
+    useEffect(() => {
+        fetchTasks();
+    }, [fetchTasks]);
 
-//       const rawAgencies =
-//         agencyResult.status === "fulfilled"
-//           ? extractRecords(
-//               agencyResult.value,
-//               "agencies"
-//             )
-//           : [];
+    // ------------------------------------------------------------
+    // Form helpers
+    // ------------------------------------------------------------
+    const handleChange = (event) => {
+        const { name, value } = event.target;
 
-//       setIncidents(rawIncidents);
-
-//       // Only active volunteers and active agencies are options.
-//       const volunteerAssignees = rawVolunteers
-//         .filter(
-//           (volunteer) =>
-//             String(volunteer.status ?? "").trim().toLowerCase() === "active"
-//         )
-//         .map((volunteer) => ({
-//           id: String(volunteer.id),
-//           name:
-//             volunteer.name ??
-//             volunteer.full_name ??
-//             volunteer.volunteer_name ??
-//             volunteer.email ??
-//             "Unnamed Volunteer",
-//           type: "volunteer",
-//           profileId: volunteer.id,
-//         }));
-
-//       const agencyAssignees = rawAgencies
-//         .filter(isActiveRecord)
-//         .map(normalizeAgency);
-
-//       // Deduplicate by login-account ID.
-//       const uniqueAssignees = new Map();
-
-//       [...volunteerAssignees, ...agencyAssignees].forEach(
-//         (assignee) => {
-//           if (
-//             assignee.id &&
-//             assignee.id !== "undefined" &&
-//             assignee.id !== "null"
-//           ) {
-//             uniqueAssignees.set(
-//               assignee.id,
-//               assignee
-//             );
-//           }
-//         }
-//       );
-
-//       setAssignees([...uniqueAssignees.values()]);
-
-//       if (
-//         incidentResult.status === "rejected" ||
-//         volunteerResult.status === "rejected" ||
-//         agencyResult.status === "rejected"
-//       ) {
-//         setError(
-//           "Some task form options could not be loaded. Please refresh and try again."
-//         );
-//       }
-//     } catch (err) {
-//       setTasks([]);
-//       setError(
-//         err?.message || "Failed to load tasks."
-//       );
-//     } finally {
-//       setLoading(false);
-//     }
-//   }, [isTaskOnly, user?.id]);
-
-  
-const fetchTasks = useCallback(async () => {
-  setLoading(true);
-  setError("");
-
-  try {
-    const taskParams = {
-      page: 1,
-      limit: 50,
+        setForm((previous) => ({
+            ...previous,
+            [name]: value,
+        }));
     };
 
-    if (isTaskOnly) {
-      // let assigneeId = user?.id;
+    const resetForm = () => {
+        setForm(EMPTY_FORM);
+        setEditingTask(null);
+        setShowForm(false);
+    };
 
-      // if (isVolunteer(user)) {
-      //   assigneeId = getVolunteerProfileIdFromUser(user);
+    const openCreateForm = () => {
+        if (isTaskOnly) return;
 
-      //   if (
-      //     assigneeId == null ||
-      //     String(assigneeId).trim() === ""
-      //   ) {
-      //     setTasks([]);
-      //     setError(
-      //       "Your volunteer profile ID is missing. " +
-      //       "The task API requires the volunteer profile ID, " +
-      //       "not your login user ID. Please contact an administrator."
-      //     );
-      //     return;
-      //   }
-      // }
+        setError("");
+        setSuccess("");
+        setEditingTask(null);
+        setForm(EMPTY_FORM);
+        setShowForm(true);
+    };
 
-      // taskParams.assigned_to = Number(assigneeId);
-      
-let assigneeId = user?.id;
+    const openEditForm = (task) => {
+        if (isTaskOnly) return;
 
-if (isTaskOnly && isVolunteer(user)) {
-  let volunteerProfileId =
-    getVolunteerProfileIdFromUser(user);
+        setError("");
+        setSuccess("");
+        setEditingTask(task);
 
-  // Login data may not contain linked_id, so fetch user details.
-  if (
-    volunteerProfileId == null ||
-    String(volunteerProfileId).trim() === ""
-  ) {
-    const userResponse = await getUser(user.id);
+        setForm({
+            title: task.title ?? "",
+            description: task.description ?? "",
+            incident_id: task.incident_id
+                ? String(task.incident_id)
+                : "",
+            assigned_to: task.assigned_to
+                ? String(task.assigned_to)
+                : "",
+            priority: task.priority ?? "medium",
+            status: task.status ?? "assigned",
+            due_at: task.due_at
+                ? String(task.due_at).replace(" ", "T").slice(0, 16)
+                : "",
+        });
 
-    const userDetails =
-      userResponse?.data?.data?.user ??
-      userResponse?.data?.user ??
-      userResponse?.data?.data ??
-      userResponse?.data;
+        setShowForm(true);
+    };
 
-    volunteerProfileId =
-      getVolunteerProfileIdFromUser(userDetails);
-  }
+    // ------------------------------------------------------------
+    // Create / update
+    // ------------------------------------------------------------
+    const handleSubmit = async (event) => {
+        event.preventDefault();
 
-  if (
-    volunteerProfileId == null ||
-    String(volunteerProfileId).trim() === ""
-  ) {
-    setTasks([]);
-    setError(
-      "Unable to identify your volunteer profile. Please contact an administrator."
-    );
-    return;
-  }
+        if (isTaskOnly) return;
 
-  assigneeId = volunteerProfileId;
-}
-
-taskParams.assigned_to = Number(assigneeId);
-
-    }
-
-    const response = await listTasks(taskParams);
-    const rawTasks = extractRecords(response, "tasks");
-    const normalizedTasks = rawTasks.map(normalizeTask);
-
-    // Keep the frontend filter as an additional safeguard.
-    const visibleTasks = isTaskOnly
-      ? normalizedTasks.filter(
-          (task) =>
-            String(task.assigned_to ?? "") ===
-            String(taskParams.assigned_to)
-        )
-      : normalizedTasks;
-
-    setTasks(visibleTasks);
-
-    if (isTaskOnly) {
-      setIncidents([]);
-      setAssignees([]);
-      return;
-    }
-
-    const [
-      incidentResult,
-      volunteerResult,
-      agencyResult,
-    ] = await Promise.allSettled([
-      listIncidents({ page: 1, per_page: 100 }),
-      listVolunteers({
-        status: "active",
-        page: 1,
-        per_page: 100,
-      }),
-      listAgencies({
-        status: "active",
-        page: 1,
-        per_page: 100,
-      }),
-    ]);
-
-    const rawIncidents =
-      incidentResult.status === "fulfilled"
-        ? extractRecords(incidentResult.value, "incidents")
-        : [];
-
-    const rawVolunteers =
-      volunteerResult.status === "fulfilled"
-        ? extractRecords(volunteerResult.value, "volunteers")
-        : [];
-
-    const rawAgencies =
-      agencyResult.status === "fulfilled"
-        ? extractRecords(agencyResult.value, "agencies")
-        : [];
-
-    setIncidents(rawIncidents);
-
-    const volunteerAssignees = rawVolunteers
-      .filter(isAssignableVolunteer)
-      .map(normalizeVolunteer);
-
-    const agencyAssignees = rawAgencies
-      .filter(isActiveRecord)
-      .map(normalizeAgency);
-
-    const uniqueAssignees = new Map();
-
-    [...volunteerAssignees, ...agencyAssignees].forEach(
-      (assignee) => {
-        if (assignee.id) {
-          uniqueAssignees.set(assignee.id, assignee);
+        if (!form.title.trim()) {
+            setError("Task title is required.");
+            return;
         }
-      }
-    );
 
-    setAssignees([...uniqueAssignees.values()]);
-
-    if (
-      incidentResult.status === "rejected" ||
-      volunteerResult.status === "rejected" ||
-      agencyResult.status === "rejected"
-    ) {
-      setError(
-        "Some task form options could not be loaded. Please refresh and try again."
-      );
-    }
-  } catch (err) {
-    setTasks([]);
-    setError(err?.message || "Failed to load tasks.");
-  } finally {
-    setLoading(false);
-  }
-}, [isTaskOnly, user]);
-
-
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
-  /**
-   * Form field changes.
-   */
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  /**
-   * Reset create/edit form.
-   */
-  const resetForm = () => {
-    setForm({ ...EMPTY_FORM });
-    setEditingTask(null);
-    setShowForm(false);
-  };
-
-  /**
-   * Create or update task.
-   */
-  const handleCreate = async (e) => {
-    e.preventDefault();
-
-    if (!form.incident_id || !form.title.trim()) {
-      setError("Incident and Title are required.");
-      return;
-    }
-
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      const payload = {
-        incident_id: Number(form.incident_id),
-        title: form.title.trim(),
-
-        ...(form.description.trim() && {
-          description: form.description.trim(),
-        }),
-
-        ...(form.assigned_to && {
-          assigned_to: Number(form.assigned_to),
-        }),
-
-        ...(form.priority && {
-          priority: form.priority,
-        }),
-
-        ...(form.task_type && {
-          task_type: form.task_type,
-        }),
-
-        ...(form.due_at && {
-          due_at: form.due_at.replace("T", " "),
-        }),
-      };
-
-      if (editingTask) {
-        await updateTask(editingTask.id, payload);
-      } else {
-        await createTask(payload);
-      }
-
-      setSuccess(
-        editingTask
-          ? "Task updated successfully."
-          : "Task created successfully."
-      );
-
-      resetForm();
-
-      // Reload complete server data after the operation.
-      await fetchTasks();
-    } catch (err) {
-      setError(
-        err?.message ||
-          (editingTask
-            ? "Failed to update task."
-            : "Failed to create task.")
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  /**
-   * Open the edit form.
-   */
-  const startEditingTask = (task) => {
-    setEditingTask(task);
-
-    setForm({
-      incident_id: String(task.incident_id ?? ""),
-      title: task.title ?? "",
-      description: task.description ?? "",
-      assigned_to:
-        task.assigned_to != null
-          ? String(task.assigned_to)
-          : "",
-      priority: task.priority ?? "",
-      task_type: task.task_type ?? "",
-      due_at: task.due_at
-        ? String(task.due_at)
-            .replace(" ", "T")
-            .slice(0, 19)
-        : "",
-    });
-
-    setShowForm(true);
-    setError("");
-    setSuccess("");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-8">
-      <div className="mx-auto max-w-[1800px]">
-
-        {/* HEADER */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <ClipboardList
-              className="text-indigo-500"
-              size={28}
-            />
-
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                Tasks
-              </h1>
-
-              <p className="text-sm text-slate-500">
-                Track and manage response tasks
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={fetchTasks}
-              disabled={loading}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              <RefreshCw
-                size={15}
-                className={
-                  loading ? "animate-spin" : ""
-                }
-              />
-              Refresh
-            </button>
-
-            {!isTaskOnly && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (editingTask) {
-                    resetForm();
-                  } else {
-                    setShowForm((prev) => !prev);
-                  }
-
-                  setError("");
-                  setSuccess("");
-                }}
-                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-              >
-                {showForm ? (
-                  <>
-                    <X size={15} />
-                    Cancel
-                  </>
-                ) : (
-                  <>
-                    <Plus size={15} />
-                    Create Task
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* ALERTS */}
-        {success && (
-          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {success}
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {/* CREATE / EDIT FORM */}
-        {!isTaskOnly && (
-          <div
-            className={`grid transition-all duration-300 ease-in-out ${
-              showForm
-                ? "mb-6 grid-rows-[1fr] opacity-100"
-                : "pointer-events-none grid-rows-[0fr] opacity-0"
-            }`}
-          >
-            <div className="overflow-hidden">
-              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="mb-5 text-lg font-semibold text-slate-900">
-                  {editingTask
-                    ? "Edit Task"
-                    : "Create New Task"}
-                </h2>
-
-                <form onSubmit={handleCreate}>
-                  <div className="grid gap-4 sm:grid-cols-2">
-
-                    {/* TITLE */}
-                    <div className="sm:col-span-2">
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Title *
-                      </label>
-
-                      <input
-                        name="title"
-                        required
-                        value={form.title}
-                        onChange={handleChange}
-                        placeholder="e.g. Deploy rescue team to Zone B"
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-
-                    {/* INCIDENT */}
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Incident No *
-                      </label>
-
-                      <select
-                        name="incident_id"
-                        required
-                        value={form.incident_id}
-                        onChange={handleChange}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      >
-                        <option value="">
-                          Select incident
-                        </option>
-
-                        {incidents.map((incident) => (
-                          <option
-                            key={incident.id}
-                            value={incident.id}
-                          >
-                            {incident.incident_no ||
-                              `Incident #${incident.id}`}
-                            {incident.title
-                              ? ` — ${incident.title}`
-                              : ""}
-                          </option>
-                        ))}
-
-                        {editingTask &&
-                          form.incident_id &&
-                          !incidents.some(
-                            (incident) =>
-                              String(incident.id) ===
-                              form.incident_id
-                          ) && (
-                            <option value={form.incident_id}>
-                              {editingTask.incident_no ||
-                                `Incident #${form.incident_id}`}
-                            </option>
-                          )}
-                      </select>
-                    </div>
-
-                    {/* ASSIGNEE */}
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Assign To
-                      </label>
-
-                      <select
-                        name="assigned_to"
-                        value={form.assigned_to}
-                        onChange={handleChange}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      >
-                        <option value="">
-                          Unassigned
-                        </option>
-
-                        {assignees.map((assignee) => (
-                          <option
-                            key={`${assignee.type}-${assignee.id}`}
-                            value={assignee.id}
-                          >
-                            {assignee.name} (
-                            {assignee.type === "volunteer"
-                              ? "Volunteer"
-                              : "NGO Contact"}
-                            )
-                          </option>
-                        ))}
-
-                        {/* Preserve the current assignee when
-                            they are no longer in the active list. */}
-                        {editingTask &&
-                          form.assigned_to &&
-                          !assignees.some(
-                            (assignee) =>
-                              String(assignee.id) ===
-                              form.assigned_to
-                          ) && (
-                            <option value={form.assigned_to}>
-                              {editingTask.assigned_to_name ||
-                                `User #${form.assigned_to}`}
-                            </option>
-                          )}
-                      </select>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        Only active volunteers and active NGO
-                        contacts are listed for new assignments.
-                      </p>
-                    </div>
-
-                    {/* PRIORITY */}
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Priority
-                      </label>
-
-                      <select
-                        name="priority"
-                        value={form.priority}
-                        onChange={handleChange}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      >
-                        <option value="">
-                          Select priority
-                        </option>
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                        <option value="critical">Critical</option>
-                      </select>
-                    </div>
-
-                    {/* TASK TYPE */}
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Task Type
-                      </label>
-
-                      <select
-                        name="task_type"
-                        value={form.task_type}
-                        onChange={handleChange}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      >
-                        <option value="">
-                          Select type
-                        </option>
-                        <option value="sop">SOP</option>
-                        <option value="manual">Manual</option>
-                        {/* <option value="field">Field</option>
-                        <option value="logistics">Logistics</option>
-                        <option value="medical">Medical</option>
-                        <option value="other">Other</option> */}
-                      </select>
-                    </div>
-
-                    {/* DUE AT */}
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Due At
-                      </label>
-
-                      <input
-                        name="due_at"
-                        type="datetime-local"
-                        step="1"
-                        value={form.due_at}
-                        onChange={handleChange}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-
-                    {/* DESCRIPTION */}
-                    <div className="sm:col-span-2">
-                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Description
-                      </label>
-
-                      <textarea
-                        name="description"
-                        rows={3}
-                        value={form.description}
-                        onChange={handleChange}
-                        placeholder="Task details..."
-                        className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {submitting
-                        ? editingTask
-                          ? "Saving..."
-                          : "Creating..."
-                        : editingTask
-                          ? "Save Changes"
-                          : "Create Task"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TASK TABLE */}
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-
-          {/* TABLE HEADER + DOWNLOAD MENU */}
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-semibold text-slate-900">
-              {isTaskOnly
-                ? "My Assigned Tasks"
-                : "All Tasks"}
-
-              {!loading && (
-                <span className="ml-1 text-sm font-normal text-slate-500">
-                  ({tasks.length})
-                </span>
-              )}
-            </h2>
-
-            {/* Export only the records visible to this user. */}
-            <DownloadMenu
-              records={tasks}
-              title={
-                isTaskOnly
-                  ? "My Assigned Tasks"
-                  : "Tasks"
-              }
-              disabled={loading}
-              onError={(err) => {
-                setError(
-                  err?.message ||
-                    "Failed to download tasks."
-                );
-              }}
-            />
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-20 text-sm text-slate-500">
-              Loading tasks...
-            </div>
-          ) : tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <CheckCircle2
-                size={40}
-                className="mb-3 text-slate-300"
-              />
-
-              <p className="font-medium text-slate-700">
-                {isTaskOnly
-                  ? "No tasks assigned to you"
-                  : "No tasks found"}
-              </p>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {isTaskOnly
-                  ? "Tasks assigned to your account will appear here."
-                  : "Create a task linked to an incident to get started."}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1700px] text-left text-sm">
-
-                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                  <tr>
-                    <th className="px-5 py-3 font-semibold">
-                      Task
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Incident No
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Incident
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Assigned To
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Task Type
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Priority
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Status
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Created By
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Location
-                    </th>
-
-                    <th className="px-5 py-3 font-semibold">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100">
-                  {tasks.map((task) => (
-                    <tr
-                      key={task.id}
-                      className="transition-colors hover:bg-slate-50"
-                    >
-
-                      {/* TASK */}
-                      <td className="px-5 py-4">
-                        <div className="max-w-xs font-semibold text-slate-800">
-                          {task.title || "—"}
+        if (!form.assigned_to) {
+            setError("Please select a volunteer or NGO.");
+            return;
+        }
+
+        setSubmitting(true);
+        setError("");
+        setSuccess("");
+
+        try {
+            const payload = {
+                title: form.title.trim(),
+                description: form.description.trim(),
+                incident_id: form.incident_id
+                    ? Number(form.incident_id)
+                    : null,
+
+                // Profile ID, not users.id.
+                assigned_to: Number(form.assigned_to),
+
+                priority: form.priority,
+                status: form.status,
+                due_at: form.due_at
+                    ? form.due_at.replace("T", " ") +
+                    (form.due_at.length === 16 ? ":00" : "")
+                    : null,
+            };
+
+            if (editingTask) {
+                await updateTask(editingTask.id, payload);
+                setSuccess("Task updated successfully.");
+            } else {
+                await createTask(payload);
+                setSuccess("Task created successfully.");
+            }
+
+            resetForm();
+            await fetchTasks();
+        } catch (err) {
+            console.error("[Tasks] Save error:", err);
+            setError(err?.message || "Failed to save task.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // ------------------------------------------------------------
+    // Header
+    // ------------------------------------------------------------
+    return (
+        <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+            <div className="mx-auto max-w-7xl">
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                        <ClipboardList
+                            size={30}
+                            className="text-blue-600"
+                        />
+
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-900">
+                                {isTaskOnly ? "My Assigned Tasks" : "Task Management"}
+                            </h1>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                                {isTaskOnly
+                                    ? "View the tasks assigned to you."
+                                    : "Create, assign, and manage operational tasks."}
+                            </p>
                         </div>
-                      </td>
+                    </div>
 
-                      {/* INCIDENT NO */}
-                      <td className="px-5 py-4">
-                        <span className="whitespace-nowrap font-medium text-slate-700">
-                          {task.incident_no ||
-                            `#${task.incident_id ?? "—"}`}
-                        </span>
-                      </td>
-
-                      {/* INCIDENT */}
-                      <td className="px-5 py-4">
-                        <div className="min-w-[180px]">
-                          <div className="font-medium text-slate-700">
-                            {task.incident_title || "—"}
-                          </div>
-
-                          {task.incident_type && (
-                            <div className="mt-1 text-xs capitalize text-slate-400">
-                              Type: {task.incident_type}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* ASSIGNED TO */}
-                      <td className="px-5 py-4">
-                        <div className="min-w-[160px] font-medium text-slate-700">
-                          {task.assigned_to_name ||
-                            assignees.find(
-                              (assignee) =>
-                                String(assignee.id) ===
-                                String(task.assigned_to)
-                            )?.name ||
-                            "Unassigned"} 
-                        </div>
-                      </td>
-
-                      {/* TASK TYPE */}
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                            TASK_TYPE_STYLES[task.task_type] ??
-                            "bg-slate-100 text-slate-600"
-                          }`}
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={fetchTasks}
+                            disabled={loading}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                         >
-                          {task.task_type || "—"}
-                        </span>
-                      </td>
+                            <RefreshCw
+                                size={16}
+                                className={loading ? "animate-spin" : ""}
+                            />
+                            Refresh
+                        </button>
 
-                      {/* PRIORITY */}
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                            PRIORITY_STYLES[task.priority] ??
-                            "bg-slate-100 text-slate-600"
-                          }`}
-                        >
-                          {task.priority || "—"}
-                        </span>
-                      </td>
-
-                      {/* STATUS */}
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
-                            STATUS_STYLES[task.status] ??
-                            "bg-slate-100 text-slate-600"
-                          }`}
-                        >
-                          {String(task.status || "—").replace(
-                            "_",
-                            " "
-                          )}
-                        </span>
-                      </td>
-
-                      {/* CREATED BY */}
-                      <td className="px-5 py-4">
-                        <div className="min-w-[150px] font-medium text-slate-700">
-                          {getCreatorName(task.created_by)}
-                        </div>
-                      </td>
-
-                      {/* LOCATION */}
-                      <td className="px-5 py-4">
-                        {task.latitude != null &&
-                        task.longitude != null ? (
-                          <div className="min-w-[150px]">
-                            <div className="flex items-center gap-1 text-slate-700">
-                              <MapPin
-                                size={14}
-                                className="text-red-500"
-                              />
-                              <span>Location</span>
-                            </div>
-
-                            <div className="mt-1 text-xs text-slate-400">
-                              Lat: {task.latitude}
-                            </div>
-
-                            <div className="text-xs text-slate-400">
-                              Lng: {task.longitude}
-                            </div>
-                          </div>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-
-                      {/* ACTION */}
-                      <td className="px-5 py-4">
-                        <div className="flex min-w-[150px] items-start">
-                          {!isTaskOnly && (
+                        {!isTaskOnly && (
                             <button
-                              type="button"
-                              onClick={() =>
-                                startEditingTask(task)
-                              }
-                              className="inline-flex items-center gap-1 rounded-md border border-indigo-200 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                                type="button"
+                                onClick={openCreateForm}
+                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
                             >
-                              <Pencil size={13} />
-                              Edit
+                                <Plus size={17} />
+                                Create Task
                             </button>
-                          )}
+                        )}
+                    </div>
+                </div>
+
+                {error && (
+                    <div
+                        role="alert"
+                        className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                    >
+                        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                        <span>{error}</span>
+                    </div>
+                )}
+
+                {success && (
+                    <div
+                        role="status"
+                        className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700"
+                    >
+                        {success}
+                    </div>
+                )}
+
+                {/* ------------------------------------------------------
+            Create / edit form — management users only
+        ------------------------------------------------------- */}
+
+                {/* CREATE / EDIT FORM */}
+                {!isTaskOnly && (
+                    <div
+                        className={`grid transition-all duration-300 ease-in-out ${showForm
+                            ? "mb-6 grid-rows-[1fr] opacity-100"
+                            : "pointer-events-none grid-rows-[0fr] opacity-0"
+                            }`}
+                        aria-hidden={!showForm}
+                    >
+                        <div className="min-h-0 overflow-hidden">
+                            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+                                {/* FORM HEADER */}
+                                <div className="mb-5 flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-slate-900">
+                                            {editingTask ? "Edit Task" : "Create Task"}
+                                        </h2>
+                                        <p className="mt-1 text-sm text-slate-500">
+                                            {editingTask
+                                                ? "Update the task details below."
+                                                : "Create and assign a new operational task."}
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={resetForm}
+                                        className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
+                                        aria-label="Cancel and close task form"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleSubmit} className="space-y-5">
+                                    {/* TASK FIELDS */}
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <div>
+                                            <label
+                                                htmlFor="task-title"
+                                                className="mb-1.5 block text-sm font-medium text-slate-700"
+                                            >
+                                                Task Title *
+                                            </label>
+                                            <input
+                                                id="task-title"
+                                                name="title"
+                                                value={form.title}
+                                                onChange={handleChange}
+                                                required
+                                                maxLength={255}
+                                                placeholder="Enter task title"
+                                                disabled={!showForm || submitting}
+                                                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                htmlFor="task-incident"
+                                                className="mb-1.5 block text-sm font-medium text-slate-700"
+                                            >
+                                                Related Incident
+                                            </label>
+                                            <select
+                                                id="task-incident"
+                                                name="incident_id"
+                                                value={form.incident_id}
+                                                onChange={handleChange}
+                                                disabled={!showForm || submitting}
+                                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                                            >
+                                                <option value="">No linked incident</option>
+                                                {incidents.map((incident) => (
+                                                    <option key={incident.id} value={incident.id}>
+                                                        {incident.incident_no
+                                                            ? `${incident.incident_no} — `
+                                                            : ""}
+                                                        {incident.title ??
+                                                            incident.name ??
+                                                            `Incident #${incident.id}`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                htmlFor="task-assignee"
+                                                className="mb-1.5 block text-sm font-medium text-slate-700"
+                                            >
+                                                Assign To *
+                                            </label>
+                                            <select
+                                                id="task-assignee"
+                                                name="assigned_to"
+                                                value={form.assigned_to}
+                                                onChange={handleChange}
+                                                required
+                                                disabled={!showForm || submitting}
+                                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                                            >
+                                                <option value="">Select volunteer or NGO</option>
+                                                {assignees.map((assignee) => (
+                                                    <option
+                                                        key={`${assignee.type}:${assignee.id}`}
+                                                        value={assignee.id}
+                                                    >
+                                                        {assignee.name} ({formatLabel(assignee.type)})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                htmlFor="task-priority"
+                                                className="mb-1.5 block text-sm font-medium text-slate-700"
+                                            >
+                                                Priority
+                                            </label>
+                                            <select
+                                                id="task-priority"
+                                                name="priority"
+                                                value={form.priority}
+                                                onChange={handleChange}
+                                                disabled={!showForm || submitting}
+                                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                                            >
+                                                {PRIORITIES.map((priority) => (
+                                                    <option key={priority} value={priority}>
+                                                        {formatLabel(priority)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                htmlFor="task-status"
+                                                className="mb-1.5 block text-sm font-medium text-slate-700"
+                                            >
+                                                Status
+                                            </label>
+                                            <select
+                                                id="task-status"
+                                                name="status"
+                                                value={form.status}
+                                                onChange={handleChange}
+                                                disabled={!showForm || submitting}
+                                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                                            >
+                                                {STATUSES.map((status) => (
+                                                    <option key={status} value={status}>
+                                                        {formatLabel(status)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label
+                                                htmlFor="task-due"
+                                                className="mb-1.5 block text-sm font-medium text-slate-700"
+                                            >
+                                                Due Date
+                                            </label>
+                                            <input
+                                                id="task-due"
+                                                type="datetime-local"
+                                                name="due_at"
+                                                value={form.due_at}
+                                                onChange={handleChange}
+                                                disabled={!showForm || submitting}
+                                                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label
+                                            htmlFor="task-description"
+                                            className="mb-1.5 block text-sm font-medium text-slate-700"
+                                        >
+                                            Task Description / Instructions
+                                        </label>
+                                        <textarea
+                                            id="task-description"
+                                            name="description"
+                                            value={form.description}
+                                            onChange={handleChange}
+                                            rows={4}
+                                            disabled={!showForm || submitting}
+                                            placeholder="Describe the work and any important instructions..."
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+                                        />
+                                    </div>
+
+                                    {/* FORM ACTIONS */}
+                                    <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4">
+                                        <button
+                                            type="button"
+                                            onClick={resetForm}
+                                            disabled={submitting}
+                                            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                                        >
+                                            Cancel
+                                        </button>
+
+                                        <button
+                                            type="submit"
+                                            disabled={submitting}
+                                            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {submitting
+                                                ? "Saving..."
+                                                : editingTask
+                                                    ? "Update Task"
+                                                    : "Create Task"}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                    </div>
+                )}
 
-              </table>
+                {/* ------------------------------------------------------
+            Task table — role-specific columns
+        ------------------------------------------------------- */}
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                        <div>
+                            <h2 className="font-semibold text-slate-900">
+                                {isTaskOnly ? "My Assigned Tasks" : "All Tasks"}
+                            </h2>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                                {loading
+                                    ? "Loading tasks..."
+                                    : `${tasks.length} task${tasks.length === 1 ? "" : "s"} found`}
+                            </p>
+                        </div>
+                    </div>
+
+                    {loading ? (
+                        <div className="flex items-center justify-center gap-3 p-12 text-sm text-slate-500">
+                            <RefreshCw size={18} className="animate-spin" />
+                            Loading tasks...
+                        </div>
+                    ) : tasks.length === 0 ? (
+                        <div className="p-12 text-center">
+                            <ClipboardList
+                                size={36}
+                                className="mx-auto mb-3 text-slate-300"
+                            />
+
+                            <p className="font-medium text-slate-700">
+                                {isTaskOnly
+                                    ? "No tasks assigned to you"
+                                    : "No tasks found"}
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                                {isTaskOnly
+                                    ? "Your assigned tasks will appear here."
+                                    : "Create a task to get started."}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[850px] text-left text-sm">
+                                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                                    <tr>
+                                        <th className="px-4 py-3 font-semibold">Task ID</th>
+                                        <th className="px-4 py-3 font-semibold">Task Title</th>
+                                        <th className="px-4 py-3 font-semibold">Incident</th>
+
+                                        {!isTaskOnly && (
+                                            <th className="px-4 py-3 font-semibold">
+                                                Assigned To
+                                            </th>
+                                        )}
+
+                                        <th className="px-4 py-3 font-semibold">Priority</th>
+                                        <th className="px-4 py-3 font-semibold">Status</th>
+                                        <th className="px-4 py-3 font-semibold">Due Date</th>
+
+                                        {!isTaskOnly && (
+                                            <>
+                                                <th className="px-4 py-3 font-semibold">Created By</th>
+                                                {/* <th className="px-4 py-3 font-semibold">Created At</th> */}
+                                            </>
+                                        )}
+
+                                        <th className="px-4 py-3 text-right font-semibold">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+
+                                <tbody className="divide-y divide-slate-100">
+                                    {tasks.map((task) => (
+                                        <tr
+                                            key={task.id}
+                                            className="transition-colors hover:bg-slate-50"
+                                        >
+                                            <td className="whitespace-nowrap px-4 py-4 font-medium text-slate-600">
+                                                #{task.id}
+                                            </td>
+
+                                            <td className="min-w-[180px] px-4 py-4">
+                                                <p className="font-semibold text-slate-900">
+                                                    {task.title}
+                                                </p>
+
+                                                {task.description && (
+                                                    <p className="mt-1 max-w-xs truncate text-xs text-slate-500">
+                                                        {task.description}
+                                                    </p>
+                                                )}
+                                            </td>
+
+                                            <td className="px-4 py-4 text-slate-600">
+                                                {task.incident_title}
+                                            </td>
+
+                                            {!isTaskOnly && (
+                                                <td className="px-4 py-4 text-slate-700">
+                                                    <p>{task.assigned_to_name}</p>
+
+                                                    {task.assigned_to_type && (
+                                                        <p className="mt-1 text-xs text-slate-500">
+                                                            {formatLabel(task.assigned_to_type)}
+                                                        </p>
+                                                    )}
+                                                </td>
+                                            )}
+
+                                            <td className="px-4 py-4">
+                                                <span
+                                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${PRIORITY_STYLES[task.priority] ??
+                                                        "bg-slate-100 text-slate-700"
+                                                        }`}
+                                                >
+                                                    {formatLabel(task.priority)}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-4 py-4">
+                                                <span
+                                                    className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[task.status] ??
+                                                        "bg-slate-100 text-slate-700"
+                                                        }`}
+                                                >
+                                                    {formatLabel(task.status)}
+                                                </span>
+                                            </td>
+
+                                            <td className="whitespace-nowrap px-4 py-4 text-slate-600">
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <CalendarDays
+                                                        size={14}
+                                                        className="text-slate-400"
+                                                    />
+                                                    {formatDate(task.due_at)}
+                                                </span>
+                                            </td>
+
+                                            {!isTaskOnly && (
+                                                <>
+                                                    <td className="px-4 py-4 text-slate-600">
+                                                        {task.created_by_name}
+                                                    </td>
+
+                                                    {/* <td className="whitespace-nowrap px-4 py-4 text-slate-600">
+                                                        {formatDate(task.created_at)}
+                                                    </td> */}
+                                                </>
+                                            )}
+
+                                            <td className="px-4 py-4">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedTask(task)}
+                                                        title="View task details"
+                                                        aria-label={`View task ${task.id}`}
+                                                        className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+
+                                                    {!isTaskOnly && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEditForm(task)}
+                                                            title="Edit task"
+                                                            aria-label={`Edit task ${task.id}`}
+                                                            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-amber-50 hover:text-amber-700"
+                                                        >
+                                                            <Pencil size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* ------------------------------------------------------
+            View details — both roles, no edit for task-only users
+        ------------------------------------------------------- */}
+                {selectedTask && (
+                    <div
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+                        onClick={() => setSelectedTask(null)}
+                    >
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="task-detail-title"
+                            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-xl"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex items-start justify-between border-b border-slate-200 p-5">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Task #{selectedTask.id}
+                                    </p>
+
+                                    <h2
+                                        id="task-detail-title"
+                                        className="mt-1 text-xl font-bold text-slate-900"
+                                    >
+                                        {selectedTask.title}
+                                    </h2>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedTask(null)}
+                                    aria-label="Close task details"
+                                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-5 p-5">
+                                <div>
+                                    <h3 className="mb-1 text-sm font-semibold text-slate-700">
+                                        Description / Instructions
+                                    </h3>
+
+                                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                                        {selectedTask.description || "No description provided."}
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <p className="text-xs text-slate-500">Related Incident</p>
+                                        <p className="mt-1 text-sm font-medium text-slate-800">
+                                            {selectedTask.incident_title}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-slate-500">Priority</p>
+                                        <p className="mt-1 text-sm font-medium text-slate-800">
+                                            {formatLabel(selectedTask.priority)}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-slate-500">Status</p>
+                                        <p className="mt-1 text-sm font-medium text-slate-800">
+                                            {formatLabel(selectedTask.status)}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-slate-500">Due Date</p>
+                                        <p className="mt-1 text-sm font-medium text-slate-800">
+                                            {formatDate(selectedTask.due_at)}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-slate-500">Assigned To</p>
+                                        <p className="mt-1 text-sm font-medium text-slate-800">
+                                            {selectedTask.assigned_to_name}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-slate-500">Location</p>
+                                        <p className="mt-1 inline-flex items-start gap-1 text-sm font-medium text-slate-800">
+                                            <MapPin
+                                                size={15}
+                                                className="mt-0.5 shrink-0 text-slate-400"
+                                            />
+                                            {selectedTask.location || "Not specified"}
+                                        </p>
+                                    </div>
+
+                                    {!isTaskOnly && (
+                                        <>
+                                            <div>
+                                                <p className="text-xs text-slate-500">Created By</p>
+                                                <p className="mt-1 text-sm font-medium text-slate-800">
+                                                    {selectedTask.created_by_name}
+                                                </p>
+                                            </div>
+
+                                            {/* <div>
+                                                <p className="text-xs text-slate-500">Created At</p>
+                                                <p className="mt-1 text-sm font-medium text-slate-800">
+                                                    {formatDate(selectedTask.created_at)}
+                                                </p>
+                                            </div> */}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 border-t border-slate-200 p-5">
+                                {!isTaskOnly && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const task = selectedTask;
+                                            setSelectedTask(null);
+                                            openEditForm(task);
+                                        }}
+                                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                    >
+                                        <Pencil size={15} />
+                                        Edit Task
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedTask(null)}
+                                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-          )}
         </div>
-      </div>
-    </div>
-  );
+    );
 }
-
-export default Task;
