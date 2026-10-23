@@ -100,7 +100,7 @@ const commonMenus = [
       {
         label: "Equipment Category",
         icon: Wrench,
-        path: "/inventory/equipment",
+        path: "/inventory/equipmentCategory",
       },
       {
         label: "Add Stock",

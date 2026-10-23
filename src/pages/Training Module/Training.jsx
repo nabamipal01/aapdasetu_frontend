@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -151,9 +150,7 @@ function Training() {
     if (stringValue.includes("T")) {
       const time = stringValue.split("T")[1];
 
-      return time.length === 5
-        ? `${time}:00`
-        : time.substring(0, 8);
+      return time.length === 5 ? `${time}:00` : time.substring(0, 8);
     }
 
     if (stringValue.length === 5) {
@@ -163,38 +160,27 @@ function Training() {
     return stringValue.substring(0, 8);
   };
 
-  const formatDisplayDate = (date, time) => {
+  const formatDisplayDate = (date) => {
     if (!date) return "N/A";
 
-    const stringValue = String(date);
+    const datePart = String(date).replace("T", " ").substring(0, 10);
 
-    const datePart = stringValue
-      .replace("T", " ")
-      .substring(0, 10);
+    const [year, month, day] = datePart.split("-");
 
-    let timePart = "";
+    if (!year || !month || !day) return "N/A";
 
-    if (time) {
-      timePart = String(time).substring(0, 5);
-    } else if (stringValue.includes(" ")) {
-      timePart = stringValue.substring(11, 16);
-    } else if (stringValue.includes("T")) {
-      timePart = stringValue.substring(11, 16);
-    }
+    return `${day}.${month}.${year}`;
+  };
 
-    if (!timePart || timePart === "00:00") {
-      return datePart;
-    }
-
-    return `${datePart} ${timePart}`;
+  const formatDisplayTime = (date, time) => {
+    const timePart = getTimePart(date, time);
+    return timePart || "N/A";
   };
 
   const getDatePart = (date) => {
     if (!date) return "N/A";
 
-    return String(date)
-      .replace("T", " ")
-      .substring(0, 10);
+    return String(date).replace("T", " ").substring(0, 10);
   };
 
   const getTimePart = (date, time) => {
@@ -231,65 +217,47 @@ function Training() {
     }
 
     return {
-      training_event_id:
-        training.training_event_id ?? null,
+      training_event_id: training.training_event_id ?? null,
 
-      event_name:
-        training.event_name ?? "",
+      event_name: training.event_name ?? "",
 
-      description:
-        training.description ?? "",
+      description: training.description ?? "",
 
-      event_mode:
-        training.event_mode === "online" ? "online" : "offline",
+      event_mode: training.event_mode === "online" ? "online" : "offline",
 
-      allocated_districts:
-        Array.isArray(training.allocated_districts)
-          ? training.allocated_districts
-          : [],
+      allocated_districts: Array.isArray(training.allocated_districts)
+        ? training.allocated_districts
+        : [],
 
-      allocated_audience:
-        Array.isArray(training.allocated_audience)
-          ? training.allocated_audience
-          : [],
+      allocated_audience: Array.isArray(training.allocated_audience)
+        ? training.allocated_audience
+        : [],
 
-      event_location:
-        training.event_location ?? "",
+      event_location: training.event_location ?? "",
 
-      meeting_link:
-        training.meeting_link ?? "",
+      meeting_link: training.meeting_link ?? "",
 
-      start_date:
-        training.start_date ?? "",
+      start_date: training.start_date ?? "",
 
-      start_time:
-        training.start_time ?? "",
+      start_time: training.start_time ?? "",
 
-      end_time:
-        training.end_time ?? "",
+      end_time: training.end_time ?? "",
 
-      end_date:
-        training.end_date ?? "",
+      end_date: training.end_date ?? "",
 
-      event_organizer:
-        training.event_organizer ?? "",
+      event_organizer: training.event_organizer ?? "",
 
-      created_at:
-        training.created_at ?? null,
+      created_at: training.created_at ?? null,
 
-      updated_at:
-        training.updated_at ?? null,
+      updated_at: training.updated_at ?? null,
 
-      deleted_at:
-        training.deleted_at ?? null,
+      deleted_at: training.deleted_at ?? null,
     };
   };
 
   const normalizeArray = (value) => {
     if (Array.isArray(value)) {
-      return value
-        .map((item) => String(item).trim())
-        .filter(Boolean);
+      return value.map((item) => String(item).trim()).filter(Boolean);
     }
 
     if (typeof value === "string") {
@@ -318,10 +286,7 @@ function Training() {
 
       return {
         ...prev,
-        allocated_districts: [
-          ...prev.allocated_districts,
-          value,
-        ],
+        allocated_districts: [...prev.allocated_districts, value],
       };
     });
 
@@ -331,10 +296,9 @@ function Training() {
   const removeDistrict = (district) => {
     setFormData((prev) => ({
       ...prev,
-      allocated_districts:
-        prev.allocated_districts.filter(
-          (item) => item !== district
-        ),
+      allocated_districts: prev.allocated_districts.filter(
+        (item) => item !== district,
+      ),
     }));
   };
 
@@ -350,10 +314,7 @@ function Training() {
 
       return {
         ...prev,
-        allocated_audience: [
-          ...prev.allocated_audience,
-          value,
-        ],
+        allocated_audience: [...prev.allocated_audience, value],
       };
     });
 
@@ -363,10 +324,9 @@ function Training() {
   const removeAudience = (audience) => {
     setFormData((prev) => ({
       ...prev,
-      allocated_audience:
-        prev.allocated_audience.filter(
-          (item) => item !== audience
-        ),
+      allocated_audience: prev.allocated_audience.filter(
+        (item) => item !== audience,
+      ),
     }));
   };
 
@@ -379,20 +339,15 @@ function Training() {
       setLoading(true);
       setError("");
 
-      const response = await getTrainings(
-        page,
-        10,
-        search
-      );
+      const response = await getTrainings(page, 10, search);
 
-      const events =
-        response?.data?.training_events ?? [];
+      const events = response?.data?.training_events ?? [];
 
       const normalizedEvents = events
         .map((item) =>
           normalizeTraining({
             data: item,
-          })
+          }),
         )
         .filter(Boolean);
 
@@ -406,18 +361,12 @@ function Training() {
           total_pages: 1,
           has_next_page: false,
           has_previous_page: false,
-        }
+        },
       );
     } catch (err) {
-      console.error(
-        "FETCH TRAININGS ERROR:",
-        err
-      );
+      console.error("FETCH TRAININGS ERROR:", err);
 
-      setError(
-        err?.message ||
-          "Failed to load training events"
-      );
+      setError(err?.message || "Failed to load training events");
     } finally {
       setLoading(false);
     }
@@ -443,7 +392,7 @@ function Training() {
     const firstPageEvents = firstResponse?.data?.training_events ?? [];
     const totalPages = Math.max(
       1,
-      Number(firstResponse?.data?.pagination?.total_pages) || 1
+      Number(firstResponse?.data?.pagination?.total_pages) || 1,
     );
     const allEvents = [...firstPageEvents];
 
@@ -538,12 +487,15 @@ function Training() {
       try {
         if (notification.type === "deleted") {
           setSuccess(
-            `${notification.title}. ${notification.description || ""}`.trim()
+            `${notification.title}. ${notification.description || ""}`.trim(),
           );
           return;
         }
 
-        if (notification.trainingId === undefined || notification.trainingId === null) {
+        if (
+          notification.trainingId === undefined ||
+          notification.trainingId === null
+        ) {
           throw new Error("This training notification has no event ID.");
         }
 
@@ -599,9 +551,7 @@ function Training() {
       try {
         const response = await listDistricts();
 
-        const districts = Array.isArray(
-          response?.data?.districts
-        )
+        const districts = Array.isArray(response?.data?.districts)
           ? response.data.districts
           : Array.isArray(response?.data)
             ? response.data
@@ -611,8 +561,7 @@ function Training() {
           .map((district) =>
             typeof district === "string"
               ? district
-              : district?.name ??
-                district?.district_name
+              : (district?.name ?? district?.district_name),
           )
           .filter(Boolean);
 
@@ -620,16 +569,10 @@ function Training() {
           setDistrictOptions(names);
         }
       } catch (err) {
-        console.error(
-          "FETCH DISTRICTS ERROR:",
-          err
-        );
+        console.error("FETCH DISTRICTS ERROR:", err);
 
         if (isMounted) {
-          setError(
-            err?.message ||
-              "Failed to load districts"
-          );
+          setError(err?.message || "Failed to load districts");
         }
       } finally {
         if (isMounted) {
@@ -712,30 +655,20 @@ function Training() {
       setLoading(true);
       setError("");
 
-      const response =
-        await getTrainingById(id);
+      const response = await getTrainingById(id);
 
-      const training =
-        normalizeTraining(response);
+      const training = normalizeTraining(response);
 
       if (!training || !training.event_name) {
-        throw new Error(
-          "Training data not found"
-        );
+        throw new Error("Training data not found");
       }
 
       setViewTraining(training);
       setShowViewModal(true);
     } catch (err) {
-      console.error(
-        "VIEW TRAINING ERROR:",
-        err
-      );
+      console.error("VIEW TRAINING ERROR:", err);
 
-      setError(
-        err?.message ||
-          "Failed to get training"
-      );
+      setError(err?.message || "Failed to get training");
     } finally {
       setLoading(false);
     }
@@ -751,58 +684,39 @@ function Training() {
       setError("");
       setSuccess("");
 
-      const response =
-        await getTrainingById(id);
+      const response = await getTrainingById(id);
 
-      const training =
-        normalizeTraining(response);
+      const training = normalizeTraining(response);
 
       if (!training) {
-        throw new Error(
-          "Training data not found"
-        );
+        throw new Error("Training data not found");
       }
 
-      setEditingId(
-        training.training_event_id
-      );
+      setEditingId(training.training_event_id);
 
       setFormData({
-        event_name:
-          training.event_name,
+        event_name: training.event_name,
 
-        description:
-          training.description,
+        description: training.description,
 
-        event_mode:
-          training.event_mode,
+        event_mode: training.event_mode,
 
-        allocated_districts:
-          training.allocated_districts,
+        allocated_districts: training.allocated_districts,
 
-        allocated_audience:
-          training.allocated_audience,
+        allocated_audience: training.allocated_audience,
 
-        event_location:
-          training.event_location,
+        event_location: training.event_location,
 
-        meeting_link:
-          training.meeting_link,
+        meeting_link: training.meeting_link,
 
-        start_date:
-          formatDateForInput(
-            training.start_date,
-            training.start_time
-          ),
+        start_date: formatDateForInput(
+          training.start_date,
+          training.start_time,
+        ),
 
-        end_date:
-          formatDateForInput(
-            training.end_date,
-            training.end_time
-          ),
+        end_date: formatDateForInput(training.end_date, training.end_time),
 
-        event_organizer:
-          training.event_organizer,
+        event_organizer: training.event_organizer,
       });
 
       setDistrictInput("");
@@ -810,15 +724,9 @@ function Training() {
 
       setShowModal(true);
     } catch (err) {
-      console.error(
-        "EDIT TRAINING ERROR:",
-        err
-      );
+      console.error("EDIT TRAINING ERROR:", err);
 
-      setError(
-        err?.message ||
-          "Failed to get training"
-      );
+      setError(err?.message || "Failed to get training");
     } finally {
       setLoading(false);
     }
@@ -837,60 +745,38 @@ function Training() {
       setSuccess("");
 
       if (!formData.event_name.trim()) {
-        throw new Error(
-          "Event name is required."
-        );
+        throw new Error("Event name is required.");
       }
 
       if (!formData.start_date) {
-        throw new Error(
-          "Start date and time are required."
-        );
+        throw new Error("Start date and time are required.");
       }
 
       if (!formData.end_date) {
-        throw new Error(
-          "End date and time are required."
-        );
+        throw new Error("End date and time are required.");
       }
 
       if (
         formData.event_mode === "offline" &&
         !formData.event_location.trim()
       ) {
-        throw new Error(
-          "Location is required for offline training."
-        );
+        throw new Error("Location is required for offline training.");
       }
 
-      if (
-        formData.event_mode === "online" &&
-        !formData.meeting_link.trim()
-      ) {
-        throw new Error(
-          "Meeting link is required for online training."
-        );
+      if (formData.event_mode === "online" && !formData.meeting_link.trim()) {
+        throw new Error("Meeting link is required for online training.");
       }
 
       const payload = {
-        event_name:
-          formData.event_name.trim(),
+        event_name: formData.event_name.trim(),
 
-        description:
-          formData.description.trim(),
+        description: formData.description.trim(),
 
-        event_mode:
-          formData.event_mode,
+        event_mode: formData.event_mode,
 
-        allocated_districts:
-          normalizeArray(
-            formData.allocated_districts
-          ),
+        allocated_districts: normalizeArray(formData.allocated_districts),
 
-        allocated_audience:
-          normalizeArray(
-            formData.allocated_audience
-          ),
+        allocated_audience: normalizeArray(formData.allocated_audience),
 
         event_location:
           formData.event_mode === "online"
@@ -902,65 +788,34 @@ function Training() {
             ? null
             : formData.meeting_link.trim(),
 
-        start_date:
-          formatDateForApi(
-            formData.start_date
-          ),
+        start_date: formatDateForApi(formData.start_date),
 
-        start_time:
-          formatTimeForApi(
-            formData.start_date
-          ),
+        start_time: formatTimeForApi(formData.start_date),
 
-        end_time:
-          formatTimeForApi(
-            formData.end_date
-          ),
+        end_time: formatTimeForApi(formData.end_date),
 
-        end_date:
-          formatDateForApi(
-            formData.end_date
-          ),
+        end_date: formatDateForApi(formData.end_date),
 
-        event_organizer:
-          formData.event_organizer.trim(),
+        event_organizer: formData.event_organizer.trim(),
       };
 
       let response;
 
       if (editingId) {
-        response =
-          await updateTraining(
-            editingId,
-            payload
-          );
+        response = await updateTraining(editingId, payload);
       } else {
-        response =
-          await createTraining(
-            payload
-          );
+        response = await createTraining(payload);
       }
 
-      if (
-        response?.success === false
-      ) {
-        throw new Error(
-          response?.message ||
-            "Failed to save training"
-        );
+      if (response?.success === false) {
+        throw new Error(response?.message || "Failed to save training");
       }
 
-      setSuccess(
-        response?.message ||
-          "Training saved successfully."
-      );
+      setSuccess(response?.message || "Training saved successfully.");
 
-      const savedTraining =
-        normalizeTraining(response);
+      const savedTraining = normalizeTraining(response);
 
-      const savedId =
-        savedTraining?.training_event_id ??
-        editingId;
+      const savedId = savedTraining?.training_event_id ?? editingId;
 
       // addTrainingNotification({
       //   type: editingId
@@ -990,15 +845,9 @@ function Training() {
 
       await fetchTrainings();
     } catch (err) {
-      console.error(
-        "SAVE TRAINING ERROR:",
-        err
-      );
+      console.error("SAVE TRAINING ERROR:", err);
 
-      setError(
-        err?.message ||
-          "Failed to save training"
-      );
+      setError(err?.message || "Failed to save training");
     } finally {
       setSaving(false);
     }
@@ -1009,10 +858,9 @@ function Training() {
   ============================================================ */
 
   const handleDelete = async (id) => {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this training event?"
-      );
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this training event?",
+    );
 
     if (!confirmed) return;
 
@@ -1021,46 +869,29 @@ function Training() {
       setError("");
       setSuccess("");
 
-      const response =
-        await deleteTraining(id);
+      const response = await deleteTraining(id);
 
-      if (
-        response?.success === false
-      ) {
-        throw new Error(
-          response?.message ||
-            "Failed to delete training"
-        );
+      if (response?.success === false) {
+        throw new Error(response?.message || "Failed to delete training");
       }
 
-      setSuccess(
-        response?.message ||
-          "Training deleted successfully."
-      );
+      setSuccess(response?.message || "Training deleted successfully.");
 
       addTrainingNotification({
         type: "deleted",
 
-        title:
-          "Training event deleted",
+        title: "Training event deleted",
 
-        description:
-          `Training ID ${id} has been removed.`,
+        description: `Training ID ${id} has been removed.`,
 
         trainingId: id,
       });
 
       await fetchTrainings();
     } catch (err) {
-      console.error(
-        "DELETE ERROR:",
-        err
-      );
+      console.error("DELETE ERROR:", err);
 
-      setError(
-        err?.message ||
-          "Failed to delete training"
-      );
+      setError(err?.message || "Failed to delete training");
     } finally {
       setLoading(false);
     }
@@ -1117,13 +948,11 @@ function Training() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
-
       {/* ========================================================
           PAGE HEADER
       ======================================================== */}
 
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
         <div>
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
@@ -1189,7 +1018,6 @@ function Training() {
       ======================================================== */}
 
       <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-
         <form
           onSubmit={handleSearch}
           className="flex flex-col gap-3 md:flex-row"
@@ -1203,9 +1031,7 @@ function Training() {
             <input
               type="text"
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by training name, description or organizer..."
               className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
             />
@@ -1235,7 +1061,6 @@ function Training() {
       ======================================================== */}
 
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Total Trainings
@@ -1265,7 +1090,6 @@ function Training() {
             {pagination.total_pages || 1}
           </p>
         </div>
-
       </div>
 
       {/* ========================================================
@@ -1273,7 +1097,6 @@ function Training() {
       ======================================================== */}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-
         {/* TABLE HEADER */}
         <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1335,7 +1158,9 @@ function Training() {
                     <FileDown size={17} className="text-blue-600" />
                     <div>
                       <p className="font-medium">Download CSV</p>
-                      <p className="text-xs text-slate-400">Comma-separated data</p>
+                      <p className="text-xs text-slate-400">
+                        Comma-separated data
+                      </p>
                     </div>
                   </button>
 
@@ -1358,16 +1183,13 @@ function Training() {
         </div>
 
         <div className="overflow-x-auto">
-
           <table className="w-full min-w-[1250px] border-collapse">
-
             {/* ==================================================
                 TABLE HEAD
             ================================================== */}
 
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-
                 <th className="w-16 px-4 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   #
                 </th>
@@ -1392,7 +1214,6 @@ function Training() {
                   End
                 </th> */}
 
-
                 <th className="min-w-[170px] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Districts
                 </th>
@@ -1408,7 +1229,6 @@ function Training() {
                 <th className="sticky right-0 z-20 w-[150px] bg-slate-50 px-4 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Actions
                 </th>
-
               </tr>
             </thead>
 
@@ -1417,15 +1237,10 @@ function Training() {
             ================================================== */}
 
             <tbody className="divide-y divide-slate-100">
-
               {loading ? (
                 <tr>
-                  <td
-                    colSpan={10}
-                    className="px-6 py-16 text-center"
-                  >
+                  <td colSpan={10} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
-
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
 
                       <p className="mt-3 text-sm font-medium text-slate-600">
@@ -1436,12 +1251,8 @@ function Training() {
                 </tr>
               ) : trainings.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={10}
-                    className="px-6 py-16 text-center"
-                  >
+                  <td colSpan={10} className="px-6 py-16 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center">
-
                       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                         <CalendarDays size={26} />
                       </div>
@@ -1467,150 +1278,112 @@ function Training() {
                 </tr>
               ) : (
                 trainings.map((training, index) => {
+                  const startDate = getDatePart(training.start_date);
 
-                  const startDate =
-                    getDatePart(
-                      training.start_date
-                    );
+                  const startTime = getTimePart(
+                    training.start_date,
+                    training.start_time,
+                  );
 
-                  const startTime =
-                    getTimePart(
-                      training.start_date,
-                      training.start_time
-                    );
+                  const endDate = getDatePart(training.end_date);
 
-                  const endDate =
-                    getDatePart(
-                      training.end_date
-                    );
-
-                  const endTime =
-                    getTimePart(
-                      training.end_date,
-                      training.end_time
-                    );
+                  const endTime = getTimePart(
+                    training.end_date,
+                    training.end_time,
+                  );
 
                   return (
                     <tr
-                      key={
-                        training.training_event_id
-                      }
+                      key={training.training_event_id}
                       ref={
-                        String(training.training_event_id) === highlightedTrainingId
+                        String(training.training_event_id) ===
+                        highlightedTrainingId
                           ? highlightedTrainingRef
                           : null
                       }
                       className={`group transition ${
-                        String(training.training_event_id) === highlightedTrainingId
+                        String(training.training_event_id) ===
+                        highlightedTrainingId
                           ? "bg-blue-50 ring-2 ring-inset ring-blue-300"
                           : "hover:bg-slate-50/80"
                       }`}
                     >
-
                       {/* SERIAL */}
                       <td className="px-4 py-5 text-center align-top">
                         <span className="text-xs font-bold text-slate-400">
-                          {((page - 1) *
-                            pagination.limit) +
-                            index +
-                            1}
+                          {(page - 1) * pagination.limit + index + 1}
                         </span>
                       </td>
 
                       {/* TRAINING */}
                       <td className="px-5 py-5 align-top">
-
                         <div className="max-w-[300px]">
-
                           <div className="flex items-start gap-3">
-
                             <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                               <CalendarDays size={17} />
                             </div>
 
                             <div className="min-w-0">
-
                               <p className="line-clamp-2 text-sm font-bold leading-5 text-slate-900">
-                                {training.event_name ||
-                                  "Untitled Training"}
+                                {training.event_name || "Untitled Training"}
                               </p>
 
                               <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
                                 {training.description ||
                                   "No description available"}
                               </p>
-
                             </div>
                           </div>
-
                         </div>
-
                       </td>
 
                       {/* MODE */}
                       <td className="px-4 py-5 align-top">
-
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-bold capitalize ${getModeStyle(
-                            training.event_mode
+                            training.event_mode,
                           )}`}
                         >
-                          {getModeIcon(
-                            training.event_mode
-                          )}
+                          {getModeIcon(training.event_mode)}
 
-                          {training.event_mode ||
-                            "N/A"}
+                          {training.event_mode || "N/A"}
                         </span>
-
                       </td>
 
                       {/* VENUE / MEETING */}
                       <td className="px-4 py-5 align-top">
-
-                        {training.event_mode ===
-                        "online" ? (
+                        {training.event_mode === "online" ? (
                           <div className="max-w-[220px]">
-
                             <div className="flex items-start gap-2">
-
                               <div className="mt-0.5 text-emerald-600">
                                 <Monitor size={16} />
                               </div>
 
                               <div className="min-w-0">
-
                                 <p className="text-xs font-semibold text-slate-800">
                                   Online Training
                                 </p>
 
                                 {training.meeting_link ? (
                                   <a
-                                    href={
-                                      training.meeting_link
-                                    }
+                                    href={training.meeting_link}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
                                   >
                                     Join Meeting
-                                    <Link2
-                                      size={12}
-                                    />
+                                    <Link2 size={12} />
                                   </a>
                                 ) : (
                                   <p className="mt-1 text-xs text-slate-400">
                                     Meeting link unavailable
                                   </p>
                                 )}
-
                               </div>
                             </div>
-
                           </div>
                         ) : (
                           <div className="flex max-w-[220px] items-start gap-2">
-
                             <MapPin
                               size={16}
                               className="mt-0.5 shrink-0 text-blue-600"
@@ -1620,10 +1393,8 @@ function Training() {
                               {training.event_location ||
                                 "Location not specified"}
                             </span>
-
                           </div>
                         )}
-
                       </td>
 
                       {/* START */}
@@ -1698,111 +1469,73 @@ function Training() {
 
                       {/* DISTRICTS */}
                       <td className="px-4 py-5 align-top">
-
-                        {training
-                          .allocated_districts
-                          ?.length > 0 ? (
+                        {training.allocated_districts?.length > 0 ? (
                           <div className="flex max-w-[180px] flex-wrap gap-1.5">
-
-                            {training
-                              .allocated_districts
+                            {training.allocated_districts
                               .slice(0, 3)
-                              .map(
-                                (district) => (
-                                  <span
-                                    key={
-                                      district
-                                    }
-                                    className="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700"
-                                  >
-                                    {district}
-                                  </span>
-                                )
-                              )}
+                              .map((district) => (
+                                <span
+                                  key={district}
+                                  className="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700"
+                                >
+                                  {district}
+                                </span>
+                              ))}
 
-                            {training
-                              .allocated_districts
-                              .length > 3 && (
+                            {training.allocated_districts.length > 3 && (
                               <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500">
-                                +
-                                {training
-                                  .allocated_districts
-                                  .length -
-                                  3}
+                                +{training.allocated_districts.length - 3}
                               </span>
                             )}
-
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400">
                             Not allocated
                           </span>
                         )}
-
                       </td>
 
                       {/* AUDIENCE */}
                       <td className="px-4 py-5 align-top">
-
-                        {training
-                          .allocated_audience
-                          ?.length > 0 ? (
+                        {training.allocated_audience?.length > 0 ? (
                           <div className="flex max-w-[160px] flex-wrap gap-1.5">
-
-                            {training
-                              .allocated_audience
-                              .map(
-                                (audience) => (
-                                  <span
-                                    key={
-                                      audience
-                                    }
-                                    className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700"
-                                  >
-                                    {audience}
-                                  </span>
-                                )
-                              )}
-
+                            {training.allocated_audience.map((audience) => (
+                              <span
+                                key={audience}
+                                className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700"
+                              >
+                                {audience}
+                              </span>
+                            ))}
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400">
                             Not allocated
                           </span>
                         )}
-
                       </td>
 
                       {/* ORGANIZER */}
                       <td className="px-4 py-5 align-top">
-
                         <div className="flex max-w-[200px] items-start gap-2">
-
                           <UserRound
                             size={15}
                             className="mt-0.5 shrink-0 text-slate-400"
                           />
 
                           <span className="text-xs leading-5 text-slate-600">
-                            {training.event_organizer ||
-                              "Not specified"}
+                            {training.event_organizer || "Not specified"}
                           </span>
-
                         </div>
-
                       </td>
 
                       {/* ACTIONS */}
                       <td className="sticky right-0 z-10 border-l border-slate-100 bg-white px-4 py-5 align-top group-hover:bg-slate-50">
-
                         <div className="flex items-center justify-center gap-1.5">
-
                           <button
                             type="button"
                             onClick={() =>
-                              handleView(
-                                training.training_event_id
-                              )
+                              handleView(training.training_event_id)
                             }
                             title="View Training"
                             className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
@@ -1813,9 +1546,7 @@ function Training() {
                           <button
                             type="button"
                             onClick={() =>
-                              handleEdit(
-                                training.training_event_id
-                              )
+                              handleEdit(training.training_event_id)
                             }
                             title="Edit Training"
                             className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600"
@@ -1826,29 +1557,21 @@ function Training() {
                           <button
                             type="button"
                             onClick={() =>
-                              handleDelete(
-                                training.training_event_id
-                              )
+                              handleDelete(training.training_event_id)
                             }
                             title="Delete Training"
                             className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                           >
                             <Trash2 size={16} />
                           </button>
-
                         </div>
-
                       </td>
-
                     </tr>
                   );
                 })
               )}
-
             </tbody>
-
           </table>
-
         </div>
 
         {/* ======================================================
@@ -1856,12 +1579,9 @@ function Training() {
         ====================================================== */}
 
         <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-
           <p className="text-xs font-medium text-slate-500">
             Showing{" "}
-            <span className="font-bold text-slate-700">
-              {trainings.length}
-            </span>{" "}
+            <span className="font-bold text-slate-700">{trainings.length}</span>{" "}
             of{" "}
             <span className="font-bold text-slate-700">
               {pagination.total_items || 0}
@@ -1870,18 +1590,10 @@ function Training() {
           </p>
 
           <div className="flex items-center gap-2">
-
             <button
               type="button"
-              disabled={
-                !pagination.has_previous_page ||
-                loading
-              }
-              onClick={() =>
-                setPage(
-                  (prev) => prev - 1
-                )
-              }
+              disabled={!pagination.has_previous_page || loading}
+              onClick={() => setPage((prev) => prev - 1)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronLeft size={15} />
@@ -1889,309 +1601,257 @@ function Training() {
             </button>
 
             <span className="min-w-[70px] rounded-lg bg-white px-3 py-2 text-center text-xs font-bold text-slate-700 shadow-sm ring-1 ring-slate-200">
-              {pagination.page || 1} /{" "}
-              {pagination.total_pages || 1}
+              {pagination.page || 1} / {pagination.total_pages || 1}
             </span>
 
             <button
               type="button"
-              disabled={
-                !pagination.has_next_page ||
-                loading
-              }
-              onClick={() =>
-                setPage(
-                  (prev) => prev + 1
-                )
-              }
+              disabled={!pagination.has_next_page || loading}
+              onClick={() => setPage((prev) => prev + 1)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next
               <ChevronRight size={15} />
             </button>
-
           </div>
-
         </div>
-
       </div>
 
       {/* ========================================================
           VIEW MODAL
       ======================================================== */}
 
-      {showViewModal &&
-        viewTraining && (
+      {showViewModal && viewTraining && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          onClick={closeViewModal}
+        >
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-            onClick={closeViewModal}
+            role="dialog"
+            aria-modal="true"
+            className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
           >
-
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
-            >
-
-              {/* MODAL HEADER */}
-              <div className="flex items-start justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
-
-                <div className="flex items-start gap-4">
-
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
-                    <CalendarDays size={22} />
-                  </div>
-
-                  <div>
-
-                    <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
-                      Training Details
-                    </p>
-
-                    <h2 className="mt-1 text-xl font-bold text-slate-900">
-                      {viewTraining.event_name}
-                    </h2>
-
-                    <span
-                      className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold capitalize ${getModeStyle(
-                        viewTraining.event_mode
-                      )}`}
-                    >
-                      {getModeIcon(
-                        viewTraining.event_mode
-                      )}
-
-                      {viewTraining.event_mode}
-                    </span>
-
-                  </div>
-
+            {/* MODAL HEADER */}
+            <div className="flex items-start justify-between border-b border-slate-200 bg-slate-50 px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                  <CalendarDays size={22} />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={closeViewModal}
-                  className="rounded-lg p-2 text-slate-400 transition hover:bg-white hover:text-slate-700"
-                >
-                  <X size={19} />
-                </button>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                    Training Details
+                  </p>
 
+                  <h2 className="mt-1 text-xl font-bold text-slate-900">
+                    {viewTraining.event_name}
+                  </h2>
+
+                  <span
+                    className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold capitalize ${getModeStyle(
+                      viewTraining.event_mode,
+                    )}`}
+                  >
+                    {getModeIcon(viewTraining.event_mode)}
+
+                    {viewTraining.event_mode}
+                  </span>
+                </div>
               </div>
 
-              {/* MODAL BODY */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-6">
+              <button
+                type="button"
+                onClick={closeViewModal}
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-white hover:text-slate-700"
+              >
+                <X size={19} />
+              </button>
+            </div>
 
-                {/* DATE / TIME */}
-                <div className="grid gap-4 md:grid-cols-2">
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <CalendarDays size={16} />
-
-                      <p className="text-[11px] font-bold uppercase tracking-wider">
-                        Start
-                      </p>
-                    </div>
-
-                    <p className="mt-2 text-sm font-bold text-slate-900">
-                      {formatDisplayDate(
-                        viewTraining.start_date,
-                        viewTraining.start_time
-                      )}
-                    </p>
-
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Clock3 size={16} />
-
-                       <p className="text-[11px] font-bold uppercase tracking-wider">
-                        End
-                      </p> 
-                    </div>
-
-                    <p className="mt-2 text-sm font-bold text-slate-900">
-                      {formatDisplayDate(
-                        viewTraining.end_date,
-                        viewTraining.end_time
-                      )}
-                    </p>
-
-                  </div>
-
-                </div>
-
-                {/* LOCATION */}
-                {viewTraining.event_mode === "offline" && (
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <MapPin size={16} />
-
-                      <p className="text-[11px] font-bold uppercase tracking-wider">
-                        Location
-                      </p>
-                    </div>
-
-                    <p className="mt-2 text-sm font-semibold text-slate-800">
-                      {viewTraining.event_location ||
-                        "Not specified"}
-                    </p>
-
-                  </div>
-                )}
-
-                {/* MEETING */}
-                {viewTraining.event_mode === "online" && (
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Link2 size={16} />
-
-                      <p className="text-[11px] font-bold uppercase tracking-wider">
-                        Meeting Link
-                      </p>
-                    </div>
-
-                    {viewTraining.meeting_link ? (
-                      <a
-                        href={
-                          viewTraining.meeting_link
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 block break-all text-sm font-semibold text-blue-600 underline hover:text-blue-700"
-                      >
-                        {
-                          viewTraining.meeting_link
-                        }
-                      </a>
-                    ) : (
-                      <p className="mt-2 text-sm text-slate-500">
-                        No meeting link provided.
-                      </p>
-                    )}
-
-                  </div>
-                )}
-
-                {/* DISTRICT / AUDIENCE */}
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Map size={16} />
-
-                      <p className="text-[11px] font-bold uppercase tracking-wider">
-                        Allocated Districts
-                      </p>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-
-                      {viewTraining
-                        .allocated_districts
-                        ?.length > 0 ? (
-                        viewTraining.allocated_districts.map(
-                          (district) => (
-                            <span
-                              key={district}
-                              className="rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700"
-                            >
-                              {district}
-                            </span>
-                          )
-                        )
-                      ) : (
-                        <span className="text-xs text-slate-400">
-                          No districts allocated
-                        </span>
-                      )}
-
-                    </div>
-
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Users size={16} />
-
-                      <p className="text-[11px] font-bold uppercase tracking-wider">
-                        Allocated Audience
-                      </p>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-
-                      {viewTraining
-                        .allocated_audience
-                        ?.length > 0 ? (
-                        viewTraining.allocated_audience.map(
-                          (audience) => (
-                            <span
-                              key={audience}
-                              className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700"
-                            >
-                              {audience}
-                            </span>
-                          )
-                        )
-                      ) : (
-                        <span className="text-xs text-slate-400">
-                          No audience allocated
-                        </span>
-                      )}
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                {/* ORGANIZER */}
-                <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-
+            {/* MODAL BODY */}
+            <div className="min-h-0 flex-1 overflow-y-auto p-6">
+              {/* DATE / TIME */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* DATE RANGE */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-slate-400">
-                    <UserRound size={16} />
+                    <CalendarDays size={16} />
+                    <p className="text-[11px] font-bold uppercase tracking-wider">
+                      Date
+                    </p>
+                  </div>
+
+                  <p className="mt-3 text-sm font-bold text-slate-900">
+                    {formatDisplayDate(viewTraining.start_date)} to{" "}
+                    {formatDisplayDate(viewTraining.end_date)}
+                  </p>
+                </div>
+
+                {/* TIME */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Clock3 size={16} />
+                    <p className="text-[11px] font-bold uppercase tracking-wider">
+                      Time
+                    </p>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <div>
+                      <p className="text-xs text-slate-500">Start</p>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {formatDisplayTime(
+                          viewTraining.start_date,
+                          viewTraining.start_time,
+                        )}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">End</p>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {formatDisplayTime(
+                          viewTraining.end_date,
+                          viewTraining.end_time,
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* LOCATION */}
+              {viewTraining.event_mode === "offline" && (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <MapPin size={16} />
 
                     <p className="text-[11px] font-bold uppercase tracking-wider">
-                      Organizer
+                      Location
                     </p>
                   </div>
 
                   <p className="mt-2 text-sm font-semibold text-slate-800">
-                    {viewTraining.event_organizer ||
-                      "Not specified"}
+                    {viewTraining.event_location || "Not specified"}
                   </p>
+                </div>
+              )}
 
+              {/* MEETING */}
+              {viewTraining.event_mode === "online" && (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Link2 size={16} />
+
+                    <p className="text-[11px] font-bold uppercase tracking-wider">
+                      Meeting Link
+                    </p>
+                  </div>
+
+                  {viewTraining.meeting_link ? (
+                    <a
+                      href={viewTraining.meeting_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 block break-all text-sm font-semibold text-blue-600 underline hover:text-blue-700"
+                    >
+                      {viewTraining.meeting_link}
+                    </a>
+                  ) : (
+                    <p className="mt-2 text-sm text-slate-500">
+                      No meeting link provided.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* DISTRICT / AUDIENCE */}
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Map size={16} />
+
+                    <p className="text-[11px] font-bold uppercase tracking-wider">
+                      Allocated Districts
+                    </p>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {viewTraining.allocated_districts?.length > 0 ? (
+                      viewTraining.allocated_districts.map((district) => (
+                        <span
+                          key={district}
+                          className="rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700"
+                        >
+                          {district}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-400">
+                        No districts allocated
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* DESCRIPTION */}
-                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Users size={16} />
 
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
-                    Description
+                    <p className="text-[11px] font-bold uppercase tracking-wider">
+                      Allocated Audience
+                    </p>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {viewTraining.allocated_audience?.length > 0 ? (
+                      viewTraining.allocated_audience.map((audience) => (
+                        <span
+                          key={audience}
+                          className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700"
+                        >
+                          {audience}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-400">
+                        No audience allocated
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ORGANIZER */}
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <UserRound size={16} />
+
+                  <p className="text-[11px] font-bold uppercase tracking-wider">
+                    Organizer
                   </p>
-
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                    {viewTraining.description ||
-                      "No description provided."}
-                  </p>
-
                 </div>
 
-                {/* META */}
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <p className="mt-2 text-sm font-semibold text-slate-800">
+                  {viewTraining.event_organizer || "Not specified"}
+                </p>
+              </div>
 
-                  {/* <div className="rounded-xl bg-slate-50 p-4">
+              {/* DESCRIPTION */}
+              <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                  Description
+                </p>
+
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {viewTraining.description || "No description provided."}
+                </p>
+              </div>
+
+              {/* META */}
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {/* <div className="rounded-xl bg-slate-50 p-4">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       Created At
                     </p>
@@ -2202,38 +1862,31 @@ function Training() {
                     </p>
                   </div> */}
 
-                  <div className="rounded-xl bg-slate-50 p-4">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      Updated At
-                    </p>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Updated At
+                  </p>
 
-                    <p className="mt-2 text-xs font-medium text-slate-700">
-                      {viewTraining.updated_at ||
-                        "N/A"}
-                    </p>
-                  </div>
-
+                  <p className="mt-2 text-xs font-medium text-slate-700">
+                    {viewTraining.updated_at || "N/A"}
+                  </p>
                 </div>
-
               </div>
-
-              {/* FOOTER */}
-              <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4">
-
-                <button
-                  type="button"
-                  onClick={closeViewModal}
-                  className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-                >
-                  Close
-                </button>
-
-              </div>
-
             </div>
 
+            {/* FOOTER */}
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <button
+                type="button"
+                onClick={closeViewModal}
+                className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* ========================================================
           ADD / EDIT MODAL
@@ -2241,18 +1894,12 @@ function Training() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-
           <div className="max-h-[95vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-
             {/* HEADER */}
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
-
               <div>
-
                 <h2 className="text-xl font-bold text-slate-900">
-                  {editingId
-                    ? "Edit Training"
-                    : "Add Training"}
+                  {editingId ? "Edit Training" : "Add Training"}
                 </h2>
 
                 <p className="mt-1 text-xs text-slate-500">
@@ -2260,7 +1907,6 @@ function Training() {
                     ? "Update training event information"
                     : "Create a new training event"}
                 </p>
-
               </div>
 
               <button
@@ -2271,18 +1917,12 @@ function Training() {
               >
                 <X size={18} />
               </button>
-
             </div>
 
             {/* FORM */}
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-5 p-6"
-            >
-
+            <form onSubmit={handleSubmit} className="space-y-5 p-6">
               {/* EVENT NAME */}
               <div>
-
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Event Name
                 </label>
@@ -2290,95 +1930,62 @@ function Training() {
                 <input
                   type="text"
                   name="event_name"
-                  value={
-                    formData.event_name
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={formData.event_name}
+                  onChange={handleChange}
                   required
                   placeholder="Enter event name"
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
                 />
-
               </div>
 
               {/* DESCRIPTION */}
               <div>
-
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Description
                 </label>
 
                 <textarea
                   name="description"
-                  value={
-                    formData.description
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={formData.description}
+                  onChange={handleChange}
                   rows={4}
                   placeholder="Enter training description"
                   className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
                 />
-
               </div>
 
               {/* MODE */}
               <div>
-
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Event Mode
                 </label>
 
                 <select
                   name="event_mode"
-                  value={
-                    formData.event_mode
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={formData.event_mode}
+                  onChange={handleChange}
                   required
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
                 >
-                  <option value="offline">
-                    Offline
-                  </option>
+                  <option value="offline">Offline</option>
 
-                  <option value="online">
-                    Online
-                  </option>
-
+                  <option value="online">Online</option>
                 </select>
-
               </div>
 
               {/* DISTRICTS */}
               <div>
-
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Allocated Districts
                 </label>
 
                 <div className="flex gap-2">
-
                   <select
-                    value={
-                      districtInput
-                    }
-                    onChange={(e) =>
-                      setDistrictInput(
-                        e.target.value
-                      )
-                    }
-                    disabled={
-                      districtsLoading
-                    }
+                    value={districtInput}
+                    onChange={(e) => setDistrictInput(e.target.value)}
+                    disabled={districtsLoading}
                     className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 disabled:bg-slate-100"
                   >
-
                     <option value="">
                       {districtsLoading
                         ? "Loading districts..."
@@ -2390,264 +1997,154 @@ function Training() {
                     {districtOptions
                       .filter(
                         (district) =>
-                          !formData.allocated_districts.includes(
-                            district
-                          )
+                          !formData.allocated_districts.includes(district),
                       )
-                      .map(
-                        (district) => (
-                          <option
-                            key={
-                              district
-                            }
-                            value={
-                              district
-                            }
-                          >
-                            {
-                              district
-                            }
-                          </option>
-                        )
-                      )}
-
+                      .map((district) => (
+                        <option key={district} value={district}>
+                          {district}
+                        </option>
+                      ))}
                   </select>
 
                   <button
                     type="button"
-                    onClick={
-                      addDistrict
-                    }
-                    disabled={
-                      !districtInput ||
-                      districtsLoading
-                    }
+                    onClick={addDistrict}
+                    disabled={!districtInput || districtsLoading}
                     className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Add
                   </button>
-
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {formData.allocated_districts.length > 0 ? (
+                    formData.allocated_districts.map((district) => (
+                      <span
+                        key={district}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
+                      >
+                        {district}
 
-                  {formData
-                    .allocated_districts
-                    .length > 0 ? (
-                    formData.allocated_districts.map(
-                      (district) => (
-                        <span
-                          key={
-                            district
-                          }
-                          className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
+                        <button
+                          type="button"
+                          onClick={() => removeDistrict(district)}
+                          className="text-blue-400 hover:text-blue-700"
                         >
-                          {
-                            district
-                          }
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeDistrict(
-                                district
-                              )
-                            }
-                            className="text-blue-400 hover:text-blue-700"
-                          >
-                            <X
-                              size={
-                                13
-                              }
-                            />
-                          </button>
-
-                        </span>
-                      )
-                    )
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ))
                   ) : (
                     <span className="text-xs text-slate-400">
                       No districts selected
                     </span>
                   )}
-
                 </div>
-
               </div>
 
               {/* AUDIENCE */}
               <div>
-
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Allocated Audience
                 </label>
 
                 <div className="flex gap-2">
-
                   <select
-                    value={
-                      audienceInput
-                    }
-                    onChange={(e) =>
-                      setAudienceInput(
-                        e.target.value
-                      )
-                    }
+                    value={audienceInput}
+                    onChange={(e) => setAudienceInput(e.target.value)}
                     className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
                   >
+                    <option value="">Select an audience</option>
 
-                    <option value="">
-                      Select an audience
-                    </option>
-
-                    {TRAINING_AUDIENCES
-                      .filter(
-                        (audience) =>
-                          !formData.allocated_audience.includes(
-                            audience
-                          )
-                      )
-                      .map(
-                        (audience) => (
-                          <option
-                            key={
-                              audience
-                            }
-                            value={
-                              audience
-                            }
-                          >
-                            {
-                              audience
-                            }
-                          </option>
-                        )
-                      )}
-
+                    {TRAINING_AUDIENCES.filter(
+                      (audience) =>
+                        !formData.allocated_audience.includes(audience),
+                    ).map((audience) => (
+                      <option key={audience} value={audience}>
+                        {audience}
+                      </option>
+                    ))}
                   </select>
 
                   <button
                     type="button"
-                    onClick={
-                      addAudience
-                    }
-                    disabled={
-                      !audienceInput
-                    }
+                    onClick={addAudience}
+                    disabled={!audienceInput}
                     className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Add
                   </button>
-
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {formData.allocated_audience.length > 0 ? (
+                    formData.allocated_audience.map((audience) => (
+                      <span
+                        key={audience}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+                      >
+                        {audience}
 
-                  {formData
-                    .allocated_audience
-                    .length > 0 ? (
-                    formData.allocated_audience.map(
-                      (audience) => (
-                        <span
-                          key={
-                            audience
-                          }
-                          className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+                        <button
+                          type="button"
+                          onClick={() => removeAudience(audience)}
+                          className="text-emerald-400 hover:text-emerald-700"
                         >
-                          {
-                            audience
-                          }
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeAudience(
-                                audience
-                              )
-                            }
-                            className="text-emerald-400 hover:text-emerald-700"
-                          >
-                            <X
-                              size={
-                                13
-                              }
-                            />
-                          </button>
-
-                        </span>
-                      )
-                    )
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ))
                   ) : (
                     <span className="text-xs text-slate-400">
                       No audience selected
                     </span>
                   )}
-
                 </div>
-
               </div>
 
               {/* LOCATION */}
               {formData.event_mode === "offline" && (
                 <div>
-
                   <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Location
-                    <span className="ml-1 text-red-500">
-                      *
-                    </span>
+                    <span className="ml-1 text-red-500">*</span>
                   </label>
 
                   <input
                     type="text"
                     name="event_location"
-                    value={
-                      formData.event_location
-                    }
-                    onChange={
-                      handleChange
-                    }
+                    value={formData.event_location}
+                    onChange={handleChange}
                     required
                     placeholder="Enter physical event location"
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
                   />
-
                 </div>
               )}
 
               {/* MEETING LINK */}
               {formData.event_mode === "online" && (
                 <div>
-
                   <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Meeting Link
-                    <span className="ml-1 text-red-500">
-                      *
-                    </span>
+                    <span className="ml-1 text-red-500">*</span>
                   </label>
 
                   <input
                     type="url"
                     name="meeting_link"
-                    value={
-                      formData.meeting_link
-                    }
-                    onChange={
-                      handleChange
-                    }
+                    value={formData.meeting_link}
+                    onChange={handleChange}
                     required
                     placeholder="https://meet.google.com/..."
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
                   />
-
                 </div>
               )}
 
               {/* DATES */}
               <div className="grid gap-5 md:grid-cols-2">
-
                 <div>
-
                   <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     Start Date & Time
                   </label>
@@ -2655,20 +2152,14 @@ function Training() {
                   <input
                     type="datetime-local"
                     name="start_date"
-                    value={
-                      formData.start_date
-                    }
-                    onChange={
-                      handleChange
-                    }
+                    value={formData.start_date}
+                    onChange={handleChange}
                     required
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
                   />
-
                 </div>
 
                 <div>
-
                   <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                     End Date & Time
                   </label>
@@ -2676,23 +2167,16 @@ function Training() {
                   <input
                     type="datetime-local"
                     name="end_date"
-                    value={
-                      formData.end_date
-                    }
-                    onChange={
-                      handleChange
-                    }
+                    value={formData.end_date}
+                    onChange={handleChange}
                     required
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
                   />
-
                 </div>
-
               </div>
 
               {/* ORGANIZER */}
               <div>
-
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Organizer
                 </label>
@@ -2700,30 +2184,20 @@ function Training() {
                 <input
                   type="text"
                   name="event_organizer"
-                  value={
-                    formData.event_organizer
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={formData.event_organizer}
+                  onChange={handleChange}
                   required
                   placeholder="Enter organizer name"
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50"
                 />
-
               </div>
 
               {/* FOOTER */}
               <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-
                 <button
                   type="button"
-                  onClick={
-                    closeModal
-                  }
-                  disabled={
-                    saving
-                  }
+                  onClick={closeModal}
+                  disabled={saving}
                   className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancel
@@ -2731,9 +2205,7 @@ function Training() {
 
                 <button
                   type="submit"
-                  disabled={
-                    saving
-                  }
+                  disabled={saving}
                   className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving
@@ -2742,16 +2214,11 @@ function Training() {
                       ? "Update Training"
                       : "Create Training"}
                 </button>
-
               </div>
-
             </form>
-
           </div>
-
         </div>
       )}
-
     </div>
   );
 }

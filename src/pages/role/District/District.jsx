@@ -393,14 +393,15 @@ function District() {
 
   // Export all filtered users, not just the current pagination page.
   // Passwords are deliberately excluded.
-  const getExportRows = () =>
-    filteredUsers.map((user) => ({
-      Name: user.name || "",
-      Email: user.email || "",
-      Phone: user.phone || "",
-      District: getDistrictName(user),
-      Status: user.status || "active",
-    }));
+ const getExportRows = () =>
+  filteredUsers.map((user, index) => ({
+    "Serial No.": index + 1,
+    Name: user.name || "",
+    Email: user.email || "",
+    Phone: user.phone || "",
+    District: getDistrictName(user),
+    Status: user.status || "active",
+  }));
 
   const getToday = () => new Date().toISOString().split("T")[0];
 

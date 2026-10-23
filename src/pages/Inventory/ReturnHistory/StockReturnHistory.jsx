@@ -127,12 +127,32 @@ function ReturnHistory() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <DownloadMenu
-              records={filteredLogs}
-              title="Stock Return History"
-              disabled={loading}
-              onError={(err) => setError(err.message || "Failed to download return history.")}
-            />
+            
+<DownloadMenu
+  records={filteredLogs.map((item, index) => ({
+    "S.No": index + 1,
+    "Return No.": item.reference_no ?? "—",
+    "Issue No.": item.issue_no ?? "—",
+    "Equipment Type": item.equipment_type ?? "—",
+    Product: item.product_name ?? "—",
+    Brand: item.brand_name ?? "—",
+    "Current Stock": item.quantity ?? "—",
+    "Before Return": item.quantity_before ?? "—",
+    "Source Location": item.source_location ?? "—",
+    "Destination Location": item.destination_location ?? "—",
+    "District User": item.district_user_name ?? "—",
+    
+    Date: item.created_at
+      ? new Date(item.created_at).toLocaleString()
+      : "—",
+  }))}
+  title="Return History"
+  disabled={loading}
+  onError={(err) =>
+    setError(err.message || "Failed to download return history.")
+  }
+/>
+
             <button
               type="button"
               onClick={() => fetchHistory(true)}

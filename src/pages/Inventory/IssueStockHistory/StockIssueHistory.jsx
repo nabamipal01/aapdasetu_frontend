@@ -340,12 +340,39 @@ function IssueStockHistory() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <DownloadMenu
-              records={filteredHistory}
-              title="Issue Stock History"
-              disabled={loading}
-              onError={(err) => setError(err.message || "Failed to download issue history.")}
-            />
+            
+<DownloadMenu
+  records={filteredHistory.map((item, index) => ({
+    "S.No": index + 1,
+    "Issue Number": item.reference_no ?? item.issue_no ?? "",
+    "Equipment Type":
+      item.equipment_type ??
+      item.equipment?.equipment_type ??
+      "",
+    "Product Name": item.product_name ?? "",
+    "Brand Name": item.brand_name ?? "",
+    "OEM": item.oem ?? "",
+    "Stock Before Issue": item.quantity_before ?? "",
+    "Current Stock":
+      item.quantity_after ?? item.quantity ?? "",
+    "Quantity Issued": getIssuedQuantity(item),
+    "Source Location": item.source_location ?? "",
+    "Destination Location": item.destination_location ?? "",
+    "Issued Date": formatDate(
+      item.created_at ??
+      item.issue_date ??
+      item.created_on
+    ),
+  }))}
+  title="Issue Stock History"
+  disabled={loading}
+  onError={(err) =>
+    setError(
+      err.message || "Failed to download issue history."
+    )
+  }
+/>
+
             <button
               type="button"
               onClick={() => fetchHistory(true)}

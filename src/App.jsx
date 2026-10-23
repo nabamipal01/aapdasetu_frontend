@@ -24,43 +24,43 @@ import Incident from "./pages/incident/Incident";
 import Task from "./pages/task/Task";
 import Resources from "./pages/resources/Resources";
 import Training from "./pages/Training Module/Training";
-import Report from "./pages/Report/Report";
+import Report from "./pages/Report/MISReports";
 
 import Electricity from "./pages/Department/Electricity/Electricity";
-import Food from "./pages/Department/Food/Food";
-import Law from "./pages/Department/Law/Law";
+import Food from "./pages/Department/Food/FoodDept";
+import Law from "./pages/Department/Law/LawAndOrder";
 
 import Ambulance from "./pages/Department/Health/Ambulance/Ambulance";
 import PrimaryHealthCare from "./pages/Department/Health/PrimaryHealthCare/PrimaryHealthCare";
 
 import Admin from "./pages/role/Admin/Admin";
 import District from "./pages/role/District/District";
-import SubDivison from "./pages/role/Subdivision/SubDivison";
+import SubDivison from "./pages/role/Subdivision/Subdivision";
 import Block from "./pages/role/Block/Block";
 
-import StockOverview from "./pages/Inventory/StockOverview/StockOverview";
+import StockOverview from "./pages/Inventory/StockOverview/EquipmentInventory";
 import StockHistory from "./pages/Inventory/StockHistory/StockHistory";
 import IssueStock from "./pages/Inventory/IssueStock/IssueStock";
 import AddStock from "./pages/Inventory/AddStock/AddStock";
-import Equipment from "./pages/Inventory/Equipment/Equipment";
+import EquipmentCategory from "./pages/Inventory/Equipment/EquipmentCategory";
 import CategoryDetail from "./pages/Inventory/CategoryDetail/CategoryDetail";
 
 import ERSS from "./pages/DisasterManagement/ERSS/ERSS";
 import CCTNS from "./pages/DisasterManagement/CCTNS/CCTNS";
 
-import PreAlert from "./pages/Alert/PreAlert";
-import PostAlert from "./pages/Alert/PostAlert";
+import PreAlert from "./pages/Alert/PreAlerts";
+import PostAlert from "./pages/Alert/PostAlerts";
 
 import Volunteers from "./pages/Volunteers/Volunteers";
 import Ngo from "./pages/NGO/Ngo";
 
-import DistrictLocation from "./pages/location/DistrictLocation";
-import SubdivisionLocation from "./pages/location/SubdivisionLocation";
-import BlockLocation from "./pages/location/BlockLocation";
+import DistrictLocation from "./pages/location/Districts";
+import SubdivisionLocation from "./pages/location/Subdivisions";
+import BlockLocation from "./pages/location/Blocks";
 
 import ReturnStock from "./pages/Inventory/ReturnStock/ReturnStock";
-import ReturnHistory from "./pages/Inventory/ReturnHistory/ReturnHistory";
-import IssueStockHistory from "./pages/Inventory/IssueStockHistory/IssueStockHistory";
+import ReturnHistory from "./pages/Inventory/ReturnHistory/StockReturnHistory";
+import IssueStockHistory from "./pages/Inventory/IssueStockHistory/StockIssueHistory";
 
 import { isOperationalUser } from "./utils/roles";
 
@@ -378,8 +378,8 @@ function App() {
                 />
 
                 <Route
-                  path="/inventory/equipment"
-                  element={<Equipment />}
+                  path="/inventory/equipmentCategory"
+                  element={<EquipmentCategory />}
                 />
 
                 <Route

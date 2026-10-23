@@ -280,7 +280,9 @@ function StockOverview() {
   // ============================================================
   // Search
   // ============================================================
+  
   const filteredItems = items.filter((item) => {
+    console.log("Filtering item:", item);
     const search = searchTerm
       .toLowerCase()
       .trim();
@@ -565,12 +567,25 @@ function StockOverview() {
                   </button>
                 )}
               </div>
+              
               <DownloadMenu
-                records={filteredItems}
-                title="Inventory Items"
-                disabled={loading}
-                onError={(err) => setError(err.message || "Failed to download inventory items.")}
-              />
+                      records={filteredItems.map((item, index) => ({
+                        "Serial No.": index + 1,
+                        "Product Name": item.product_name || "",
+                        "Brand Name": item.brand_name || "",
+                        "Equipment Type": item.equipment_type || "",
+                        OEM: item.oem || "",
+                        Location: item.location || "",
+                        Quantity: item.quantity ?? 0,
+                        "Purchase Date": item.purchase_date || "",
+                      }))}
+                      title="Your New PDF Header Name"
+                      disabled={loading}
+                      onError={(err) =>
+                        setError(err.message || "Failed to download inventory items.")
+                      }
+                    />
+              
               </div>
             </div>
           </div>

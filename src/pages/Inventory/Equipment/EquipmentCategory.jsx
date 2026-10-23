@@ -17,7 +17,7 @@ import {
   Check,
 } from "lucide-react";
 
-function Equipment() {
+function EquipmentCategory() {
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -402,4 +402,4 @@ function Equipment() {
   );
 }
 
-export default Equipment;
+export default EquipmentCategory;

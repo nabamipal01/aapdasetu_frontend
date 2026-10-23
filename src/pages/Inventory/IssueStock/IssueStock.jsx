@@ -1605,12 +1605,30 @@ function IssueStock() {
                   </button>
                 )}
               </div>
-              <DownloadMenu
-                records={filteredIssues}
-                title="Stock Issues"
-                disabled={loading}
-                onError={(err) => showToast("error", err.message || "Failed to download stock issues.")}
-              />
+              
+                  <DownloadMenu
+                    records={filteredIssues.map((issue, index) => ({
+                      "S.No": index + 1,
+                      "Issue Number": issue.issue_no ?? "",
+                      "District User ID": issue.district_user_id ?? "",
+                      "Assigned To": issue.district_user_name ?? issue.assigned_to ?? "",
+                      "Storage Location": issue.storage_location ?? "",
+                      "Issue Date": formatDate(issue.issue_date ?? issue.created_at),
+                      "Status": issue.status ?? "",
+                      "Remarks": issue.remarks ?? "",
+                      "Total Items": issue.total_items ?? 0,
+                      "Total Quantity": issue.total_quantity ?? 0,
+                    }))}
+                    title="Stock Issue Report"
+                    disabled={loading}
+                    onError={(err) =>
+                      showToast(
+                        "error",
+                        err.message || "Failed to download stock issues."
+                      )
+                    }
+                  />
+
               </div>
             </div>
 

@@ -566,7 +566,7 @@ function Block() {
 
   // Export every user matching the current search, not just visible rows.
   const getExportRows = () =>
-    filteredUsers.map((user) => {
+    filteredUsers.map((user, index) => {
       const linkedBlock = getLinkedBlock(user);
       const linkedSubdivision = getLinkedSubdivision(user, linkedBlock);
       const linkedDistrict = getLinkedDistrict(
@@ -576,6 +576,7 @@ function Block() {
       );
 
       return {
+        "Serial No.": index + 1,
         Name: user.name || "",
         Email: user.email || "",
         Phone: user.phone || "",

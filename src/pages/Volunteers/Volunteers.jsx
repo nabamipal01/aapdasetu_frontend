@@ -652,7 +652,7 @@ export default function Volunteers() {
   const getVolunteerExportData = () => {
     return volunteers.map((volunteer, index) => ({
       "S.No.": index + 1,
-      "Volunteer ID": volunteer.id ?? "",
+      // "Volunteer ID": volunteer.id ?? "",
       Name: volunteer.name || "",
       "Registration No.": volunteer.volunteer_registration_no || "",
       "Registration Date": volunteer.registration_date || "",
@@ -1398,9 +1398,9 @@ export default function Volunteers() {
                         <p className="font-semibold text-slate-800">
                           {volunteer.name || "—"}
                         </p>
-                        <p className="mt-0.5 text-[10px] text-slate-400">
+                        {/* <p className="mt-0.5 text-[10px] text-slate-400">
                           ID #{volunteer.id}
-                        </p>
+                        </p> */}
                       </td>
 
                       <td className="px-4 py-3 font-medium text-teal-700">

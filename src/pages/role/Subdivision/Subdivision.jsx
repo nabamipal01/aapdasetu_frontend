@@ -473,11 +473,12 @@ function SubDivison() {
   const getToday = () => new Date().toISOString().split("T")[0];
 
   const getExportRows = () =>
-    filteredUsers.map((user) => {
+    filteredUsers.map((user, index) => {
       const linkedSubdivision = getLinkedSubdivision(user);
       const linkedDistrict = getLinkedDistrict(user, linkedSubdivision);
 
       return {
+        "Serial No.": index + 1,
         Name: user.name || "",
         Email: user.email || "",
         Phone: user.phone || "",
