@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   listIncidents,
   createIncident,
+  getIncident,
   updateIncident,
   deleteIncident,
 } from "../../services";
@@ -45,6 +46,48 @@ const getCreatedAt = (incident) =>
   incident?.created_date ??
   incident?.date_created;
 
+
+  
+const getIncidentDateTime = (incident) =>
+  incident?.reported_at ||
+  incident?.created_at ||
+  incident?.createdAt ||
+  incident?.created_on ||
+  incident?.created_date ||
+  incident?.date_created ||
+  "";
+
+const formatDate = (value) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
+};
+
+const formatTime = (value) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+
+
+
 function Incident() {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +119,7 @@ function Incident() {
         page: 1,
         per_page: 50,
       });
+      console.log("INCIDENTS API RESPONSE:", res.data);
 
       setIncidents(res?.data?.incidents ?? res?.data ?? []);
     } catch (err) {
@@ -116,8 +160,11 @@ function Incident() {
     setForm({
       title: incident.title || "",
       incident_type: incident.incident_type || "",
-      description: incident.description || "",
-      severity: incident.severity || "",
+      description:
+        incident.description ||
+        incident.current_situation_summary ||
+        "",
+        severity: incident.severity || "",
     });
 
     setShowForm(true);
@@ -289,10 +336,24 @@ function Incident() {
   // OVERVIEW
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const handleIncidentClick = (incident) => {
-    setSelectedIncident(incident);
-    setShowOverview(true);
-  };
+const handleIncidentClick = async (incident) => {
+  setSelectedIncident(incident);
+  setShowOverview(true);
+
+  try {
+    const res = await getIncident(incident.id);
+
+    const details = res?.data?.incident ?? res?.data;
+
+    setSelectedIncident((prev) =>
+      prev?.id === incident.id
+        ? { ...prev, ...details }
+        : prev
+    );
+  } catch (err) {
+    console.error("Failed to load incident details:", err);
+  }
+};
 
   const closeOverview = () => {
     setSelectedIncident(null);
@@ -614,12 +675,28 @@ function Incident() {
                 </span>
               )}
             </h2>
-            <DownloadMenu
-              records={incidents}
-              title="Incidents"
-              disabled={loading}
-              onError={(err) => setError(err.message || "Failed to download incidents.")}
-            />
+            
+                  <DownloadMenu
+                    records={incidents.map((incident, index) => ({
+                      "S.No.": index + 1,
+                      "Incident No.": incident.incident_no || "",
+                      "Incident Title": incident.title || "",
+                      "Incident Type": incident.incident_type || "",
+                      "Severity": incident.severity || "",
+                      "Status": (incident.status || "").replaceAll("_", " "),
+                      "Date": formatDate(getIncidentDateTime(incident)),
+                      "Time": formatTime(getIncidentDateTime(incident)),
+                      
+                    }))}
+                    title="Incidents"
+                    disabled={loading}
+                    onError={(err) =>
+                      setError(
+                        err.message || "Failed to download incidents."
+                      )
+                    }
+                  />
+
           </div>
 
           {/* Loading */}
@@ -674,6 +751,8 @@ function Incident() {
                     <th className="px-5 py-3 font-semibold">
                       Status
                     </th>
+
+                   
 
                     <th className="px-5 py-3 font-semibold">
                       Action
@@ -806,41 +885,39 @@ function Incident() {
 
       {showOverview && selectedIncident && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
           onClick={closeOverview}
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="incident-overview-title"
-            className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
 
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-100 bg-gradient-to-r from-orange-50 via-white to-white px-6 py-5 sm:px-7">
+            <div className="flex items-start justify-between border-b border-slate-200 p-5">
 
-              <div className="flex items-start gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
                   <AlertTriangle size={22} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {selectedIncident.incident_no || "Incident"}
+                  </p>
                   <h2
                     id="incident-overview-title"
-                    className="text-xl font-bold tracking-tight text-slate-900"
+                    className="mt-1 break-words text-xl font-bold text-slate-900"
                   >
-                    Incident Overview
+                    {selectedIncident.title || "Incident Details"}
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
                     Incident details and current status
                   </p>
-
-                  <span className="mt-3 inline-flex rounded-full border border-orange-200 bg-white px-3 py-1 text-xs font-semibold text-orange-700">
-                    {selectedIncident.incident_no ||
-                      "Incident"}
-                  </span>
                 </div>
               </div>
 
@@ -848,50 +925,33 @@ function Incident() {
                 type="button"
                 onClick={closeOverview}
                 aria-label="Close incident overview"
-                className="rounded-lg p-2 text-slate-400 transition hover:bg-white hover:text-slate-700"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6 sm:p-7">
-
-              {/* Title */}
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Incident Title
-                </p>
-
-                <p className="mt-1 break-words text-lg font-semibold text-slate-900">
-                  {selectedIncident.title || "—"}
-                </p>
-              </div>
-
-              {/* Information Grid */}
-              <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1 p-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
                 {/* Type */}
-                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Incident Type
-                  </p>
+                <div>
+                  <p className="text-xs text-slate-500">Incident Type</p>
 
-                  <p className="mt-2 text-sm font-semibold capitalize text-slate-900">
+                  <p className="mt-1 text-sm font-medium capitalize text-slate-800">
                     {selectedIncident.incident_type ||
                       "—"}
                   </p>
                 </div>
 
                 {/* Severity */}
-                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Severity
-                  </p>
+                <div>
+                  <p className="text-xs text-slate-500">Severity</p>
 
-                  <div className="mt-2">
+                  <div className="mt-1">
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
                         SEVERITY_STYLES[
                           selectedIncident.severity
                         ] ??
@@ -905,14 +965,12 @@ function Incident() {
                 </div>
 
                 {/* Status */}
-                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Status
-                  </p>
+                <div>
+                  <p className="text-xs text-slate-500">Status</p>
 
-                  <div className="mt-2">
+                  <div className="mt-1">
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
                         STATUS_STYLES[
                           selectedIncident.status
                         ] ??
@@ -925,86 +983,50 @@ function Incident() {
                   </div>
                 </div>
 
-                {/* Reported At */}
-                <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Reported At
-                  </p>
 
-                  <p className="mt-2 text-sm font-semibold text-slate-900">
-                    {selectedIncident.reported_at ||
-                    selectedIncident.created_at
-                      ? new Date(
-                          selectedIncident.reported_at ||
-                            selectedIncident.created_at
-                        ).toLocaleString()
-                      : "—"}
+                {/* Date */}
+                <div>
+                  <p className="text-xs text-slate-500">Date</p>
+
+                  <p className="mt-1 text-sm font-medium text-slate-800">
+                    {formatDate(getIncidentDateTime(selectedIncident))}
                   </p>
                 </div>
 
-                {/* Created At */}
-                {/* <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 sm:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Created At
-                  </p>
+                {/* Time */}
+                <div>
+                  <p className="text-xs text-slate-500">Time</p>
 
-                  <p className="mt-2 text-sm font-semibold text-slate-900">
-                    {getCreatedAt(
-                      selectedIncident
-                    ) &&
-                    !Number.isNaN(
-                      new Date(
-                        getCreatedAt(
-                          selectedIncident
-                        )
-                      ).getTime()
-                    )
-                      ? new Date(
-                          getCreatedAt(
-                            selectedIncident
-                          )
-                        ).toLocaleString()
-                      : "—"}
+                  <p className="mt-1 text-sm font-medium text-slate-800">
+                    {formatTime(getIncidentDateTime(selectedIncident))}
                   </p>
-                </div> */}
+                </div>
               </div>
 
               {/* Description */}
-              <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-orange-800">
-                  Description
-                </p>
+              <div className="border-t border-slate-100 pt-4">
+  <h3 className="mb-1 text-sm font-semibold text-slate-700">
+    Description
+  </h3>
 
-                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
-                  {incidents?.data?.description || "No description available."}
-                </p>
-              </div>
+  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">
+    {selectedIncident.description ||
+      selectedIncident.current_situation_summary ||
+      "No description provided."}
+  </p>
+</div>
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-between border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-7">
+            <div className="flex justify-end gap-3 border-t border-slate-200 p-5">
 
-              {/* Edit from Overview */}
-              <button
-                type="button"
-                onClick={() => {
-                  const incident =
-                    selectedIncident;
-
-                  closeOverview();
-                  handleEdit(incident);
-                }}
-                className="flex items-center gap-2 rounded-lg border border-yellow-300 bg-yellow-50 px-5 py-2.5 text-sm font-semibold text-yellow-700 transition hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-yellow-300 focus:ring-offset-2"
-              >
-                <Pencil size={16} />
-                Edit Incident
-              </button>
+            
 
               {/* Close */}
-              <button
+             <button
                 type="button"
                 onClick={closeOverview}
-                className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+                className="rounded-md bg-slate-800 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
                 Close
               </button>

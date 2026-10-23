@@ -26,7 +26,7 @@ function Sidebar({
 
     setOpenMenus((previous) => ({
       ...previous,
-      [label]: !previous[label], 
+      [label]: !previous[label],
     }));
 
   };
@@ -132,10 +132,9 @@ function Sidebar({
           font-medium
           transition
 
-          ${
-            isActive
-              ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
-              : "text-slate-300 hover:bg-white/10 hover:text-white"
+          ${isActive
+            ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
+            : "text-slate-300 hover:bg-white/10 hover:text-white"
           }
         `}
       >
@@ -170,7 +169,7 @@ function Sidebar({
 
 
       <aside
-  className={`
+        className={`
     fixed
     left-0
     top-0
@@ -185,15 +184,14 @@ function Sidebar({
     transition-transform
     duration-300
 
-    ${
-      mobileOpen
-        ? "translate-x-0"
-        : collapsed
-          ? "-translate-x-full"
-          : "-translate-x-full lg:translate-x-0"
-    }
+    ${mobileOpen
+            ? "translate-x-0"
+            : collapsed
+              ? "-translate-x-full"
+              : "-translate-x-full lg:translate-x-0"
+          }
   `}
->
+      >
 
         {/* Logo */}
 
@@ -240,28 +238,6 @@ function Sidebar({
           py-4
         ">
 
-          {/* <div className="
-            rounded-xl
-            bg-white/5
-            p-3
-          ">
-
-             <p className="text-sm font-semibold text-white">
-              {user?.name || "User"}
-            </p> 
-
-            <p className="
-              mt-1
-              text-[11px]
-              uppercase
-              tracking-wider
-              text-blue-300
-            ">
-              {role.replace("_", " ")}
-            </p> 
-
-          </div>  */}
-
         </div>
 
 
@@ -283,43 +259,6 @@ function Sidebar({
           </div>
 
         </nav>
-
-
-        {/* Logout */}
-
-        {/* <div className="
-          shrink-0
-          border-t
-          border-white/10
-          p-3
-        ">
-
-          <button
-            onClick={handleLogout}
-            className="
-              flex
-              w-full
-              items-center
-              gap-3
-              rounded-lg
-              px-3
-              py-3
-              text-sm
-              font-medium
-              text-slate-300
-              transition
-              hover:bg-red-500/10
-              hover:text-red-300
-            "
-          >
-
-            <LogOut size={18} />
-
-            Logout
-
-          </button>
-
-        </div> */}
 
       </aside>
     </>

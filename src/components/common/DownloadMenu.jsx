@@ -52,8 +52,19 @@ function DownloadMenu({ records = [], title, disabled = false, onError }) {
           filename: `${filenameBase}_${date}.xlsx`,
         });
       } else if (format === "csv") {
-        const worksheet = XLSX.utils.json_to_sheet(rows);
-        const csv = XLSX.utils.sheet_to_csv(worksheet);
+const worksheet = XLSX.utils.json_to_sheet(records);
+
+worksheet["!cols"] = Object.keys(records[0] || {}).map((key) => {
+  if (key.toLowerCase().includes("description")) {
+    return { wch: 60 };
+  }
+
+  if (key.toLowerCase().includes("instruction")) {
+    return { wch: 40 };
+  }
+
+  return { wch: 18 };
+});        const csv = XLSX.utils.sheet_to_csv(worksheet);
         const url = URL.createObjectURL(
           new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" })
         );

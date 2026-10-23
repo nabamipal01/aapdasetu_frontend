@@ -764,7 +764,7 @@ export default function Task() {
                             <table className="w-full min-w-[850px] text-left text-sm">
                                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                                     <tr>
-                                        <th className="px-4 py-3 font-semibold">Task ID</th>
+                                        <th className="px-4 py-3 font-semibold">SL.No</th>
                                         <th className="px-4 py-3 font-semibold">Task Title</th>
                                         <th className="px-4 py-3 font-semibold">Incident</th>
 
@@ -792,13 +792,13 @@ export default function Task() {
                                 </thead>
 
                                 <tbody className="divide-y divide-slate-100">
-                                    {tasks.map((task) => (
+                                    {tasks.map((task, index) => (
                                         <tr
                                             key={task.id}
                                             className="transition-colors hover:bg-slate-50"
                                         >
                                             <td className="whitespace-nowrap px-4 py-4 font-medium text-slate-600">
-                                                #{task.id}
+                                                {index + 1}
                                             </td>
 
                                             <td className="min-w-[180px] px-4 py-4">

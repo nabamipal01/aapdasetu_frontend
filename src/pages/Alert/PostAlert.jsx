@@ -874,16 +874,33 @@ function PostAlert() {
               <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
                 {pagination?.total_items ?? alerts.length}
               </span>
-              <DownloadMenu
-                records={alerts}
-                title="Post Alerts"
-                disabled={loading}
-                onError={(err) =>
-                  setError(
-                    err.message || "Failed to download post alerts.",
-                  )
-                }
-              />
+              
+                <DownloadMenu
+                  records={alerts.map((alert, index) => (
+                    console.log(alert),
+                    {
+                    "S.No.": index + 1,
+                    "Alert Title": alert.title,
+                    "Location": alert.location,
+                    "Incident Date & Time": alert.incident_date,
+                    "Situation Summary": alert.current_situation_summary,
+                    "Required Response Actions": Array.isArray(alert.response_action_required)
+                      ? alert.response_action_required.join(", ")
+                      : alert.response_action_required ?? "",
+                  }))}
+                  
+                  title="Post Alerts"
+                  disabled={loading}
+                  onError={(err) =>
+                    setError(
+                      err.message || "Failed to download post alerts.",
+                    )
+                    
+                  }
+                />
+                
+
+              
             </div>
           </div>
 

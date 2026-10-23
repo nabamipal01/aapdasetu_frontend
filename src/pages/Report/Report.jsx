@@ -37,6 +37,21 @@ import {
   getReportActivity,
   getReportAlerts,
 } from "../../services/reportService";
+import {
+  ResponsiveContainer,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -178,13 +193,13 @@ function getExcelRows(value) {
     return value.map((item) =>
       item && typeof item === "object"
         ? Object.fromEntries(
-            Object.entries(withoutCreatedAt(item)).map(([key, fieldValue]) => [
-              key,
-              fieldValue && typeof fieldValue === "object"
-                ? JSON.stringify(fieldValue)
-                : fieldValue,
-            ])
-          )
+          Object.entries(withoutCreatedAt(item)).map(([key, fieldValue]) => [
+            key,
+            fieldValue && typeof fieldValue === "object"
+              ? JSON.stringify(fieldValue)
+              : fieldValue,
+          ])
+        )
         : { Value: item }
     );
   }
@@ -531,14 +546,14 @@ function MetaBadge({ label }) {
 
 function SummaryCard({ icon: Icon, label, value, color = "blue", sub }) {
   const colors = {
-    blue:   "bg-blue-50   text-blue-600   border-blue-100",
+    blue: "bg-blue-50   text-blue-600   border-blue-100",
     indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
-    green:  "bg-green-50  text-green-600  border-green-100",
+    green: "bg-green-50  text-green-600  border-green-100",
     orange: "bg-orange-50 text-orange-600 border-orange-100",
-    red:    "bg-red-50    text-red-600    border-red-100",
+    red: "bg-red-50    text-red-600    border-red-100",
     purple: "bg-purple-50 text-purple-600 border-purple-100",
-    amber:  "bg-amber-50  text-amber-600  border-amber-100",
-    slate:  "bg-slate-50  text-slate-600  border-slate-100",
+    amber: "bg-amber-50  text-amber-600  border-amber-100",
+    slate: "bg-slate-50  text-slate-600  border-slate-100",
   };
   const cls = colors[color] ?? colors.blue;
   return (
@@ -565,6 +580,222 @@ function SectionCard({ title, children }) {
       </div>
       <div className="p-5">{children}</div>
     </div>
+  );
+}
+
+
+const CHART_COLORS = [
+  "#2563eb",
+  "#16a34a",
+  "#f59e0b",
+  "#dc2626",
+  "#7c3aed",
+  "#0891b2",
+  "#db2777",
+  "#64748b",
+];
+
+function normalizeBreakdown(value, labelKey = "name", valueKey = "count") {
+  if (Array.isArray(value)) {
+    return value.map((item) => ({
+      [labelKey]:
+        item[labelKey] ??
+        item.status ??
+        item.priority ??
+        item.type ??
+        item.equipment_type ??
+        item.action ??
+        "Unknown",
+      [valueKey]: Number(item[valueKey] ?? item.count ?? 0) || 0,
+    }));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value).map(([label, count]) => ({
+      [labelKey]: label.replace(/_/g, " "),
+      [valueKey]: Number(count) || 0,
+    }));
+  }
+
+  return [];
+}
+
+function ChartCard({ title, subtitle, children }) {
+  return (
+    <SectionCard title={title}>
+      {subtitle && (
+        <p className="mb-3 text-xs text-slate-500">{subtitle}</p>
+      )}
+      <div className="h-72 w-full min-w-0">
+        {children}
+      </div>
+    </SectionCard>
+  );
+}
+
+function ChartEmpty() {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-slate-400">
+      No chart data available
+    </div>
+  );
+}
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+      {label != null && (
+        <p className="mb-2 text-xs font-semibold capitalize text-slate-700">
+          {String(label).replace(/_/g, " ")}
+        </p>
+      )}
+      {payload.map((entry, index) => (
+        <p
+          key={`${entry.dataKey}-${index}`}
+          className="text-xs text-slate-600"
+        >
+          {entry.name || entry.dataKey}:{" "}
+          <strong>{entry.value ?? 0}</strong>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function ReportBarChart({
+  data,
+  labelKey = "name",
+  valueKey = "count",
+  color = "#2563eb",
+  horizontal = false,
+}) {
+  const chartData = data ?? [];
+
+  if (!chartData.length) return <ChartEmpty />;
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={chartData}
+        layout={horizontal ? "vertical" : "horizontal"}
+        margin={{ top: 8, right: 12, left: 8, bottom: horizontal ? 8 : 35 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+
+        {horizontal ? (
+          <>
+            <XAxis type="number" allowDecimals={false} />
+            <YAxis
+              type="category"
+              dataKey={labelKey}
+              width={115}
+              tick={{ fontSize: 11 }}
+            />
+          </>
+        ) : (
+          <>
+            <XAxis
+              dataKey={labelKey}
+              tick={{ fontSize: 10 }}
+              interval={0}
+              angle={-20}
+              textAnchor="end"
+            />
+            <YAxis allowDecimals={false} />
+          </>
+        )}
+
+        <Tooltip content={<ChartTooltip />} />
+
+        <Bar
+          dataKey={valueKey}
+          name="Count"
+          fill={color}
+          radius={[4, 4, 0, 0]}
+          maxBarSize={48}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ReportPieChart({
+  data,
+  labelKey = "name",
+  valueKey = "count",
+}) {
+  const chartData = (data ?? []).filter(
+    (item) => Number(item[valueKey]) > 0
+  );
+
+  if (!chartData.length) return <ChartEmpty />;
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie
+          data={chartData}
+          dataKey={valueKey}
+          nameKey={labelKey}
+          cx="50%"
+          cy="45%"
+          innerRadius={55}
+          outerRadius={88}
+          paddingAngle={2}
+        >
+          {chartData.map((item, index) => (
+            <Cell
+              key={`${item[labelKey]}-${index}`}
+              fill={CHART_COLORS[index % CHART_COLORS.length]}
+            />
+          ))}
+        </Pie>
+        <Tooltip content={<ChartTooltip />} />
+        <Legend formatter={(value) => String(value).replace(/_/g, " ")} />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ReportLineChart({
+  data,
+  lines = [{ key: "count", label: "Count", color: "#2563eb" }],
+  xKey = "date",
+}) {
+  const chartData = [...(data ?? [])].sort((a, b) =>
+    String(a[xKey] ?? "").localeCompare(String(b[xKey] ?? ""))
+  );
+
+  if (!chartData.length) return <ChartEmpty />;
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart
+        data={chartData}
+        margin={{ top: 8, right: 12, left: 0, bottom: 8 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} />
+        <YAxis allowDecimals={false} />
+        <Tooltip content={<ChartTooltip />} />
+        <Legend />
+
+        {lines.map((line) => (
+          <Line
+            key={line.key}
+            type="monotone"
+            dataKey={line.key}
+            name={line.label}
+            stroke={line.color}
+            strokeWidth={2.5}
+            dot={{ r: 3 }}
+            activeDot={{ r: 5 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -595,14 +826,14 @@ function KVRow({ label, value }) {
 
 function Badge({ children, color = "slate" }) {
   const map = {
-    slate:  "bg-slate-100  text-slate-600",
-    blue:   "bg-blue-100   text-blue-700",
-    green:  "bg-green-100  text-green-700",
+    slate: "bg-slate-100  text-slate-600",
+    blue: "bg-blue-100   text-blue-700",
+    green: "bg-green-100  text-green-700",
     orange: "bg-orange-100 text-orange-700",
-    red:    "bg-red-100    text-red-700",
+    red: "bg-red-100    text-red-700",
     purple: "bg-purple-100 text-purple-700",
     indigo: "bg-indigo-100 text-indigo-700",
-    amber:  "bg-amber-100  text-amber-700",
+    amber: "bg-amber-100  text-amber-700",
   };
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${map[color] ?? map.slate}`}>
@@ -650,13 +881,13 @@ function ReportError({ message }) {
 // ─── TAB DEFINITIONS ─────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "summary",   label: "Executive Summary",  icon: BarChart2,     color: "blue"   },
-  { id: "incidents", label: "Incidents",           icon: AlertTriangle, color: "orange" },
-  { id: "tasks",     label: "Tasks",               icon: ClipboardList, color: "indigo" },
-  { id: "inventory", label: "Inventory",           icon: Package,       color: "green"  },
-  { id: "agencies",  label: "Agencies",            icon: Building2,     color: "purple" },
-  { id: "alerts",    label: "Alerts",              icon: Bell,          color: "red"    },
-  { id: "activity",  label: "Activity Log",        icon: Activity,      color: "slate"  },
+  { id: "summary", label: "Executive Summary", icon: BarChart2, color: "blue" },
+  { id: "incidents", label: "Incidents", icon: AlertTriangle, color: "orange" },
+  { id: "tasks", label: "Tasks", icon: ClipboardList, color: "indigo" },
+  { id: "inventory", label: "Inventory", icon: Package, color: "green" },
+  { id: "agencies", label: "Agencies", icon: Building2, color: "purple" },
+  { id: "alerts", label: "Alerts", icon: Bell, color: "red" },
+  { id: "activity", label: "Activity Log", icon: Activity, color: "slate" },
 ];
 
 // ─── PANEL: EXECUTIVE SUMMARY ─────────────────────────────────────────────────
@@ -684,56 +915,54 @@ function SummaryPanel({ data, onExport }) {
 
       {/* KPI grid */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <SummaryCard icon={AlertTriangle} label="New Incidents"       value={incidents?.new_this_period}   color="orange" sub={`${incidents?.critical ?? 0} critical`} />
-        <SummaryCard icon={CheckCircle2}  label="Resolved Incidents"  value={incidents?.resolved}          color="green"  sub={incidents?.avg_resolution_hours ? `Avg ${incidents.avg_resolution_hours}h` : undefined} />
-        <SummaryCard icon={ClipboardList} label="Total Tasks"         value={tasks?.total}                 color="indigo" sub={`${tasks?.completed ?? 0} completed`} />
-        <SummaryCard icon={XCircle}       label="Overdue Tasks"       value={tasks?.overdue}               color="red"    />
-        <SummaryCard icon={Package}       label="Inventory Items"     value={inventory?.total_items}       color="green"  sub={`Qty: ${inventory?.total_quantity ?? 0}`} />
-        <SummaryCard icon={ShieldAlert}   label="Expiring Soon"       value={inventory?.expiring_soon}     color="amber"  sub={`Expired: ${inventory?.expired ?? 0}`} />
-        <SummaryCard icon={Building2}     label="Active Agencies"     value={agencies?.active}             color="purple" sub={`Total: ${agencies?.total ?? 0}`} />
-        <SummaryCard icon={Bell}          label="Pre-Alerts"          value={alerts?.pre_alerts_this_period}  color="orange" />
-        <SummaryCard icon={Activity}      label="Total Actions"       value={activity?.total_actions_this_period} color="slate" sub={`${activity?.unique_active_users ?? 0} active users`} />
+        <SummaryCard icon={AlertTriangle} label="New Incidents" value={incidents?.new_this_period} color="orange" sub={`${incidents?.critical ?? 0} critical`} />
+        <SummaryCard icon={CheckCircle2} label="Resolved Incidents" value={incidents?.resolved} color="green" sub={incidents?.avg_resolution_hours ? `Avg ${incidents.avg_resolution_hours}h` : undefined} />
+        <SummaryCard icon={ClipboardList} label="Total Tasks" value={tasks?.total} color="indigo" sub={`${tasks?.completed ?? 0} completed`} />
+        <SummaryCard icon={XCircle} label="Overdue Tasks" value={tasks?.overdue} color="red" />
+        <SummaryCard icon={Package} label="Inventory Items" value={inventory?.total_items} color="green" sub={`Qty: ${inventory?.total_quantity ?? 0}`} />
+        <SummaryCard icon={ShieldAlert} label="Expiring Soon" value={inventory?.expiring_soon} color="amber" sub={`Expired: ${inventory?.expired ?? 0}`} />
+        <SummaryCard icon={Building2} label="Active Agencies" value={agencies?.active} color="purple" sub={`Total: ${agencies?.total ?? 0}`} />
+        <SummaryCard icon={Bell} label="Pre-Alerts" value={alerts?.pre_alerts_this_period} color="orange" />
+        <SummaryCard icon={Activity} label="Total Actions" value={activity?.total_actions_this_period} color="slate" sub={`${activity?.unique_active_users ?? 0} active users`} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {/* Incidents by type */}
-        {incidents?.by_type && Object.keys(incidents.by_type).length > 0 && (
-          <SectionCard title="Incidents by Type">
-            {Object.entries(incidents.by_type).map(([type, count]) => (
-              <KVRow key={type} label={type.replace(/_/g, " ")} value={count} />
-            ))}
-          </SectionCard>
-        )}
-        {/* Incidents by severity */}
-        {incidents?.by_severity && Object.keys(incidents.by_severity).length > 0 && (
-          <SectionCard title="Incidents by Severity">
-            {Object.entries(incidents.by_severity).map(([sev, count]) => (
-              <div key={sev} className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0">
-                <Badge color={severityColor(sev)}>{sev}</Badge>
-                <span className="text-sm font-semibold text-slate-800">{count}</span>
-              </div>
-            ))}
-          </SectionCard>
-        )}
-        {/* Tasks by status */}
-        {Array.isArray(tasks?.by_status) && tasks.by_status.length > 0 && (
-          <SectionCard title="Tasks by Status">
-            {tasks.by_status.map(({ status, count }) => (
-              <div key={status} className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0">
-                <Badge color={statusColor(status)}>{status.replace(/_/g, " ")}</Badge>
-                <span className="text-sm font-semibold text-slate-800">{count}</span>
-              </div>
-            ))}
-          </SectionCard>
-        )}
-        {/* Agencies by type */}
-        {agencies?.by_type && Object.keys(agencies.by_type).length > 0 && (
-          <SectionCard title="Agencies by Type">
-            {Object.entries(agencies.by_type).map(([type, count]) => (
-              <KVRow key={type} label={type.toUpperCase()} value={count} />
-            ))}
-          </SectionCard>
-        )}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ChartCard title="Incidents by Severity">
+          <ReportPieChart
+            data={normalizeBreakdown(
+              incidents?.by_severity,
+              "severity",
+              "count"
+            )}
+            labelKey="severity"
+          />
+        </ChartCard>
+
+        <ChartCard title="Incidents by Type">
+          <ReportBarChart
+            data={normalizeBreakdown(incidents?.by_type, "type", "count")}
+            labelKey="type"
+            horizontal
+            color="#ea580c"
+          />
+        </ChartCard>
+
+        <ChartCard title="Tasks by Status">
+          <ReportPieChart
+            data={normalizeBreakdown(tasks?.by_status, "status", "count")}
+            labelKey="status"
+          />
+        </ChartCard>
+
+        <ChartCard title="Agencies by Type">
+          <ReportBarChart
+            data={normalizeBreakdown(agencies?.by_type, "type", "count")}
+            labelKey="type"
+            horizontal
+            color="#7c3aed"
+          />
+        </ChartCard>
       </div>
     </div>
   );
@@ -751,53 +980,50 @@ function IncidentsPanel({ data, sourceData, onView, tableTools }) {
       {meta && <MetaBadge label={meta.period_label} />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={AlertTriangle} label="Total Incidents"      value={summary?.total}               color="orange" />
-        <SummaryCard icon={CheckCircle2}  label="Resolved"             value={summary?.resolved_count}      color="green"  />
-        <SummaryCard icon={Clock}         label="Avg Resolution (hrs)" value={fmt(summary?.avg_resolution_hours)} color="blue" />
-        <SummaryCard icon={TrendingUp}    label="This Period"          value={summary?.total}               color="indigo" />
+        <SummaryCard icon={AlertTriangle} label="Total Incidents" value={summary?.total} color="orange" />
+        <SummaryCard icon={CheckCircle2} label="Resolved" value={summary?.resolved_count} color="green" />
+        <SummaryCard icon={Clock} label="Avg Resolution (hrs)" value={fmt(summary?.avg_resolution_hours)} color="blue" />
+        <SummaryCard icon={TrendingUp} label="This Period" value={summary?.total} color="indigo" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* By type */}
-        {summary?.by_type && Object.keys(summary.by_type).length > 0 && (
-          <SectionCard title="By Incident Type">
-            {Object.entries(summary.by_type).map(([type, count]) => (
-              <KVRow key={type} label={type.replace(/_/g, " ")} value={count} />
-            ))}
-          </SectionCard>
-        )}
-        {/* By severity */}
-        {summary?.by_severity && Object.keys(summary.by_severity).length > 0 && (
-          <SectionCard title="By Severity">
-            {Object.entries(summary.by_severity).map(([sev, count]) => (
-              <div key={sev} className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0">
-                <Badge color={severityColor(sev)}>{sev}</Badge>
-                <span className="text-sm font-semibold text-slate-800">{count}</span>
-              </div>
-            ))}
-          </SectionCard>
-        )}
-        {/* By status */}
-        {summary?.by_status && Object.keys(summary.by_status).length > 0 && (
-          <SectionCard title="By Status">
-            {Object.entries(summary.by_status).map(([st, count]) => (
-              <div key={st} className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0">
-                <Badge color={statusColor(st)}>{st.replace(/_/g, " ")}</Badge>
-                <span className="text-sm font-semibold text-slate-800">{count}</span>
-              </div>
-            ))}
-          </SectionCard>
-        )}
-        {/* Daily trend */}
-        {trend.length > 0 && (
-          <SectionCard title="Daily Trend">
-            <div className="space-y-3">
-              {trend.map((t) => (
-                <TrendBar key={t.date} date={t.date} count={t.count} max={maxTrend} />
-              ))}
-            </div>
-          </SectionCard>
-        )}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ChartCard title="Daily Incident Trend">
+          <ReportLineChart
+            data={trend}
+            lines={[
+              {
+                key: "count",
+                label: "Incidents Reported",
+                color: "#2563eb",
+              },
+            ]}
+          />
+        </ChartCard>
+
+        <ChartCard title="Incidents by Severity">
+          <ReportBarChart
+            data={normalizeBreakdown(summary?.by_severity, "severity", "count")}
+            labelKey="severity"
+            color="#dc2626"
+          />
+        </ChartCard>
+
+        <ChartCard title="Incidents by Type">
+          <ReportBarChart
+            data={normalizeBreakdown(summary?.by_type, "type", "count")}
+            labelKey="type"
+            horizontal
+            color="#ea580c"
+          />
+        </ChartCard>
+
+        <ChartCard title="Incidents by Status">
+          <ReportPieChart
+            data={normalizeBreakdown(summary?.by_status, "status", "count")}
+            labelKey="status"
+          />
+        </ChartCard>
       </div>
 
       {/* Incidents table */}
@@ -859,45 +1085,44 @@ function TasksPanel({ data, sourceData, onView, tableTools }) {
       {meta && <MetaBadge label={meta.period_label} />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={ClipboardList} label="Total Tasks"       value={summary?.total}                 color="indigo" />
-        <SummaryCard icon={CheckCircle2}  label="Completed"         value={summary?.completion_rate_pct != null ? `${summary.completion_rate_pct}%` : "—"} color="green" />
-        <SummaryCard icon={XCircle}       label="Overdue"           value={summary?.overdue_count}         color="red"    />
-        <SummaryCard icon={Clock}         label="Avg Completion"    value={summary?.avg_completion_hours ? `${summary.avg_completion_hours}h` : "—"} color="blue" />
+        <SummaryCard icon={ClipboardList} label="Total Tasks" value={summary?.total} color="indigo" />
+        <SummaryCard icon={CheckCircle2} label="Completed" value={summary?.completion_rate_pct != null ? `${summary.completion_rate_pct}%` : "—"} color="green" />
+        <SummaryCard icon={XCircle} label="Overdue" value={summary?.overdue_count} color="red" />
+        <SummaryCard icon={Clock} label="Avg Completion" value={summary?.avg_completion_hours ? `${summary.avg_completion_hours}h` : "—"} color="blue" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* By status */}
-        {Array.isArray(summary?.by_status) && summary.by_status.length > 0 && (
-          <SectionCard title="By Status">
-            {summary.by_status.map(({ status, count }) => (
-              <div key={status} className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0">
-                <Badge color={statusColor(status)}>{status.replace(/_/g, " ")}</Badge>
-                <span className="text-sm font-semibold text-slate-800">{count}</span>
-              </div>
-            ))}
-          </SectionCard>
-        )}
-        {/* By priority */}
-        {Array.isArray(summary?.by_priority) && summary.by_priority.length > 0 && (
-          <SectionCard title="By Priority">
-            {summary.by_priority.map(({ priority, count }) => (
-              <div key={priority} className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0">
-                <Badge color={priorityColor(priority)}>{priority}</Badge>
-                <span className="text-sm font-semibold text-slate-800">{count}</span>
-              </div>
-            ))}
-          </SectionCard>
-        )}
-        {/* Trend */}
-        {trend.length > 0 && (
-          <SectionCard title="Daily Trend">
-            <div className="space-y-3">
-              {trend.map((t) => (
-                <TrendBar key={t.date} date={t.date} count={t.count} max={maxTrend} />
-              ))}
-            </div>
-          </SectionCard>
-        )}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ChartCard title="Tasks by Status">
+          <ReportPieChart
+            data={normalizeBreakdown(summary?.by_status, "status", "count")}
+            labelKey="status"
+          />
+        </ChartCard>
+
+        <ChartCard title="Tasks by Priority">
+          <ReportBarChart
+            data={normalizeBreakdown(summary?.by_priority, "priority", "count")}
+            labelKey="priority"
+            color="#7c3aed"
+          />
+        </ChartCard>
+
+        <ChartCard
+          title="Daily Task Trend"
+          subtitle="Uses the daily count returned by your report API."
+        >
+          <ReportLineChart
+            data={trend}
+            lines={[
+              {
+                key: "count",
+                label: "Tasks",
+                color: "#4f46e5",
+              },
+            ]}
+          />
+        </ChartCard>
       </div>
 
       {sourceData?.tasks?.length > 0 && (
@@ -949,29 +1174,40 @@ function InventoryPanel({ data, sourceData, onView, tableTools }) {
       {meta && <MetaBadge label={meta.period_label} />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <SummaryCard icon={Package}        label="Total Items"       value={summary?.total_items}    color="green"  />
-        <SummaryCard icon={TrendingUp}     label="Total Quantity"    value={summary?.total_quantity} color="blue"   />
-        <SummaryCard icon={TrendingDown}   label="Total Issued"      value={summary?.total_issued}   color="indigo" />
-        <SummaryCard icon={RefreshCw}      label="Total Returned"    value={summary?.total_returned} color="purple" />
-        <SummaryCard icon={Clock}          label="Expiring Soon"     value={summary?.expiring_soon}  color="amber"  />
-        <SummaryCard icon={XCircle}        label="Expired"           value={summary?.expired}        color="red"    />
+        <SummaryCard icon={Package} label="Total Items" value={summary?.total_items} color="green" />
+        <SummaryCard icon={TrendingUp} label="Total Quantity" value={summary?.total_quantity} color="blue" />
+        <SummaryCard icon={TrendingDown} label="Total Issued" value={summary?.total_issued} color="indigo" />
+        <SummaryCard icon={RefreshCw} label="Total Returned" value={summary?.total_returned} color="purple" />
+        <SummaryCard icon={Clock} label="Expiring Soon" value={summary?.expiring_soon} color="amber" />
+        <SummaryCard icon={XCircle} label="Expired" value={summary?.expired} color="red" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* By equipment type */}
-        {by_equipment.length > 0 && (
-          <SectionCard title="By Equipment Type">
-            {by_equipment.map((eq) => (
-              <div key={eq.equipment_type} className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0">
-                <span className="text-sm text-slate-600">{eq.equipment_type}</span>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="text-slate-400">{eq.item_count} items</span>
-                  <span className="font-semibold text-slate-800">Qty: {eq.total_qty}</span>
-                </div>
-              </div>
-            ))}
-          </SectionCard>
-        )}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ChartCard title="Quantity by Equipment Type">
+          <ReportBarChart
+            data={by_equipment.map((item) => ({
+              type: item.equipment_type || "Unknown",
+              quantity: Number(item.total_qty) || 0,
+            }))}
+            labelKey="type"
+            valueKey="quantity"
+            horizontal
+            color="#16a34a"
+          />
+        </ChartCard>
+
+        <ChartCard title="Inventory Items by Equipment Type">
+          <ReportBarChart
+            data={by_equipment.map((item) => ({
+              type: item.equipment_type || "Unknown",
+              items: Number(item.item_count) || 0,
+            }))}
+            labelKey="type"
+            valueKey="items"
+            color="#0891b2"
+          />
+        </ChartCard>
       </div>
 
       {sourceData?.items?.length > 0 && (
@@ -1036,29 +1272,33 @@ function AgenciesPanel({ data, sourceData, onView, tableTools }) {
       {meta && <MetaBadge label={meta.period_label} />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={Building2}   label="Total Agencies"     value={summary?.total}            color="purple" />
-        <SummaryCard icon={CheckCircle2} label="Active"            value={summary?.active}           color="green"  />
-        <SummaryCard icon={Clock}        label="Inactive"          value={summary?.inactive}         color="slate"  />
-        <SummaryCard icon={ShieldAlert}  label="Pending Approval"  value={summary?.pending_approval} color="amber"  />
+        <SummaryCard icon={Building2} label="Total Agencies" value={summary?.total} color="purple" />
+        <SummaryCard icon={CheckCircle2} label="Active" value={summary?.active} color="green" />
+        <SummaryCard icon={Clock} label="Inactive" value={summary?.inactive} color="slate" />
+        <SummaryCard icon={ShieldAlert} label="Pending Approval" value={summary?.pending_approval} color="amber" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {summary?.by_type && Array.isArray(summary.by_type) && summary.by_type.length > 0 && (
-          <SectionCard title="By Agency Type">
-            {summary.by_type.map(({ type, count }) => (
-              <KVRow key={type} label={type?.toUpperCase() ?? "—"} value={count} />
-            ))}
-          </SectionCard>
-        )}
-        {trend.length > 0 && (
-          <SectionCard title="Daily Trend">
-            <div className="space-y-3">
-              {trend.map((t) => (
-                <TrendBar key={t.date} date={t.date} count={t.count} max={maxTrend} />
-              ))}
-            </div>
-          </SectionCard>
-        )}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ChartCard title="Agencies by Type">
+          <ReportPieChart
+            data={normalizeBreakdown(summary?.by_type, "type", "count")}
+            labelKey="type"
+          />
+        </ChartCard>
+
+        <ChartCard title="Agency Registration Trend">
+          <ReportLineChart
+            data={trend}
+            lines={[
+              {
+                key: "count",
+                label: "Agencies",
+                color: "#7c3aed",
+              },
+            ]}
+          />
+        </ChartCard>
       </div>
 
       {sourceData?.agencies?.length > 0 && (
@@ -1113,46 +1353,44 @@ function AlertsPanel({ data, sourceData, onView, tableTools }) {
       {meta && <MetaBadge label={meta.period_label} />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={Bell}         label="Pre-Alerts"        value={summary?.total_pre_alerts}        color="orange" />
-        <SummaryCard icon={ShieldAlert}  label="Post-Alerts"       value={summary?.total_post_alerts}       color="red"    />
-        <SummaryCard icon={Package}      label="Post-Alert Photos" value={summary?.total_post_alert_photos} color="blue"   />
+        <SummaryCard icon={Bell} label="Pre-Alerts" value={summary?.total_pre_alerts} color="orange" />
+        <SummaryCard icon={ShieldAlert} label="Post-Alerts" value={summary?.total_post_alerts} color="red" />
+        <SummaryCard icon={Package} label="Post-Alert Photos" value={summary?.total_post_alert_photos} color="blue" />
       </div>
 
-      {summary?.response_actions_breakdown && Object.keys(summary.response_actions_breakdown).length > 0 && (
-        <SectionCard title="Response Actions Breakdown">
-          {Object.entries(summary.response_actions_breakdown).map(([action, count]) => (
-            <KVRow key={action} label={action} value={count} />
-          ))}
-        </SectionCard>
-      )}
 
-      {trend.length > 0 && (
-        <SectionCard title="Daily Trend (Pre vs Post Alerts)">
-          <div className="space-y-3">
-            {trend.map((t) => (
-              <div key={t.date} className="flex items-start gap-3">
-                <span className="w-24 shrink-0 pt-0.5 text-xs text-slate-500">{fmtDateOnly(t.date)}</span>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-14 text-[10px] text-slate-400">Pre</span>
-                    <div className="flex-1 rounded-full bg-orange-100">
-                      <div className="h-1.5 rounded-full bg-orange-400" style={{ width: `${Math.round(((t.pre_alerts ?? 0) / maxTrend) * 100)}%` }} />
-                    </div>
-                    <span className="w-4 text-right text-xs font-semibold text-slate-700">{t.pre_alerts ?? 0}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-14 text-[10px] text-slate-400">Post</span>
-                    <div className="flex-1 rounded-full bg-red-100">
-                      <div className="h-1.5 rounded-full bg-red-500" style={{ width: `${Math.round(((t.post_alerts ?? 0) / maxTrend) * 100)}%` }} />
-                    </div>
-                    <span className="w-4 text-right text-xs font-semibold text-slate-700">{t.post_alerts ?? 0}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      )}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ChartCard title="Pre-Alerts vs Post-Alerts">
+          <ReportLineChart
+            data={trend}
+            lines={[
+              {
+                key: "pre_alerts",
+                label: "Pre-Alerts",
+                color: "#f59e0b",
+              },
+              {
+                key: "post_alerts",
+                label: "Post-Alerts",
+                color: "#dc2626",
+              },
+            ]}
+          />
+        </ChartCard>
+
+        <ChartCard title="Response Actions Breakdown">
+          <ReportBarChart
+            data={normalizeBreakdown(
+              summary?.response_actions_breakdown,
+              "action",
+              "count"
+            )}
+            labelKey="action"
+            horizontal
+            color="#ea580c"
+          />
+        </ChartCard>
+      </div>
 
       {sourceData?.pre_alerts?.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-orange-100 bg-white shadow-sm">
@@ -1232,48 +1470,61 @@ function ActivityPanel({ data, sourceData, onView, tableTools }) {
       {meta && <MetaBadge label={meta.period_label} />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <SummaryCard icon={Activity}    label="Total Actions"   value={summary?.total_actions} color="slate"  />
-        <SummaryCard icon={Users}       label="Unique Users"    value={summary?.unique_users}  color="blue"   />
+        <SummaryCard icon={Activity} label="Total Actions" value={summary?.total_actions} color="slate" />
+        <SummaryCard icon={Users} label="Unique Users" value={summary?.unique_users} color="blue" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Top actions */}
-        {Array.isArray(summary?.top_actions) && summary.top_actions.length > 0 && (
-          <SectionCard title="Top Actions">
-            {summary.top_actions.map(({ action, count }) => (
-              <div key={action} className="flex items-center justify-between border-b border-slate-50 py-2 last:border-0">
-                <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-600">{action}</span>
-                <span className="text-sm font-semibold text-slate-800">{count}</span>
-              </div>
-            ))}
-          </SectionCard>
-        )}
-        {/* Top entities */}
-        {Array.isArray(summary?.top_entities) && summary.top_entities.length > 0 && (
-          <SectionCard title="Top Entities">
-            {summary.top_entities.map(({ entity_type, count }) => (
-              <KVRow key={entity_type} label={entity_type} value={count} />
-            ))}
-          </SectionCard>
-        )}
-        {/* By user type */}
-        {summary?.by_user_type && Object.keys(summary.by_user_type).length > 0 && (
-          <SectionCard title="By User Type">
-            {Object.entries(summary.by_user_type).map(([type, count]) => (
-              <KVRow key={type} label={type} value={count} />
-            ))}
-          </SectionCard>
-        )}
-        {/* Daily trend */}
-        {trend.length > 0 && (
-          <SectionCard title="Daily Trend">
-            <div className="space-y-3">
-              {trend.map((t) => (
-                <TrendBar key={t.date} date={t.date} count={t.count} max={maxTrend} />
-              ))}
-            </div>
-          </SectionCard>
-        )}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ChartCard title="Activity Over Time">
+          <ReportLineChart
+            data={trend}
+            lines={[
+              {
+                key: "count",
+                label: "Actions",
+                color: "#64748b",
+              },
+            ]}
+          />
+        </ChartCard>
+
+        <ChartCard title="Most Frequent Actions">
+          <ReportBarChart
+            data={normalizeBreakdown(
+              summary?.top_actions,
+              "action",
+              "count"
+            )}
+            labelKey="action"
+            horizontal
+            color="#2563eb"
+          />
+        </ChartCard>
+
+        <ChartCard title="Actions by User Type">
+          <ReportPieChart
+            data={normalizeBreakdown(
+              summary?.by_user_type,
+              "user_type",
+              "count"
+            )}
+            labelKey="user_type"
+          />
+        </ChartCard>
+
+        <ChartCard title="Actions by Entity">
+          <ReportBarChart
+            data={normalizeBreakdown(
+              summary?.top_entities,
+              "entity_type",
+              "count"
+            )}
+            labelKey="entity_type"
+            horizontal
+            color="#0891b2"
+          />
+        </ChartCard>
       </div>
 
       {sourceData?.logs?.length > 0 && (
@@ -1323,20 +1574,20 @@ function ActivityPanel({ data, sourceData, onView, tableTools }) {
 // ─── SERVICE MAP ──────────────────────────────────────────────────────────────
 
 const FETCHERS = {
-  summary:   getReportSummary,
+  summary: getReportSummary,
   incidents: getReportIncidents,
-  tasks:     getReportTasks,
+  tasks: getReportTasks,
   inventory: getReportInventory,
-  agencies:  getReportAgencies,
-  alerts:    getReportAlerts,
-  activity:  getReportActivity,
+  agencies: getReportAgencies,
+  alerts: getReportAlerts,
+  activity: getReportActivity,
 };
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 function Report() {
-  const [activeTab, setActiveTab]   = useState("summary");
-  const [tabStates, setTabStates]   = useState({}); // { [tabId]: { data, loading, error } }
+  const [activeTab, setActiveTab] = useState("summary");
+  const [tabStates, setTabStates] = useState({}); // { [tabId]: { data, loading, error } }
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState("all");
   const [month, setMonth] = useState(() => {
@@ -1392,12 +1643,12 @@ function Report() {
   }, [activeTab, fetchTab]);
 
   const handleTabChange = (tabId) => setActiveTab(tabId);
-  const handleRefresh   = ()      => fetchTab(activeTab, true);
+  const handleRefresh = () => fetchTab(activeTab, true);
 
-  const current     = tabStates[activeTab] ?? {};
-  const activeData  = current.data    ?? null;
-  const isLoading   = current.loading ?? false;
-  const activeError = current.error   ?? "";
+  const current = tabStates[activeTab] ?? {};
+  const activeData = current.data ?? null;
+  const isLoading = current.loading ?? false;
+  const activeError = current.error ?? "";
   const filteredData = useMemo(
     () =>
       filterReportData(activeData, "", {
@@ -1410,33 +1661,33 @@ function Report() {
     [activeData, search, period, month, fromDate, toDate]
   );
   const handleFilterChange = (field, value) => {
-      const setters = {
-        search: setSearch,
-        period: setPeriod,
-        month: setMonth,
-        fromDate: setFromDate,
-        toDate: setToDate,
-      };
-      setters[field]?.(value);
+    const setters = {
+      search: setSearch,
+      period: setPeriod,
+      month: setMonth,
+      fromDate: setFromDate,
+      toDate: setToDate,
+    };
+    setters[field]?.(value);
   };
 
   const handleExport = (format, rows, title) => {
-      try {
-        exportReportRows(format, rows, title);
-        setExportError("");
-      } catch (error) {
-        console.error(`[MIS Report] ${format.toUpperCase()} export failed:`, error);
-        setExportError(
-          error?.message || `Unable to download this report as ${format.toUpperCase()}.`
-        );
-      }
+    try {
+      exportReportRows(format, rows, title);
+      setExportError("");
+    } catch (error) {
+      console.error(`[MIS Report] ${format.toUpperCase()} export failed:`, error);
+      setExportError(
+        error?.message || `Unable to download this report as ${format.toUpperCase()}.`
+      );
+    }
   };
 
   const tableTools = {
-      filters: { search, period, month, fromDate, toDate },
-      onFilterChange: handleFilterChange,
-      onExport: handleExport,
-      error: exportError,
+    filters: { search, period, month, fromDate, toDate },
+    onFilterChange: handleFilterChange,
+    onExport: handleExport,
+    error: exportError,
   };
 
   return (
@@ -1482,11 +1733,10 @@ function Report() {
                   key={tab.id}
                   type="button"
                   onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all whitespace-nowrap ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-                  }`}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all whitespace-nowrap ${isActive
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                    }`}
                 >
                   <Icon size={16} />
                   {tab.label}
@@ -1515,13 +1765,13 @@ function Report() {
             <Spinner />
           ) : (
             <>
-              {activeTab === "summary"   && <SummaryPanel   data={filteredData} onExport={handleExport} />}
+              {activeTab === "summary" && <SummaryPanel data={filteredData} onExport={handleExport} />}
               {activeTab === "incidents" && <IncidentsPanel data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
-              {activeTab === "tasks"     && <TasksPanel     data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
+              {activeTab === "tasks" && <TasksPanel data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
               {activeTab === "inventory" && <InventoryPanel data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
-              {activeTab === "agencies"  && <AgenciesPanel  data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
-              {activeTab === "alerts"    && <AlertsPanel    data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
-              {activeTab === "activity"  && <ActivityPanel  data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
+              {activeTab === "agencies" && <AgenciesPanel data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
+              {activeTab === "alerts" && <AlertsPanel data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
+              {activeTab === "activity" && <ActivityPanel data={filteredData} sourceData={activeData} onView={setSelectedRecord} tableTools={tableTools} />}
             </>
           )}
         </div>
