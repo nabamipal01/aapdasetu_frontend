@@ -428,13 +428,17 @@ function PostAlert() {
 
         await loadAlerts();
       } else {
-        setError(result.message || "Unable to create post alert.");
+        setError(
+          result.message ||
+            "Unable to create post alert.",
+        );
       }
     } catch (err) {
       console.error(err);
 
       setError(
         err?.response?.data?.message ||
+          err.message ||
           "Something went wrong while creating the alert.",
       );
     } finally {

@@ -1892,7 +1892,7 @@ if (!hasTrainingAccess && !isOperationalUser(user)) {
                     </p>
                   </div> */}
 
-                <div className="rounded-xl bg-slate-50 p-4">
+                {/* <div className="rounded-xl bg-slate-50 p-4">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     Updated At
                   </p>
@@ -1900,7 +1900,7 @@ if (!hasTrainingAccess && !isOperationalUser(user)) {
                   <p className="mt-2 text-xs font-medium text-slate-700">
                     {viewTraining.updated_at || "N/A"}
                   </p>
-                </div>
+                </div> */}
               </div>
             </div>
 

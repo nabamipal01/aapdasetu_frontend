@@ -338,7 +338,22 @@ const userMenus = {
     ],
   },
 
-  block: null,
+  block: {
+    label: "Users",
+    icon: MapPinned,
+    children: [
+      {
+        label: "Volunteers",
+        icon: Users,
+        path: "/volunteers",
+      },
+      {
+        label: "NGO",
+        icon: HandHelping,
+        path: "/ngo",
+      },
+    ],
+  },
 };
 
 // Menus available to NGO and Volunteer users.
@@ -359,7 +374,7 @@ const getOperationalMenus = () => {
   ];
 
   const sosMenu = {
-    label: "SOS Emergency",
+    label: "SOS",
     icon: Siren,
     path: "/emergency",
   };
@@ -397,6 +412,14 @@ export const getMenuForUser = (user) => {
   }
 
   const menus = commonMenus.filter((menu) => {
+  if (
+    menu.label === "Dashboard" &&
+    role !== "super_admin" &&
+    role !== "admin"
+  ) {
+    return false;
+  }
+
   if (
     menu.label === "Inventory" &&
     role !== "super_admin" &&

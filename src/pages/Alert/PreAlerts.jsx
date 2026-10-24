@@ -164,7 +164,10 @@ const canManage = canManageAlerts(user);
 
  
 
-  const resetForm = () => { setForm(EMPTY_FORM); setShowForm(false); };
+  const resetForm = () => {
+    setForm({ ...EMPTY_FORM });
+    setShowForm(false);
+  };
 
  
 
@@ -441,7 +444,16 @@ const canManage = canManageAlerts(user);
             </button>
 
             {canManage && (
-              <button onClick={() => { setShowForm(!showForm); setError(""); setSuccess(""); }}
+              <button onClick={() => {
+                if (showForm) {
+                  resetForm();
+                } else {
+                  setForm({ ...EMPTY_FORM });
+                  setShowForm(true);
+                }
+                setError("");
+                setSuccess("");
+              }}
                 className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
                 {showForm ? <><X size={15} /> Cancel</> : <><Plus size={15} /> Create Alert</>}
               </button>

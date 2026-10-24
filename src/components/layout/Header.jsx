@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../../config/Config";
+import { isOperationalUser } from "../../utils/roles";
 import {
   ALERT_NOTIFICATIONS_EVENT,
   getAlertNotifications,
@@ -290,8 +291,7 @@ function Header({
       {/* Right Side */}
       <div className="flex items-center gap-2 sm:gap-4">
 
-        {/* SOS Emergency Button — hidden for volunteer / NGO roles */}
-        {!hideNav && (
+        {!isOperationalUser(user) && (
           <button
             onClick={() => navigate("/emergency")}
             className="
@@ -319,7 +319,7 @@ function Header({
             <Siren size={18} />
 
             <span className="hidden sm:inline">
-              SOS Emergency
+              SOS
             </span>
 
             <span className="sm:hidden">

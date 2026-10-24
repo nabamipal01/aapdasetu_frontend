@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-import { GeoJSON, WMSTileLayer } from "react-leaflet";
+import { GeoJSON, WMSTileLayer, useMapEvents } from "react-leaflet";
 
 import L from "leaflet";
 
-import useGeoJSONData from "../../hooks/useGeoJSONData";
+import useGeoJSONData from "../../hooks/useGEOJsonData";
 
  
 
@@ -206,6 +206,138 @@ function getRainfallColor(precipitationMm) {
 
  
 
+function RainfallPointWeather({ onWeatherChange }) {
+
+  const [location, setLocation] = useState(null);
+
+  const [weather, setWeather] = useState(null);
+
+  const [loading, setLoading] = useState(false);
+
+  const [error, setError] = useState("");
+
+  const requestRef = useRef(null);
+
+ 
+
+  useEffect(
+
+    () => () => {
+
+      requestRef.current?.abort();
+
+    },
+
+    []
+
+  );
+
+ 
+
+  useEffect(() => {
+
+    onWeatherChange?.({ location, weather, loading, error });
+
+  }, [location, weather, loading, error, onWeatherChange]);
+
+ 
+
+  useMapEvents({
+
+    click: async ({ latlng }) => {
+
+      requestRef.current?.abort();
+
+      const controller = new AbortController();
+
+      requestRef.current = controller;
+
+      setLocation(latlng);
+
+      setWeather(null);
+
+      setError("");
+
+      setLoading(true);
+
+ 
+
+      const query = new URLSearchParams({
+
+        latitude: String(latlng.lat),
+
+        longitude: String(latlng.lng),
+
+        current:
+
+          "temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m",
+
+        timezone: "auto",
+
+      });
+
+ 
+
+      try {
+
+        const response = await fetch(`${FORECAST_URL}?${query}`, {
+
+          signal: controller.signal,
+
+        });
+
+        if (!response.ok) {
+
+          throw new Error(`Weather service returned HTTP ${response.status}.`);
+
+        }
+
+ 
+
+        const result = await response.json();
+
+        if (!result?.current || !result?.current_units) {
+
+          throw new Error("Weather service returned incomplete point data.");
+
+        }
+
+ 
+
+        if (!controller.signal.aborted) {
+
+          setWeather(result);
+
+        }
+
+      } catch (weatherError) {
+
+        if (weatherError.name !== "AbortError" && !controller.signal.aborted) {
+
+          console.error("Point weather fetch error:", weatherError);
+
+          setError("Unable to load weather for this location. Please try again.");
+
+        }
+
+      } finally {
+
+        if (!controller.signal.aborted) setLoading(false);
+
+      }
+
+    },
+
+  });
+
+ 
+
+  return null;
+
+}
+
+ 
+
 export default function RainfallForecastLayer({
 
   mapMode,
@@ -223,6 +355,8 @@ export default function RainfallForecastLayer({
   onForecastStatus,
 
   onHistoricalLayerError,
+
+  onPointWeatherChange,
 
 }) {
 
@@ -628,13 +762,27 @@ export default function RainfallForecastLayer({
 
  
 
-  if (!data) return null;
+  if (!data) {
+
+    return mapMode === "rainfall" ? (
+
+      <RainfallPointWeather onWeatherChange={onPointWeatherChange} />
+
+    ) : null;
+
+  }
 
  
 
   return (
 
     <>
+
+      {mapMode === "rainfall" && (
+
+        <RainfallPointWeather onWeatherChange={onPointWeatherChange} />
+
+      )}
 
       {mapMode === "historical" && historicalEventLayer && (
 

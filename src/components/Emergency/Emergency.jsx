@@ -37,6 +37,8 @@ import {
 } from "lucide-react";
 
 import { sendEmergencyEmail } from "../../services";
+import { useAuth } from "../../context/AuthContext";
+import { getUserRole } from "../../utils/roles";
 
  
 
@@ -173,6 +175,10 @@ const departmentEmails = [
  
 
 function Emergency() {
+  const { user } = useAuth();
+  const role = getUserRole(user);
+  const canSendEmergencyEmail =
+    role === "super_admin" || role === "admin";
 
   const [selectedDepartment, setSelectedDepartment] = useState(null);
 
@@ -794,27 +800,19 @@ function Emergency() {
 
  
 
-          <button
-
-            type="button"
-
-            onClick={() => {
-
-              setEmailMessage(null);
-
-              setIsEmailDialogOpen(true);
-
-            }}
-
-            className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-
-          >
-
-            <Mail size={17} />
-
-            Send Emergency Email
-
-          </button>
+          {canSendEmergencyEmail && (
+            <button
+              type="button"
+              onClick={() => {
+                setEmailMessage(null);
+                setIsEmailDialogOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            >
+              <Mail size={17} />
+              Send Emergency Email
+            </button>
+          )}
 
         </div>
 

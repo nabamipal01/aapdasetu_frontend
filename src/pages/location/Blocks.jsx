@@ -1,1743 +1,3359 @@
 import React, { useEffect, useState } from "react";
 
+ 
+
 import {
-	MapContainer,
-	Marker,
-	Popup,
+
+    MapContainer,
+
+    Marker,
+
+    Popup,
+
 } from "react-leaflet";
+
+ 
 
 import "leaflet/dist/leaflet.css";
 
+ 
+
 import DistrictLayer from "../../components/map/DistrictLayer";
+
 import SubdivisionLayer from "../../components/map/SubDivisionLayer";
+
 import BlocksLayer from "../../components/map/BlocksLayer";
+
+ 
 
 import { WEST_BENGAL_BOUNDS } from "../../constants/mapBounds";
 
+ 
+
 import {
-	Pencil,
-	Trash2,
-	Check,
-	X,
+
+    Pencil,
+
+    Trash2,
+
+    Check,
+
+    X,
+
 } from "lucide-react";
+
 import { createBlock, deleteBlock, listBlocks, updateBlock } from "../../services/blockService";
+
 import { listDistricts, listSubdivisions } from "../../services";
 
+ 
 
 function BlocksLocation() {
 
-	/*
-	|--------------------------------------------------------------------------
-	| Form
-	|--------------------------------------------------------------------------
-	*/
+ 
 
-	const [form, setForm] = useState({
-		district_id: "",
-		district: "",
+    /*
 
-		subdivision_id: "",
-		subdivision: "",
+    |--------------------------------------------------------------------------
 
-		name: "",
-		address: "",
-		latitude: "",
-		longitude: "",
-	});
+    | Form
 
+    |--------------------------------------------------------------------------
 
-	/*
-	|--------------------------------------------------------------------------
-	| Database Block List
-	|--------------------------------------------------------------------------
-	*/
+    */
 
-	const [blocks, setBlocks] = useState([]);
+ 
 
-	const [loadingBlocks, setLoadingBlocks] =
-		useState(false);
+    const [form, setForm] = useState({
 
-	const [savingBlock, setSavingBlock] =
-		useState(false);
+        district_id: "",
 
+        district: "",
 
-	/*
-	|--------------------------------------------------------------------------
-	| Edit State
-	|--------------------------------------------------------------------------
-	*/
+ 
 
-	const [editingBlockId, setEditingBlockId] =
-		useState(null);
+        subdivision_id: "",
 
-	const [editForm, setEditForm] = useState({
-		name: "",
-		address: "",
-	});
+        subdivision: "",
 
-	const [updatingBlock, setUpdatingBlock] =
-		useState(false);
+ 
 
+        name: "",
 
-	/*
-	|--------------------------------------------------------------------------
-	| Delete State
-	|--------------------------------------------------------------------------
-	*/
+        address: "",
 
-	const [deleteModal, setDeleteModal] =
-		useState({
-			open: false,
-			block: null,
-		});
+        latitude: "",
 
-	const [deletingBlock, setDeletingBlock] =
-		useState(false);
+        longitude: "",
 
+    });
 
-	/*
-	|--------------------------------------------------------------------------
-	| Map State
-	|--------------------------------------------------------------------------
-	*/
+ 
 
-	const [position, setPosition] =
-		useState(null);
+    /*
 
-	const [selectedDistrict, setSelectedDistrict] =
-		useState(null);
+    |--------------------------------------------------------------------------
 
-	const [selectedSubdivision, setSelectedSubdivision] =
-		useState(null);
+    | Database Block List
 
-	const [selectedBlock, setSelectedBlock] =
-		useState(null);
+    |--------------------------------------------------------------------------
 
-	const [subdivisions, setSubdivisions] = useState([]);
-	const [districts, setDistricts] = useState([]);
+    */
 
-	/*
-	|--------------------------------------------------------------------------
-	| Load Blocks
-	|--------------------------------------------------------------------------
-	*/
+ 
 
-	const loadBlocks = async () => {
+    const [blocks, setBlocks] = useState([]);
 
-		try {
+ 
 
-			setLoadingBlocks(true);
+    const [loadingBlocks, setLoadingBlocks] =
 
-			const response =
-				await listBlocks();
+        useState(false);
 
-			if (response?.success) {
+ 
 
-				setBlocks(
-					response.data || []
-				);
+    const [savingBlock, setSavingBlock] =
 
-			} else {
+        useState(false);
 
-				console.error(
-					response?.message ||
-					"Failed to load blocks."
-				);
+ 
 
-				setBlocks([]);
+    /*
 
-			}
+    |--------------------------------------------------------------------------
 
-		} catch (error) {
+    | Edit State
 
-			console.error(
-				"Load blocks error:",
-				error
-			);
+    |--------------------------------------------------------------------------
 
-			setBlocks([]);
+    */
 
-		} finally {
+ 
 
-			setLoadingBlocks(false);
+    const [editingBlockId, setEditingBlockId] =
 
-		}
+        useState(null);
 
-	};
+ 
 
+    const [editForm, setEditForm] = useState({
 
-	useEffect(() => {
+        name: "",
 
-		loadBlocks();
+        address: "",
 
-	}, []);
+    });
 
-	const loadSubdivisions = async () => {
+ 
 
-		try {
+    const [updatingBlock, setUpdatingBlock] =
 
-			const response =
-				await listSubdivisions();
+        useState(false);
 
-			if (response?.success) {
+ 
 
-				setSubdivisions(
-					response.data || []
-				);
+    /*
 
-			}
+    |--------------------------------------------------------------------------
 
-		} catch (error) {
+    | Delete State
 
-			console.error(
-				"Load subdivisions error:",
-				error
-			);
+    |--------------------------------------------------------------------------
 
-		}
+    */
 
-	};
+ 
 
-	const loadDistricts = async () => {
-		try {
-			const response = await listDistricts();
+    const [deleteModal, setDeleteModal] =
 
-			if (response?.success) {
-				setDistricts(response.data || []);
-			}
-		} catch (error) {
-			console.error("Load districts error:", error);
-		}
-	};
+        useState({
 
-	useEffect(() => {
-		loadDistricts();
-		loadSubdivisions();
+            open: false,
 
-	}, []);
+            block: null,
 
-	/*
-	|--------------------------------------------------------------------------
-	| Form Change
-	|--------------------------------------------------------------------------
-	*/
+        });
 
-	const handleChange = (event) => {
+ 
 
-		const {
-			name,
-			value,
-		} = event.target;
+    const [deletingBlock, setDeletingBlock] =
 
-		setForm((previous) => ({
-			...previous,
-			[name]: value,
-		}));
+        useState(false);
 
-	};
+ 
 
+    /*
 
-	/*
-	|--------------------------------------------------------------------------
-	| District Selection
-	|--------------------------------------------------------------------------
-	*/
+    |--------------------------------------------------------------------------
 
-	const handleDistrictSelect = (
-		district
-	) => {
+    | Map State
 
-		console.log(
-			"Selected district:",
-			district
-		);
+    |--------------------------------------------------------------------------
 
+    */
 
-		setSelectedDistrict(
-			district
-		);
+ 
 
-		setSelectedSubdivision(
-			null
-		);
+    const [position, setPosition] =
 
-		setSelectedBlock(
-			null
-		);
+        useState(null);
 
-		setPosition(
-			null
-		);
+ 
 
+    const [selectedDistrict, setSelectedDistrict] =
 
-		setForm((previous) => ({
+        useState(null);
 
-			...previous,
+ 
 
-			/*
-			 * DATABASE district ID
-			 */
+    const [selectedSubdivision, setSelectedSubdivision] =
 
-			district_id:
-				district.id || "",
+        useState(null);
 
-			district:
-				district.name || "",
+ 
 
-			subdivision_id:
-				"",
+    const [selectedBlock, setSelectedBlock] =
 
-			subdivision:
-				"",
+        useState(null);
 
-			name:
-				"",
+ 
 
-			address:
-				"",
+    const [subdivisions, setSubdivisions] = useState([]);
 
-			latitude:
-				"",
+    const [districts, setDistricts] = useState([]);
 
-			longitude:
-				"",
+ 
 
-		}));
+    const [refreshingBlocks, setRefreshingBlocks] = useState(false);
 
-	};
+ 
 
+    /*
 
-	/*
-	|--------------------------------------------------------------------------
-	| Subdivision Selection
-	|--------------------------------------------------------------------------
-	*/
+    |--------------------------------------------------------------------------
 
-	const handleSubdivisionSelect = (
-		subdivision
-	) => {
+    | Load Blocks
 
-		console.log(
-			"Selected subdivision:",
-			subdivision
-		);
+    |--------------------------------------------------------------------------
 
+    */
 
-		setSelectedSubdivision(
-			subdivision
-		);
+ 
 
-		setSelectedBlock(
-			null
-		);
+    const loadBlocks = async () => {
 
-		setPosition(
-			null
-		);
+ 
 
+        try {
 
-		setForm((previous) => ({
+ 
 
-			...previous,
+            setLoadingBlocks(true);
 
-			/*
-			 * DATABASE district ID
-			 */
+ 
 
-			district_id:
-				selectedDistrict?.id ||
-				"",
+            const response =
 
-			district:
-				selectedDistrict?.name ||
-				subdivision.districtName ||
-				"",
+                await listBlocks();
 
-			/*
-			 * IMPORTANT:
-			 *
-			 * If subdivision.id is currently
-			 * GeoJSON ID, this will be changed
-			 * once SubdivisionLayer is mapped
-			 * to the database subdivision.
-			 */
+ 
 
-			subdivision_id:
-				subdivision.id ||
-				"",
+            if (response?.success) {
 
-			subdivision:
-				subdivision.name ||
-				"",
+ 
 
-			name:
-				"",
+                setBlocks(
 
-			address:
-				"",
+                    response.data || []
 
-			latitude:
-				"",
+                );
 
-			longitude:
-				"",
+ 
 
-		}));
+            } else {
 
-	};
+ 
 
+                console.error(
 
-	/*
-	|--------------------------------------------------------------------------
-	| Block Selection From Map
-	|--------------------------------------------------------------------------
-	*/
+                    response?.message ||
 
-	const handleBlockSelect = (
-		block
-	) => {
-		const latitude =
-			block.latitude == null ||
-			block.latitude === ""
-				? null
-				: Number(block.latitude);
+                    "Failed to load blocks."
 
-		const longitude =
-			block.longitude == null ||
-			block.longitude === ""
-				? null
-				: Number(block.longitude);
+                );
 
-		const hasCoordinates =
-			Number.isFinite(latitude) &&
-			Number.isFinite(longitude);
+ 
 
-		console.log(
-			"Selected block from map:",
-			block
-		);
+                setBlocks([]);
 
+ 
 
-		/*
-		 * Find corresponding DB block.
-		 *
-		 * BlocksLayer should eventually
-		 * provide databaseBlockId directly.
-		 */
+            }
 
-		const databaseBlock =
-			blocks.find(
-				(item) => {
+ 
 
-					/*
-					 * First preference:
-					 * database ID already attached
-					 */
+        } catch (error) {
 
-					if (
-						block.databaseBlockId &&
-						Number(item.id) ===
-						Number(
-							block.databaseBlockId
-						)
-					) {
-						return true;
-					}
+ 
 
+            console.error(
 
-					/*
-					 * Fallback:
-					 *
-					 * Match using:
-					 * district
-					 * subdivision
-					 * block name
-					 */
+                "Load blocks error:",
 
-					return (
-						Number(
-							item.district_id
-						) ===
-						Number(
-							selectedDistrict?.id
-						) &&
+                error
 
-						Number(
-							item.subdivision_id
-						) ===
-						Number(
-							selectedSubdivision?.id
-						) &&
+            );
 
-						String(
-							item.name
-						).trim().toLowerCase() ===
-						String(
-							block.name
-						).trim().toLowerCase()
-					);
+ 
 
-				}
-			);
+            setBlocks([]);
 
+ 
 
-		console.log(
-			"Matching database block:",
-			databaseBlock
-		);
+        } finally {
 
+ 
 
-		/*
-		 * Keep selected block.
-		 *
-		 * Database ID becomes the main ID.
-		 */
+            setLoadingBlocks(false);
 
-		const finalBlock = {
+ 
 
-			...block,
+        }
 
-			id:
-				databaseBlock?.id ||
-				block.databaseBlockId ||
-				null,
+ 
 
-			databaseBlockId:
-				databaseBlock?.id ||
-				block.databaseBlockId ||
-				null,
+    };
 
-			databaseBlock,
+ 
 
-		};
+    useEffect(() => {
 
+ 
 
-		setSelectedBlock(
-			finalBlock
-		);
+        loadBlocks();
 
+ 
 
-		/*
-		 * Update form
-		 */
+    }, []);
 
-		setForm((previous) => ({
+ 
 
-			...previous,
+    const loadSubdivisions = async () => {
 
-			district_id:
-				selectedDistrict?.id ||
-				"",
+ 
 
-			district:
-				selectedDistrict?.name ||
-				block.districtName ||
-				"",
+        try {
 
-			subdivision_id:
-				databaseBlock?.subdivision_id ||
-				selectedSubdivision?.id ||
-				"",
+ 
 
-			subdivision:
-				databaseBlock?.subdivision_name ||
-				selectedSubdivision?.name ||
-				block.subdivisionName ||
-				"",
+            const response =
 
-			name:
-				databaseBlock?.name ||
-				block.name ||
-				"",
+                await listSubdivisions();
 
-			address: "",
+ 
 
-			latitude:
-				hasCoordinates
-					? latitude.toFixed(6)
-					: "",
+            if (response?.success) {
 
-			longitude:
-				hasCoordinates
-					? longitude.toFixed(6)
-					: "",
+ 
 
-		}));
+                setSubdivisions(
 
+                    response.data || []
 
-		/*
-		 * Exact clicked position
-		 */
+                );
 
-		if (hasCoordinates) {
+ 
 
-			setPosition({
+            }
 
-				lat:
-					latitude,
+ 
 
-				lng:
-					longitude,
+        } catch (error) {
 
-			});
+ 
 
-		} else {
+            console.error(
 
-			setPosition(null);
+                "Load subdivisions error:",
 
-		}
+                error
 
-	};
+            );
 
+ 
 
-	/*
-	|--------------------------------------------------------------------------
-	| Create Block
-	|--------------------------------------------------------------------------
-	*/
+        }
 
-	const handleSubmit = async (
-		event
-	) => {
+ 
 
-		event.preventDefault();
+    };
 
+ 
 
-		if (
-			!selectedDistrict ||
-			!selectedSubdivision ||
-			!selectedBlock
-		) {
+    const loadDistricts = async () => {
 
-			alert(
-				"Please select district, subdivision and block from the map."
-			);
+        try {
 
-			return;
+            const response = await listDistricts();
 
-		}
+ 
 
+            if (response?.success) {
 
-		try {
+                setDistricts(response.data || []);
 
-			setSavingBlock(true);
+            }
 
+        } catch (error) {
 
-			const payload = {
+            console.error("Load districts error:", error);
 
-				/*
-				 * DATABASE IDs
-				 */
+        }
 
-				district_id:
-					form.district_id,
+    };
 
-				subdivision_id:
-					form.subdivision_id,
+ 
 
-				name:
-					form.name.trim(),
+    useEffect(() => {
 
-				address:
-					form.address.trim(),
+        loadDistricts();
 
-				latitude:
-					form.latitude,
+        loadSubdivisions();
 
-				longitude:
-					form.longitude,
+ 
 
-			};
+    }, []);
 
+ 
 
-			console.log(
-				"Create block payload:",
-				payload
-			);
+    /*
 
+    |--------------------------------------------------------------------------
 
-			const response =
-				await createBlock(
-					payload
-				);
+    | Form Change
 
+    |--------------------------------------------------------------------------
 
-			if (
-				response?.success
-			) {
+    */
 
-				alert(
-					"Block created successfully."
-				);
+ 
 
+    const handleChange = (event) => {
 
-				await loadBlocks();
+ 
 
+        const {
 
-				/*
-				 * Reset only block-specific
-				 * selection.
-				 */
+            name,
 
-				setSelectedBlock(
-					null
-				);
+            value,
 
-				setPosition(
-					null
-				);
+        } = event.target;
 
-				setForm((previous) => ({
+ 
 
-					...previous,
+        setForm((previous) => ({
 
-					name: "",
-					address: "",
-					latitude: "",
-					longitude: "",
+            ...previous,
 
-				}));
+            [name]: value,
 
-			} else {
+        }));
 
-				alert(
-					response?.message ||
-					"Failed to create block."
-				);
+ 
 
-			}
+    };
 
-		} catch (error) {
+ 
 
-			console.error(
-				"Create block error:",
-				error
-			);
+    /*
 
-			alert(
-				error?.message ||
-				"Unable to create block."
-			);
+    |--------------------------------------------------------------------------
 
-		} finally {
+    | District Selection
 
-			setSavingBlock(false);
+    |--------------------------------------------------------------------------
 
-		}
+    */
 
-	};
+ 
 
+    const handleDistrictSelect = (
 
-	/*
-	|--------------------------------------------------------------------------
-	| Edit Block
-	|--------------------------------------------------------------------------
-	*/
+        district
 
-	const handleEditBlock = (
-		block
-	) => {
+    ) => {
 
-		setEditingBlockId(
-			block.id
-		);
+ 
 
+        console.log(
 
-		setEditForm({
+            "Selected district:",
 
-			name:
-				block.name || "",
+            district
 
-			address:
-				block.address || "",
+        );
 
-		});
+ 
 
-	};
+        setSelectedDistrict(
 
+            district
 
-	/*
-	|--------------------------------------------------------------------------
-	| Cancel Edit
-	|--------------------------------------------------------------------------
-	*/
+        );
 
-	const handleCancelEdit = () => {
+ 
 
-		setEditingBlockId(
-			null
-		);
+        setSelectedSubdivision(
 
-		setEditForm({
+            null
 
-			name: "",
+        );
 
-			address: "",
+ 
 
-		});
+        setSelectedBlock(
 
-	};
+            null
 
+        );
 
-	/*
-	|--------------------------------------------------------------------------
-	| Edit Form Change
-	|--------------------------------------------------------------------------
-	*/
+ 
 
-	const handleEditChange = (
-		event
-	) => {
+        setPosition(
 
-		const {
-			name,
-			value,
-		} = event.target;
+            null
 
+        );
 
-		setEditForm((previous) => ({
+ 
 
-			...previous,
+        setForm((previous) => ({
 
-			[name]:
-				value,
+ 
 
-		}));
+            ...previous,
 
-	};
+ 
 
+            /*
 
-	/*
-	|--------------------------------------------------------------------------
-	| Update Block
-	|--------------------------------------------------------------------------
-	*/
+             * DATABASE district ID
 
-	const handleUpdateBlock = async (
-		blockId
-	) => {
+             */
 
-		try {
+ 
 
-			setUpdatingBlock(
-				true
-			);
+            district_id:
 
+                district.id || "",
 
-			const payload = {
+ 
 
-				name:
-					editForm.name.trim(),
+            district:
 
-				address:
-					editForm.address.trim(),
+                district.name || "",
 
-			};
+ 
 
+            subdivision_id:
 
-			const response =
-				await updateBlock(
-					blockId,
-					payload
-				);
+                "",
 
+ 
 
-			if (
-				response?.success
-			) {
+            subdivision:
 
-				alert(
-					"Block updated successfully."
-				);
+                "",
 
+ 
 
-				await loadBlocks();
+            name:
 
+                "",
 
-				handleCancelEdit();
+ 
 
-			} else {
+            address:
 
-				alert(
-					response?.message ||
-					"Failed to update block."
-				);
+                "",
 
-			}
+ 
 
-		} catch (error) {
+            latitude:
 
-			console.error(
-				"Update block error:",
-				error
-			);
+                "",
 
-			alert(
-				"Unable to update block."
-			);
+ 
 
-		} finally {
+            longitude:
 
-			setUpdatingBlock(
-				false
-			);
+                "",
 
-		}
+ 
 
-	};
+        }));
 
+ 
 
-	/*
-	|--------------------------------------------------------------------------
-	| Delete Block
-	|--------------------------------------------------------------------------
-	*/
+    };
 
-	const handleDeleteBlock = (
-		block
-	) => {
+ 
 
-		setDeleteModal({
+    /*
 
-			open: true,
+    |--------------------------------------------------------------------------
 
-			block,
+    | Subdivision Selection
 
-		});
+    |--------------------------------------------------------------------------
 
-	};
+    */
 
+ 
 
-	/*
-	|--------------------------------------------------------------------------
-	| Confirm Delete
-	|--------------------------------------------------------------------------
-	*/
+    const handleSubdivisionSelect = (
 
-	const handleConfirmDelete = async () => {
+        subdivision
 
-		const block =
-			deleteModal.block;
+    ) => {
 
+ 
 
-		if (!block) {
-			return;
-		}
+        console.log(
 
+            "Selected subdivision:",
 
-		try {
+            subdivision
 
-			setDeletingBlock(
-				true
-			);
+        );
 
+ 
 
-			const response =
-				await deleteBlock(
-					block.id
-				);
+        setSelectedSubdivision(
 
+            subdivision
 
-			if (
-				response?.success
-			) {
+        );
 
-				setDeleteModal({
+ 
 
-					open: false,
+        setSelectedBlock(
 
-					block: null,
+            null
 
-				});
+        );
 
+ 
 
-				/*
-				 * If deleted block is currently
-				 * selected on map, clear it.
-				 */
+        setPosition(
 
-				if (
-					selectedBlock?.id ===
-					block.id
-				) {
+            null
 
-					setSelectedBlock(
-						null
-					);
+        );
 
-					setPosition(
-						null
-					);
+ 
 
-				}
+        setForm((previous) => ({
 
+ 
 
-				await loadBlocks();
+            ...previous,
 
+ 
 
-				alert(
-					"Block deleted successfully."
-				);
+            /*
 
-			} else {
+             * DATABASE district ID
 
-				alert(
-					response?.message ||
-					"Failed to delete block."
-				);
+             */
 
-			}
+ 
 
-		} catch (error) {
+            district_id:
 
-			console.error(
-				"Delete block error:",
-				error
-			);
+                selectedDistrict?.id ||
 
-			alert(
-				error?.message ||
-				"Unable to delete block."
-			);
+                "",
 
-		} finally {
+ 
 
-			setDeletingBlock(
-				false
-			);
+            district:
 
-		}
+                selectedDistrict?.name ||
 
-	};
+                subdivision.districtName ||
 
+                "",
 
-	return (
+ 
 
-		<div className="relative min-h-screen w-full bg-gray-50 p-6">
+            /*
 
+             * IMPORTANT:
 
-			{/* =====================================================
+             *
+
+             * If subdivision.id is currently
+
+             * GeoJSON ID, this will be changed
+
+             * once SubdivisionLayer is mapped
+
+             * to the database subdivision.
+
+             */
+
+ 
+
+            subdivision_id:
+
+                subdivision.id ||
+
+                "",
+
+ 
+
+            subdivision:
+
+                subdivision.name ||
+
+                "",
+
+ 
+
+            name:
+
+                "",
+
+ 
+
+            address:
+
+                "",
+
+ 
+
+            latitude:
+
+                "",
+
+ 
+
+            longitude:
+
+                "",
+
+ 
+
+        }));
+
+ 
+
+    };
+
+ 
+
+    /*
+
+    |--------------------------------------------------------------------------
+
+    | Block Selection From Map
+
+    |--------------------------------------------------------------------------
+
+    */
+
+ 
+
+    const handleBlockSelect = (
+
+        block
+
+    ) => {
+
+        const latitude =
+
+            block.latitude == null ||
+
+                block.latitude === ""
+
+                ? null
+
+                : Number(block.latitude);
+
+ 
+
+        const longitude =
+
+            block.longitude == null ||
+
+                block.longitude === ""
+
+                ? null
+
+                : Number(block.longitude);
+
+ 
+
+        const hasCoordinates =
+
+            Number.isFinite(latitude) &&
+
+            Number.isFinite(longitude);
+
+ 
+
+        console.log(
+
+            "Selected block from map:",
+
+            block
+
+        );
+
+ 
+
+        /*
+
+         * Find corresponding DB block.
+
+         *
+
+         * BlocksLayer should eventually
+
+         * provide databaseBlockId directly.
+
+         */
+
+ 
+
+        const databaseBlock =
+
+            blocks.find(
+
+                (item) => {
+
+ 
+
+                    /*
+
+                     * First preference:
+
+                     * database ID already attached
+
+                     */
+
+ 
+
+                    if (
+
+                        block.databaseBlockId &&
+
+                        Number(item.id) ===
+
+                        Number(
+
+                            block.databaseBlockId
+
+                        )
+
+                    ) {
+
+                        return true;
+
+                    }
+
+ 
+
+                    /*
+
+                     * Fallback:
+
+                     *
+
+                     * Match using:
+
+                     * district
+
+                     * subdivision
+
+                     * block name
+
+                     */
+
+ 
+
+                    return (
+
+                        Number(
+
+                            item.district_id
+
+                        ) ===
+
+                        Number(
+
+                            selectedDistrict?.id
+
+                        ) &&
+
+ 
+
+                        Number(
+
+                            item.subdivision_id
+
+                        ) ===
+
+                        Number(
+
+                            selectedSubdivision?.id
+
+                        ) &&
+
+ 
+
+                        String(
+
+                            item.name
+
+                        ).trim().toLowerCase() ===
+
+                        String(
+
+                            block.name
+
+                        ).trim().toLowerCase()
+
+                    );
+
+ 
+
+                }
+
+            );
+
+ 
+
+        console.log(
+
+            "Matching database block:",
+
+            databaseBlock
+
+        );
+
+ 
+
+        /*
+
+         * Keep selected block.
+
+         *
+
+         * Database ID becomes the main ID.
+
+         */
+
+ 
+
+        const finalBlock = {
+
+ 
+
+            ...block,
+
+ 
+
+            id:
+
+                databaseBlock?.id ||
+
+                block.databaseBlockId ||
+
+                null,
+
+ 
+
+            databaseBlockId:
+
+                databaseBlock?.id ||
+
+                block.databaseBlockId ||
+
+                null,
+
+ 
+
+            databaseBlock,
+
+ 
+
+        };
+
+ 
+
+        setSelectedBlock(
+
+            finalBlock
+
+        );
+
+ 
+
+        /*
+
+         * Update form
+
+         */
+
+ 
+
+        setForm((previous) => ({
+
+ 
+
+            ...previous,
+
+ 
+
+            district_id:
+
+                selectedDistrict?.id ||
+
+                "",
+
+ 
+
+            district:
+
+                selectedDistrict?.name ||
+
+                block.districtName ||
+
+                "",
+
+ 
+
+            subdivision_id:
+
+                databaseBlock?.subdivision_id ||
+
+                selectedSubdivision?.id ||
+
+                "",
+
+ 
+
+            subdivision:
+
+                databaseBlock?.subdivision_name ||
+
+                selectedSubdivision?.name ||
+
+                block.subdivisionName ||
+
+                "",
+
+ 
+
+            name:
+
+                databaseBlock?.name ||
+
+                block.name ||
+
+                "",
+
+ 
+
+            address: "",
+
+ 
+
+            latitude:
+
+                hasCoordinates
+
+                    ? latitude.toFixed(6)
+
+                    : "",
+
+ 
+
+            longitude:
+
+                hasCoordinates
+
+                    ? longitude.toFixed(6)
+
+                    : "",
+
+ 
+
+        }));
+
+ 
+
+        /*
+
+         * Exact clicked position
+
+         */
+
+ 
+
+        if (hasCoordinates) {
+
+ 
+
+            setPosition({
+
+ 
+
+                lat:
+
+                    latitude,
+
+ 
+
+                lng:
+
+                    longitude,
+
+ 
+
+            });
+
+ 
+
+        } else {
+
+ 
+
+            setPosition(null);
+
+ 
+
+        }
+
+ 
+
+    };
+
+ 
+
+    /*
+
+    |--------------------------------------------------------------------------
+
+    | Create Block
+
+    |--------------------------------------------------------------------------
+
+    */
+
+ 
+
+    const handleSubmit = async (
+
+        event
+
+    ) => {
+
+ 
+
+        event.preventDefault();
+
+ 
+
+        if (
+
+            !selectedDistrict ||
+
+            !selectedSubdivision ||
+
+            !selectedBlock
+
+        ) {
+
+ 
+
+            alert(
+
+                "Please select district, subdivision and block from the map."
+
+            );
+
+ 
+
+            return;
+
+ 
+
+        }
+
+ 
+
+        try {
+
+ 
+
+            setSavingBlock(true);
+
+ 
+
+            const payload = {
+
+ 
+
+                /*
+
+                 * DATABASE IDs
+
+                 */
+
+ 
+
+                district_id:
+
+                    form.district_id,
+
+ 
+
+                subdivision_id:
+
+                    form.subdivision_id,
+
+ 
+
+                name:
+
+                    form.name.trim(),
+
+ 
+
+                address:
+
+                    form.address.trim(),
+
+ 
+
+                latitude:
+
+                    form.latitude,
+
+ 
+
+                longitude:
+
+                    form.longitude,
+
+ 
+
+            };
+
+ 
+
+            console.log(
+
+                "Create block payload:",
+
+                payload
+
+            );
+
+ 
+
+            const response =
+
+                await createBlock(
+
+                    payload
+
+                );
+
+ 
+
+            if (
+
+                response?.success
+
+            ) {
+
+ 
+
+                alert(
+
+                    "Block created successfully."
+
+                );
+
+ 
+
+                await loadBlocks();
+
+ 
+
+                /*
+
+                 * Reset only block-specific
+
+                 * selection.
+
+                 */
+
+ 
+
+                setSelectedBlock(
+
+                    null
+
+                );
+
+ 
+
+                setPosition(
+
+                    null
+
+                );
+
+ 
+
+                setForm((previous) => ({
+
+ 
+
+                    ...previous,
+
+ 
+
+                    name: "",
+
+                    address: "",
+
+                    latitude: "",
+
+                    longitude: "",
+
+ 
+
+                }));
+
+ 
+
+            } else {
+
+ 
+
+                alert(
+
+                    response?.message ||
+
+                    "Failed to create block."
+
+                );
+
+ 
+
+            }
+
+ 
+
+        } catch (error) {
+
+ 
+
+            console.error(
+
+                "Create block error:",
+
+                error
+
+            );
+
+ 
+
+            alert(
+
+                error?.message ||
+
+                "Unable to create block."
+
+            );
+
+ 
+
+        } finally {
+
+ 
+
+            setSavingBlock(false);
+
+ 
+
+        }
+
+ 
+
+    };
+
+ 
+
+    /*
+
+    |--------------------------------------------------------------------------
+
+    | Edit Block
+
+    |--------------------------------------------------------------------------
+
+    */
+
+ 
+
+    const handleEditBlock = (
+
+        block
+
+    ) => {
+
+ 
+
+        setEditingBlockId(
+
+            block.id
+
+        );
+
+ 
+
+        setEditForm({
+
+ 
+
+            name:
+
+                block.name || "",
+
+ 
+
+            address:
+
+                block.address || "",
+
+ 
+
+        });
+
+ 
+
+    };
+
+ 
+
+    /*
+
+    |--------------------------------------------------------------------------
+
+    | Cancel Edit
+
+    |--------------------------------------------------------------------------
+
+    */
+
+ 
+
+    const handleCancelEdit = () => {
+
+ 
+
+        setEditingBlockId(
+
+            null
+
+        );
+
+ 
+
+        setEditForm({
+
+ 
+
+            name: "",
+
+ 
+
+            address: "",
+
+ 
+
+        });
+
+ 
+
+    };
+
+ 
+
+    /*
+
+    |--------------------------------------------------------------------------
+
+    | Edit Form Change
+
+    |--------------------------------------------------------------------------
+
+    */
+
+ 
+
+    const handleEditChange = (
+
+        event
+
+    ) => {
+
+ 
+
+        const {
+
+            name,
+
+            value,
+
+        } = event.target;
+
+ 
+
+        setEditForm((previous) => ({
+
+ 
+
+            ...previous,
+
+ 
+
+            [name]:
+
+                value,
+
+ 
+
+        }));
+
+ 
+
+    };
+
+ 
+
+    /*
+
+    |--------------------------------------------------------------------------
+
+    | Update Block
+
+    |--------------------------------------------------------------------------
+
+    */
+
+ 
+
+    const handleUpdateBlock = async (
+
+        blockId
+
+    ) => {
+
+ 
+
+        try {
+
+ 
+
+            setUpdatingBlock(
+
+                true
+
+            );
+
+ 
+
+            const payload = {
+
+ 
+
+                name:
+
+                    editForm.name.trim(),
+
+ 
+
+                address:
+
+                    editForm.address.trim(),
+
+ 
+
+            };
+
+ 
+
+            const response =
+
+                await updateBlock(
+
+                    blockId,
+
+                    payload
+
+                );
+
+ 
+
+            if (
+
+                response?.success
+
+            ) {
+
+ 
+
+                alert(
+
+                    "Block updated successfully."
+
+                );
+
+ 
+
+                await loadBlocks();
+
+ 
+
+                handleCancelEdit();
+
+ 
+
+            } else {
+
+ 
+
+                alert(
+
+                    response?.message ||
+
+                    "Failed to update block."
+
+                );
+
+ 
+
+            }
+
+ 
+
+        } catch (error) {
+
+ 
+
+            console.error(
+
+                "Update block error:",
+
+                error
+
+            );
+
+ 
+
+            alert(
+
+                "Unable to update block."
+
+            );
+
+ 
+
+        } finally {
+
+ 
+
+            setUpdatingBlock(
+
+                false
+
+            );
+
+ 
+
+        }
+
+ 
+
+    };
+
+ 
+
+    /*
+
+    |--------------------------------------------------------------------------
+
+    | Delete Block
+
+    |--------------------------------------------------------------------------
+
+    */
+
+ 
+
+    const handleDeleteBlock = (
+
+        block
+
+    ) => {
+
+ 
+
+        setDeleteModal({
+
+ 
+
+            open: true,
+
+ 
+
+            block,
+
+ 
+
+        });
+
+ 
+
+    };
+
+ 
+
+    /*
+
+    |--------------------------------------------------------------------------
+
+    | Confirm Delete
+
+    |--------------------------------------------------------------------------
+
+    */
+
+ 
+
+    const handleConfirmDelete = async () => {
+
+ 
+
+        const block =
+
+            deleteModal.block;
+
+ 
+
+        if (!block) {
+
+            return;
+
+        }
+
+ 
+
+        try {
+
+ 
+
+            setDeletingBlock(
+
+                true
+
+            );
+
+ 
+
+            const response =
+
+                await deleteBlock(
+
+                    block.id
+
+                );
+
+ 
+
+            if (
+
+                response?.success
+
+            ) {
+
+ 
+
+                setDeleteModal({
+
+ 
+
+                    open: false,
+
+ 
+
+                    block: null,
+
+ 
+
+                });
+
+ 
+
+                /*
+
+                 * If deleted block is currently
+
+                 * selected on map, clear it.
+
+                 */
+
+ 
+
+                if (
+
+                    selectedBlock?.id ===
+
+                    block.id
+
+                ) {
+
+ 
+
+                    setSelectedBlock(
+
+                        null
+
+                    );
+
+ 
+
+                    setPosition(
+
+                        null
+
+                    );
+
+ 
+
+                }
+
+ 
+
+                await loadBlocks();
+
+ 
+
+                alert(
+
+                    "Block deleted successfully."
+
+                );
+
+ 
+
+            } else {
+
+ 
+
+                alert(
+
+                    response?.message ||
+
+                    "Failed to delete block."
+
+                );
+
+ 
+
+            }
+
+ 
+
+        } catch (error) {
+
+ 
+
+            console.error(
+
+                "Delete block error:",
+
+                error
+
+            );
+
+ 
+
+            alert(
+
+                error?.message ||
+
+                "Unable to delete block."
+
+            );
+
+ 
+
+        } finally {
+
+ 
+
+            setDeletingBlock(
+
+                false
+
+            );
+
+ 
+
+        }
+
+ 
+
+    };
+
+ 
+
+    const handleRefreshBlocks = async () => {
+
+        try {
+
+            setRefreshingBlocks(true);
+
+            await loadBlocks();
+
+        } finally {
+
+            setRefreshingBlocks(false);
+
+        }
+
+    }
+
+ 
+
+    return (
+
+ 
+
+        <div className="relative min-h-screen w-full bg-gray-50 p-6">
+
+ 
+
+            {/* =====================================================
+
                 HEADER
+
             ====================================================== */}
 
-			<div className="relative z-20 mb-6">
+ 
 
-				<h1 className="text-2xl font-semibold text-gray-800">
-					Block Location
-				</h1>
+            <div className="relative z-20 mb-6">
 
-				<p className="mt-1 text-sm text-gray-500">
-					Add and manage block location information.
-				</p>
+ 
 
-			</div>
+                <h1 className="text-2xl font-semibold text-gray-800">
 
+                    Block Location
 
-			{/* =====================================================
+                </h1>
+
+ 
+
+                <p className="mt-1 text-sm text-gray-500">
+
+                    Add and manage block location information.
+
+                </p>
+
+ 
+
+            </div>
+
+ 
+
+            {/* =====================================================
+
                 FORM + MAP
+
             ====================================================== */}
 
-			<div className="relative z-0 grid grid-cols-1 gap-6 xl:grid-cols-[380px_1fr]">
+ 
 
+            <div className="relative z-0 grid grid-cols-1 gap-6 xl:grid-cols-[380px_1fr]">
 
-				{/* =================================================
+ 
+
+                {/* =================================================
+
                     FORM
+
                 ================================================== */}
 
-				<div className="relative z-0 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+ 
 
-					<h2 className="mb-6 text-lg font-semibold text-gray-800">
-						Block Details
-					</h2>
+                <div className="relative z-0 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 
+ 
 
-					<form
-						onSubmit={handleSubmit}
-						className="space-y-5"
-					>
+                    <h2 className="mb-6 text-lg font-semibold text-gray-800">
 
+                        Block Details
 
-						{/* DISTRICT */}
+                    </h2>
 
-						<div>
+ 
 
-							<label className="mb-1 block text-sm font-medium text-gray-700">
-								District
-							</label>
+                    <form
 
-							<input
-								type="text"
-								value={form.district}
-								readOnly
-								placeholder="Select district from map"
-								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-							/>
+                        onSubmit={handleSubmit}
 
-						</div>
+                        className="space-y-5"
 
+                    >
 
-						{/* SUBDIVISION */}
+ 
 
-						<div>
+                        {/* DISTRICT */}
 
-							<label className="mb-1 block text-sm font-medium text-gray-700">
-								Subdivision
-							</label>
+ 
 
-							<input
-								type="text"
-								value={form.subdivision}
-								readOnly
-								placeholder="Select subdivision from map"
-								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-							/>
+                        <div>
 
-						</div>
+ 
 
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
 
-						{/* BLOCK */}
+                                District
 
-						<div>
+                            </label>
 
-							<label className="mb-1 block text-sm font-medium text-gray-700">
-								Block Name
-							</label>
+ 
 
-							<input
-								type="text"
-								value={form.name}
-								readOnly
-								placeholder="Select block from map"
-								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-							/>
+                            <input
 
-						</div>
+                                type="text"
 
+                                value={form.district}
 
-						{/* ADDRESS */}
+                                readOnly
 
-						<div>
+                                placeholder="Select district from map"
 
-							<label className="mb-1 block text-sm font-medium text-gray-700">
-								Address
-							</label>
+                                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
 
-							<textarea
-								name="address"
-								value={form.address}
-								onChange={handleChange}
-								rows={3}
-								placeholder="Block address"
-								className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-							/>
+                            />
 
-						</div>
+ 
 
+                        </div>
 
-						{/* LATITUDE */}
+ 
 
-						<div>
+                        {/* SUBDIVISION */}
 
-							<label className="mb-1 block text-sm font-medium text-gray-700">
-								Latitude
-							</label>
+ 
 
-							<input
-								type="text"
-								value={form.latitude}
-								readOnly
-								placeholder="Select block"
-								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-							/>
+                        <div>
 
-						</div>
+ 
 
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
 
-						{/* LONGITUDE */}
+                                Subdivision
 
-						<div>
+                            </label>
 
-							<label className="mb-1 block text-sm font-medium text-gray-700">
-								Longitude
-							</label>
+ 
 
-							<input
-								type="text"
-								value={form.longitude}
-								readOnly
-								placeholder="Select block"
-								className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-							/>
+                            <input
 
-						</div>
+                                type="text"
 
+                                value={form.subdivision}
 
-						{/* SUBMIT */}
+                                readOnly
 
-						<button
-							type="submit"
-							disabled={
-								savingBlock ||
-								!selectedDistrict ||
-								!selectedSubdivision ||
-								!selectedBlock
-							}
-							className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-						>
+                                placeholder="Select subdivision from map"
 
-							{savingBlock
-								? "Saving..."
-								: "Save Block"}
+                                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
 
-						</button>
+                            />
 
-					</form>
+ 
 
-				</div>
+                        </div>
 
+ 
 
-				{/* =================================================
+                        {/* BLOCK */}
+
+ 
+
+                        <div>
+
+ 
+
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
+
+                                Block Name
+
+                            </label>
+
+ 
+
+                            <input
+
+                                type="text"
+
+                                value={form.name}
+
+                                readOnly
+
+                                placeholder="Select block from map"
+
+                                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+
+                            />
+
+ 
+
+                        </div>
+
+ 
+
+                        {/* ADDRESS */}
+
+ 
+
+                        <div>
+
+ 
+
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
+
+                                Address
+
+                            </label>
+
+ 
+
+                            <textarea
+
+                                name="address"
+
+                                value={form.address}
+
+                                onChange={handleChange}
+
+                                rows={3}
+
+                                placeholder="Block address"
+
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+
+                            />
+
+ 
+
+                        </div>
+
+ 
+
+                        {/* LATITUDE */}
+
+ 
+
+                        <div>
+
+ 
+
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
+
+                                Latitude
+
+                            </label>
+
+ 
+
+                            <input
+
+                                type="text"
+
+                                value={form.latitude}
+
+                                readOnly
+
+                                placeholder="Select block"
+
+                                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+
+                            />
+
+ 
+
+                        </div>
+
+ 
+
+                        {/* LONGITUDE */}
+
+ 
+
+                        <div>
+
+ 
+
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
+
+                                Longitude
+
+                            </label>
+
+ 
+
+                            <input
+
+                                type="text"
+
+                                value={form.longitude}
+
+                                readOnly
+
+                                placeholder="Select block"
+
+                                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+
+                            />
+
+ 
+
+                        </div>
+
+ 
+
+                        {/* SUBMIT */}
+
+ 
+
+                        <button
+
+                            type="submit"
+
+                            disabled={
+
+                                savingBlock ||
+
+                                !selectedDistrict ||
+
+                                !selectedSubdivision ||
+
+                                !selectedBlock
+
+                            }
+
+                            className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+
+                        >
+
+ 
+
+                            {savingBlock
+
+                                ? "Saving..."
+
+                                : "Save Block"}
+
+ 
+
+                        </button>
+
+ 
+
+                    </form>
+
+ 
+
+                </div>
+
+ 
+
+                {/* =================================================
+
                     MAP
+
                 ================================================== */}
 
-				<div className="relative z-0 isolate overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+ 
 
+                <div className="relative z-0 isolate overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
-					<div className="relative z-20 border-b border-gray-200 px-5 py-4">
+ 
 
-						<h2 className="text-lg font-semibold text-gray-800">
-							Block Map
-						</h2>
+                    <div className="relative z-20 border-b border-gray-200 px-5 py-4">
 
-						<p className="mt-1 text-sm text-gray-500">
-							Select a district first, then select a subdivision, and finally click a block.
-						</p>
+ 
 
-					</div>
+                        <h2 className="text-lg font-semibold text-gray-800">
 
+                            Block Map
 
-					<div className="relative z-0 h-[600px] w-full">
+                        </h2>
 
-						<MapContainer
-							center={[
-								22.5726,
-								88.3639,
-							]}
-							zoom={7}
-							minZoom={6.5}
-							maxZoom={12}
-							maxBounds={
-								WEST_BENGAL_BOUNDS
-							}
-							maxBoundsViscosity={1.0}
-							scrollWheelZoom={true}
-							className="h-full w-full"
-						>
+ 
 
-							<DistrictLayer
-								selectedDistrict={
-									selectedDistrict
-								}
-								databaseDistricts={districts}
-								requireDatabaseDistrict={true}
-								onDistrictSelect={
-									handleDistrictSelect
-								}
-							/>
+                        <p className="mt-1 text-sm text-gray-500">
 
-							{selectedDistrict && (
+                            Select a district first, then select a subdivision, and finally click a block.
 
-								<SubdivisionLayer
-									selectedDistrict={
-										selectedDistrict
-									}
-									databaseDistricts={districts}
-									databaseSubdivisions={subdivisions}
-									requireDatabaseDistrict={true}
-									requireDatabaseSubdivision={true}
-									onSubdivisionSelect={
-										handleSubdivisionSelect
-									}
-								/>
+                        </p>
 
-							)}
+ 
 
-							{selectedDistrict &&
-								selectedSubdivision && (
+                    </div>
 
-									<BlocksLayer
-										selectedDistrict={selectedDistrict}
-										selectedSubdivision={selectedSubdivision}
-										databaseBlocks={blocks}
-										onBlockSelect={handleBlockSelect}
-									/>
+ 
 
-								)}
+                    <div className="relative z-0 h-[600px] w-full">
 
+ 
 
-							{position && (
+                        <MapContainer
 
-								<Marker
-									position={[
-										position.lat,
-										position.lng,
-									]}
-								>
+                            center={[
 
-									<Popup>
+                                22.5726,
 
-										<div className="text-sm">
+                                88.3639,
 
-											<p className="font-semibold">
-												{form.name}
-											</p>
+                            ]}
 
-											<p>
-												District:{" "}
-												{form.district}
-											</p>
+                            zoom={7}
 
-											<p>
-												Subdivision:{" "}
-												{form.subdivision}
-											</p>
+                            minZoom={6.5}
 
-											<p>
-												Latitude:{" "}
-												{position.lat.toFixed(6)}
-											</p>
+                            maxZoom={12}
 
-											<p>
-												Longitude:{" "}
-												{position.lng.toFixed(6)}
-											</p>
+                            maxBounds={
 
-										</div>
+                                WEST_BENGAL_BOUNDS
 
-									</Popup>
+                            }
 
-								</Marker>
+                            maxBoundsViscosity={1.0}
 
-							)}
+                            scrollWheelZoom={true}
 
-						</MapContainer>
+                            className="h-full w-full"
 
-					</div>
+                        >
 
+ 
 
-					{/* COORDINATES */}
+                            <DistrictLayer
 
-					<div className="grid grid-cols-2 border-t border-gray-200">
+                                selectedDistrict={
 
-						<div className="px-5 py-4">
+                                    selectedDistrict
 
-							<p className="text-xs text-gray-500">
-								Latitude
-							</p>
+                                }
 
-							<p className="mt-1 text-sm font-medium text-gray-800">
-								{form.latitude || "--"}
-							</p>
+                                databaseDistricts={districts}
 
-						</div>
+                                requireDatabaseDistrict={true}
 
+                                onDistrictSelect={
 
-						<div className="border-l border-gray-200 px-5 py-4">
+                                    handleDistrictSelect
 
-							<p className="text-xs text-gray-500">
-								Longitude
-							</p>
+                                }
 
-							<p className="mt-1 text-sm font-medium text-gray-800">
-								{form.longitude || "--"}
-							</p>
+                            />
 
-						</div>
+ 
 
-					</div>
+                            {selectedDistrict && (
 
-				</div>
+ 
 
-			</div>
+                                <SubdivisionLayer
 
+                                    selectedDistrict={
 
-			{/* =====================================================
+                                        selectedDistrict
+
+                                    }
+
+                                    databaseDistricts={districts}
+
+                                    databaseSubdivisions={subdivisions}
+
+                                    requireDatabaseDistrict={true}
+
+                                    requireDatabaseSubdivision={true}
+
+                                    onSubdivisionSelect={
+
+                                        handleSubdivisionSelect
+
+                                    }
+
+                                />
+
+ 
+
+                            )}
+
+ 
+
+                            {selectedDistrict &&
+
+                                selectedSubdivision && (
+
+ 
+
+                                    <BlocksLayer
+
+                                        selectedDistrict={selectedDistrict}
+
+                                        selectedSubdivision={selectedSubdivision}
+
+                                        databaseBlocks={blocks}
+
+                                        onBlockSelect={handleBlockSelect}
+
+                                    />
+
+ 
+
+                                )}
+
+ 
+
+                            {position && (
+
+ 
+
+                                <Marker
+
+                                    position={[
+
+                                        position.lat,
+
+                                        position.lng,
+
+                                    ]}
+
+                                >
+
+ 
+
+                                    <Popup>
+
+ 
+
+                                        <div className="text-sm">
+
+ 
+
+                                            <p className="font-semibold">
+
+                                                {form.name}
+
+                                            </p>
+
+ 
+
+                                            <p>
+
+                                                District:{" "}
+
+                                                {form.district}
+
+                                            </p>
+
+ 
+
+                                            <p>
+
+                                                Subdivision:{" "}
+
+                                                {form.subdivision}
+
+                                            </p>
+
+ 
+
+                                            <p>
+
+                                                Latitude:{" "}
+
+                                                {position.lat.toFixed(6)}
+
+                                            </p>
+
+ 
+
+                                            <p>
+
+                                                Longitude:{" "}
+
+                                                {position.lng.toFixed(6)}
+
+                                            </p>
+
+ 
+
+                                        </div>
+
+ 
+
+                                    </Popup>
+
+ 
+
+                                </Marker>
+
+ 
+
+                            )}
+
+ 
+
+                        </MapContainer>
+
+ 
+
+                    </div>
+
+ 
+
+                    {/* COORDINATES */}
+
+ 
+
+                    <div className="grid grid-cols-2 border-t border-gray-200">
+
+ 
+
+                        <div className="px-5 py-4">
+
+ 
+
+                            <p className="text-xs text-gray-500">
+
+                                Latitude
+
+                            </p>
+
+ 
+
+                            <p className="mt-1 text-sm font-medium text-gray-800">
+
+                                {form.latitude || "--"}
+
+                            </p>
+
+ 
+
+                        </div>
+
+ 
+
+                        <div className="border-l border-gray-200 px-5 py-4">
+
+ 
+
+                            <p className="text-xs text-gray-500">
+
+                                Longitude
+
+                            </p>
+
+ 
+
+                            <p className="mt-1 text-sm font-medium text-gray-800">
+
+                                {form.longitude || "--"}
+
+                            </p>
+
+ 
+
+                        </div>
+
+ 
+
+                    </div>
+
+ 
+
+                </div>
+
+ 
+
+            </div>
+
+ 
+
+            {/* =====================================================
+
                 BLOCK TABLE
+
             ====================================================== */}
 
-			<div className="mt-6 rounded-xl border border-gray-200 bg-white shadow-sm">
+ 
 
-				<div className="border-b border-gray-200 px-5 py-4">
+            <div className="mt-6 rounded-xl border border-gray-200 bg-white shadow-sm">
 
-					<h2 className="text-lg font-semibold text-gray-800">
-						Block List
-					</h2>
+ 
 
-					<p className="mt-1 text-sm text-gray-500">
-						Manage blocks stored in the database.
-					</p>
+                <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
 
-				</div>
+ 
 
+                    <div>
 
-				<div className="overflow-x-auto">
+                        <h2 className="text-lg font-semibold text-gray-800">
 
-					<table className="w-full text-left text-sm">
+                            Block List
 
-						<thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                        </h2>
 
-							<tr>
+ 
 
-								<th className="px-5 py-3">
-									ID
-								</th>
+                        <p className="mt-1 text-sm text-gray-500">
 
-								<th className="px-5 py-3">
-									District
-								</th>
+                            Manage blocks stored in the database.
 
-								<th className="px-5 py-3">
-									Subdivision
-								</th>
+                        </p>
 
-								<th className="px-5 py-3">
-									Block
-								</th>
+                    </div>
 
-								<th className="px-5 py-3">
-									Address
-								</th>
+ 
 
-								<th className="px-5 py-3">
-									Latitude
-								</th>
+                    <button
 
-								<th className="px-5 py-3">
-									Longitude
-								</th>
+                        type="button"
 
-								<th className="px-5 py-3 text-center">
-									Action
-								</th>
+                        onClick={loadBlocks}
 
-							</tr>
+                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
 
-						</thead>
+                    >
 
+                        Refresh
 
-						<tbody className="divide-y divide-gray-100">
+                    </button>
 
-							{loadingBlocks ? (
+                </div>
 
-								<tr>
 
-									<td
-										colSpan={8}
-										className="px-5 py-8 text-center text-gray-500"
-									>
-										Loading blocks...
-									</td>
 
-								</tr>
 
-							) : blocks.length === 0 ? (
+                <div className="overflow-x-auto">
 
-								<tr>
+ 
 
-									<td
-										colSpan={8}
-										className="px-5 py-8 text-center text-gray-500"
-									>
-										No blocks found.
-									</td>
+                    <table className="w-full text-left text-sm">
 
-								</tr>
+ 
 
-							) : (
+                        <thead className="bg-gray-50 text-xs uppercase text-gray-500">
 
-								blocks.map((block) => (
+ 
 
-									<tr
-										key={block.id}
-										className="hover:bg-gray-50"
-									>
+                            <tr>
 
-										<td className="px-5 py-3 font-medium text-gray-800">
-											{block.id}
-										</td>
+ 
 
+                                <th className="px-5 py-3">
 
-										<td className="px-5 py-3 text-gray-700">
-											{block.district_name}
-										</td>
+                                    ID
 
+                                </th>
 
-										<td className="px-5 py-3 text-gray-700">
-											{block.subdivision_name}
-										</td>
+ 
 
+                                <th className="px-5 py-3">
 
-										<td className="px-5 py-3 text-gray-700">
+                                    District
 
-											{editingBlockId ===
-												block.id ? (
+                                </th>
 
-												<input
-													type="text"
-													name="name"
-													value={
-														editForm.name
-													}
-													onChange={
-														handleEditChange
-													}
-													className="w-full rounded border border-gray-300 px-2 py-1"
-												/>
+ 
 
-											) : (
+                                <th className="px-5 py-3">
 
-												block.name
+                                    Subdivision
 
-											)}
+                                </th>
 
-										</td>
+ 
 
+                                <th className="px-5 py-3">
 
-										<td className="px-5 py-3 text-gray-700">
+                                    Block
 
-											{editingBlockId ===
-												block.id ? (
+                                </th>
 
-												<input
-													type="text"
-													name="address"
-													value={
-														editForm.address
-													}
-													onChange={
-														handleEditChange
-													}
-													className="w-full min-w-[220px] rounded border border-gray-300 px-2 py-1"
-												/>
+ 
 
-											) : (
+                                <th className="px-5 py-3">
 
-												block.address || "--"
+                                    Address
 
-											)}
+                                </th>
 
-										</td>
+ 
 
+                                <th className="px-5 py-3">
 
-										<td className="px-5 py-3 text-gray-700">
-											{block.latitude}
-										</td>
+                                    Latitude
 
+                                </th>
 
-										<td className="px-5 py-3 text-gray-700">
-											{block.longitude}
-										</td>
+ 
 
+                                <th className="px-5 py-3">
 
-										<td className="px-5 py-3">
+                                    Longitude
 
-											<div className="flex items-center justify-center gap-2">
+                                </th>
 
-												{editingBlockId ===
-													block.id ? (
+ 
 
-													<>
+                                <th className="px-5 py-3 text-center">
 
-														<button
-															type="button"
-															onClick={() =>
-																handleUpdateBlock(
-																	block.id
-																)
-															}
-															disabled={
-																updatingBlock
-															}
-															className="rounded-lg p-2 text-green-600 hover:bg-green-50 disabled:opacity-50"
-															title="Save"
-														>
+                                    Action
 
-															<Check
-																size={17}
-															/>
+                                </th>
 
-														</button>
+ 
 
+                            </tr>
 
-														<button
-															type="button"
-															onClick={
-																handleCancelEdit
-															}
-															className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
-															title="Cancel"
-														>
+ 
 
-															<X
-																size={17}
-															/>
+                        </thead>
 
-														</button>
+ 
 
-													</>
+                        <tbody className="divide-y divide-gray-100">
 
-												) : (
+ 
 
-													<>
+                            {loadingBlocks ? (
 
-														<button
-															type="button"
-															onClick={() =>
-																handleEditBlock(
-																	block
-																)
-															}
-															className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
-															title="Edit"
-														>
+ 
 
-															<Pencil
-																size={17}
-															/>
+                                <tr>
 
-														</button>
+ 
 
+                                    <td
 
-														<button
-															type="button"
-															onClick={() =>
-																handleDeleteBlock(
-																	block
-																)
-															}
-															className="rounded-lg p-2 text-red-600 hover:bg-red-50"
-															title="Delete"
-														>
+                                        colSpan={8}
 
-															<Trash2
-																size={17}
-															/>
+                                        className="px-5 py-8 text-center text-gray-500"
 
-														</button>
+                                    >
 
-													</>
+                                        Loading blocks...
 
-												)}
+                                    </td>
 
-											</div>
+ 
 
-										</td>
+                                </tr>
 
-									</tr>
+ 
 
-								))
+                            ) : blocks.length === 0 ? (
 
-							)}
+ 
 
-						</tbody>
+                                <tr>
 
-					</table>
+ 
 
-				</div>
+                                    <td
 
-			</div>
+                                        colSpan={8}
 
+                                        className="px-5 py-8 text-center text-gray-500"
 
-			{/* =====================================================
+                                    >
+
+                                        No blocks found.
+
+                                    </td>
+
+ 
+
+                                </tr>
+
+ 
+
+                            ) : (
+
+ 
+
+                                blocks.map((block) => (
+
+ 
+
+                                    <tr
+
+                                        key={block.id}
+
+                                        className="hover:bg-gray-50"
+
+                                    >
+
+ 
+
+                                        <td className="px-5 py-3 font-medium text-gray-800">
+
+                                            {block.id}
+
+                                        </td>
+
+ 
+
+                                        <td className="px-5 py-3 text-gray-700">
+
+                                            {block.district_name}
+
+                                        </td>
+
+ 
+
+                                        <td className="px-5 py-3 text-gray-700">
+
+                                            {block.subdivision_name}
+
+                                        </td>
+
+ 
+
+                                        <td className="px-5 py-3 text-gray-700">
+
+ 
+
+                                            {editingBlockId ===
+
+                                                block.id ? (
+
+ 
+
+                                                <input
+
+                                                    type="text"
+
+                                                    name="name"
+
+                                                    value={
+
+                                                        editForm.name
+
+                                                    }
+
+                                                    onChange={
+
+                                                        handleEditChange
+
+                                                    }
+
+                                                    className="w-full rounded border border-gray-300 px-2 py-1"
+
+                                                />
+
+ 
+
+                                            ) : (
+
+ 
+
+                                                block.name
+
+ 
+
+                                            )}
+
+ 
+
+                                        </td>
+
+ 
+
+                                        <td className="px-5 py-3 text-gray-700">
+
+ 
+
+                                            {editingBlockId ===
+
+                                                block.id ? (
+
+ 
+
+                                                <input
+
+                                                    type="text"
+
+                                                    name="address"
+
+                                                    value={
+
+                                                        editForm.address
+
+                                                    }
+
+                                                    onChange={
+
+                                                        handleEditChange
+
+                                                    }
+
+                                                    className="w-full min-w-[220px] rounded border border-gray-300 px-2 py-1"
+
+                                                />
+
+ 
+
+                                            ) : (
+
+ 
+
+                                                block.address || "--"
+
+ 
+
+                                            )}
+
+ 
+
+                                        </td>
+
+ 
+
+                                        <td className="px-5 py-3 text-gray-700">
+
+                                            {block.latitude}
+
+                                        </td>
+
+ 
+
+                                        <td className="px-5 py-3 text-gray-700">
+
+                                            {block.longitude}
+
+                                        </td>
+
+ 
+
+                                        <td className="px-5 py-3">
+
+ 
+
+                                            <div className="flex items-center justify-center gap-2">
+
+ 
+
+                                                {editingBlockId ===
+
+                                                    block.id ? (
+
+ 
+
+                                                    <>
+
+ 
+
+                                                        <button
+
+                                                            type="button"
+
+                                                            onClick={() =>
+
+                                                                handleUpdateBlock(
+
+                                                                    block.id
+
+                                                                )
+
+                                                            }
+
+                                                            disabled={
+
+                                                                updatingBlock
+
+                                                            }
+
+                                                            className="rounded-lg p-2 text-green-600 hover:bg-green-50 disabled:opacity-50"
+
+                                                            title="Save Block"
+
+                                                        >
+
+ 
+
+                                                            <Check
+
+                                                                size={17}
+
+                                                            />
+
+ 
+
+                                                        </button>
+
+ 
+
+                                                        <button
+
+                                                            type="button"
+
+                                                            onClick={
+
+                                                                handleCancelEdit
+
+                                                            }
+
+                                                            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+
+                                                            title="Cancel Block"
+
+                                                        >
+
+ 
+
+                                                            <X
+
+                                                                size={17}
+
+                                                            />
+
+ 
+
+                                                        </button>
+
+ 
+
+                                                    </>
+
+ 
+
+                                                ) : (
+
+ 
+
+                                                    <>
+
+ 
+
+                                                        <button
+
+                                                            type="button"
+
+                                                            onClick={() =>
+
+                                                                handleEditBlock(
+
+                                                                    block
+
+                                                                )
+
+                                                            }
+
+                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+
+                                                            title="Edit Block"
+
+                                                        >
+
+ 
+
+                                                            <Pencil
+
+                                                                size={17}
+
+                                                            />
+
+ 
+
+                                                        </button>
+
+ 
+
+                                                        <button
+
+                                                            type="button"
+
+                                                            onClick={() =>
+
+                                                                handleDeleteBlock(
+
+                                                                    block
+
+                                                                )
+
+                                                            }
+
+                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100"
+
+                                                            title="Delete Block"
+
+                                                        >
+
+ 
+
+                                                            <Trash2
+
+                                                                size={17}
+
+                                                            />
+
+ 
+
+                                                        </button>
+
+ 
+
+                                                    </>
+
+ 
+
+                                                )}
+
+ 
+
+                                            </div>
+
+ 
+
+                                        </td>
+
+ 
+
+                                    </tr>
+
+ 
+
+                                ))
+
+ 
+
+                            )}
+
+ 
+
+                        </tbody>
+
+ 
+
+                    </table>
+
+ 
+
+                </div>
+
+ 
+
+            </div>
+
+ 
+
+            {/* =====================================================
+
                 DELETE MODAL
+
             ====================================================== */}
 
-			{deleteModal.open && (
+ 
 
-				<div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4">
+            {deleteModal.open && (
 
-					<div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+ 
 
-						<div className="flex items-start gap-4">
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4">
 
-							<div className="rounded-full bg-red-100 p-3">
+ 
 
-								<Trash2
-									size={22}
-									className="text-red-600"
-								/>
+                    <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
 
-							</div>
+ 
 
+                        <div className="flex items-start gap-4">
 
-							<div>
+ 
 
-								<h3 className="text-lg font-semibold text-gray-800">
-									Delete Block
-								</h3>
+                            <div className="rounded-full bg-red-100 p-3">
 
-								<p className="mt-1 text-sm text-gray-500">
-									Are you sure you want to delete{" "}
-									<span className="font-medium text-gray-800">
-										{deleteModal.block?.name}
-									</span>
-									?
-								</p>
+ 
 
-							</div>
+                                <Trash2
 
-						</div>
+                                    size={22}
 
+                                    className="text-red-600"
 
-						<div className="mt-6 flex justify-end gap-3">
+                                />
 
-							<button
-								type="button"
-								onClick={() =>
-									setDeleteModal({
-										open: false,
-										block: null,
-									})
-								}
-								disabled={
-									deletingBlock
-								}
-								className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-							>
-								Cancel
-							</button>
+ 
 
+                            </div>
 
-							<button
-								type="button"
-								onClick={
-									handleConfirmDelete
-								}
-								disabled={
-									deletingBlock
-								}
-								className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-							>
+ 
 
-								{deletingBlock
-									? "Deleting..."
-									: "Delete"}
+                            <div>
 
-							</button>
+ 
 
-						</div>
+                                <h3 className="text-lg font-semibold text-gray-800">
 
-					</div>
+                                    Delete Block
 
-				</div>
+                                </h3>
 
-			)}
+ 
 
-		</div>
+                                <p className="mt-1 text-sm text-gray-500">
 
-	);
+                                    Are you sure you want to delete{" "}
+
+                                    <span className="font-medium text-gray-800">
+
+                                        {deleteModal.block?.name}
+
+                                    </span>
+
+                                    ?
+
+                                </p>
+
+ 
+
+                            </div>
+
+ 
+
+                        </div>
+
+ 
+
+                        <div className="mt-6 flex justify-end gap-3">
+
+ 
+
+                            <button
+
+                                type="button"
+
+                                onClick={() =>
+
+                                    setDeleteModal({
+
+                                        open: false,
+
+                                        block: null,
+
+                                    })
+
+                                }
+
+                                disabled={
+
+                                    deletingBlock
+
+                                }
+
+                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+
+                            >
+
+                                Cancel
+
+                            </button>
+
+ 
+
+                            <button
+
+                                type="button"
+
+                                onClick={
+
+                                    handleConfirmDelete
+
+                                }
+
+                                disabled={
+
+                                    deletingBlock
+
+                                }
+
+                                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+
+                            >
+
+ 
+
+                                {deletingBlock
+
+                                    ? "Deleting..."
+
+                                    : "Delete"}
+
+ 
+
+                            </button>
+
+ 
+
+                        </div>
+
+ 
+
+                    </div>
+
+ 
+
+                </div>
+
+ 
+
+            )}
+
+ 
+
+        </div>
+
+ 
+
+    );
+
+ 
 
 }
 
+ 
 
 export default BlocksLocation;
+

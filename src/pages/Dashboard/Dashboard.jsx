@@ -68,7 +68,7 @@ import WestBengalBasemap from "../../components/map/WestBengalBasemap";
 
 import FitWestBengalBounds from "../../components/map/FitWestBengalBounds";
 
-import MapTilerSatelliteBasemap from "../../components/map/MapTilerSatelliteBasemap";
+import EsriWorldImageryBasemap from "../../components/map/EsriWorldImageryBasemap";
 
 import ImdAlertsLayer from "../../components/map/IMDAlertsLayer";
 
@@ -229,6 +229,8 @@ function Dashboard() {
  
 
   const [selectedDistrict, setSelectedDistrict] = useState(null);
+
+  const [pointWeather, setPointWeather] = useState(null);
 
   const [districtLayerError, setDistrictLayerError] = useState("");
 
@@ -2362,7 +2364,7 @@ function Dashboard() {
 
               >
 
-                <FitWestBengalBounds />
+                <FitWestBengalBounds satellite={mapMode === "satellite-alerts"} />
 
                 <RainfallForecastLayer
 
@@ -2381,6 +2383,8 @@ function Dashboard() {
                   onForecastStatus={setRainfallStatus}
 
                   onHistoricalLayerError={setHistoricalLayerError}
+
+                  onPointWeatherChange={setPointWeather}
 
                 />
 
@@ -2404,7 +2408,7 @@ function Dashboard() {
 
                   <>
 
-                    <MapTilerSatelliteBasemap
+                    <EsriWorldImageryBasemap
 
                       onMapError={setBasemapError}
 
@@ -2490,7 +2494,7 @@ function Dashboard() {
 
                           }.`
 
-                          : "MapTiler satellite imagery is used as the base map."}
+                          : "Esri World Imagery satellite imagery is used as the base map."}
 
                   </p>
 
@@ -2579,6 +2583,108 @@ function Dashboard() {
                       before making operational decisions.
 
                     </p>
+
+                  </div>
+
+                )}
+
+ 
+
+                {mapMode === "rainfall" && pointWeather?.location && (
+
+                  <div className="mt-4 rounded-lg border border-blue-100 bg-white p-3">
+
+                    <p className="text-xs font-semibold text-slate-800">
+
+                      Weather Report
+
+                    </p>
+
+                    <p className="mt-1 text-[11px] text-slate-500">
+
+                      Latitude: {pointWeather.location.lat.toFixed(5)}
+
+                      <br />
+
+                      Longitude: {pointWeather.location.lng.toFixed(5)}
+
+                    </p>
+
+                    {pointWeather.loading && (
+
+                      <p className="mt-2 text-xs text-blue-700" role="status">
+
+                        Loading weather…
+
+                      </p>
+
+                    )}
+
+                    {pointWeather.error && (
+
+                      <p className="mt-2 text-xs text-red-700" role="alert">
+
+                        {pointWeather.error}
+
+                      </p>
+
+                    )}
+
+                    {pointWeather.weather?.current && (
+
+                      <div className="mt-2 space-y-1 text-xs text-slate-600">
+
+                        {[
+
+                          ["Temperature", "temperature_2m"],
+
+                          ["Precipitation", "precipitation"],
+
+                          ["Cloud cover", "cloud_cover"],
+
+                          ["Wind speed", "wind_speed_10m"],
+
+                          ["Wind direction", "wind_direction_10m"],
+
+                        ].map(([label, key]) => {
+
+                          const value = pointWeather.weather.current[key];
+
+                          const unit = pointWeather.weather.current_units[key];
+
+                          return (
+
+                            <p key={key}>
+
+                              {label}: {value ?? "Unavailable"}
+
+                              {value != null && unit ? ` ${unit}` : ""}
+
+                              {key === "wind_direction_10m" && value != null
+
+                                ? " (from north)"
+
+                                : ""}
+
+                            </p>
+
+                          );
+
+                        })}
+
+                        {pointWeather.weather.current.time && (
+
+                          <p className="pt-1 text-[10px] text-slate-400">
+
+                            Updated: {pointWeather.weather.current.time}
+
+                          </p>
+
+                        )}
+
+                      </div>
+
+                    )}
 
                   </div>
 
@@ -2682,7 +2788,7 @@ function Dashboard() {
 
  
 
-                  {mapMode === "satellite-alerts" && imdStatus.updatedAt && (
+                  {/* {mapMode === "satellite-alerts" && imdStatus.updatedAt && (
 
                     <p className="mt-3 text-xs text-slate-500">
 
@@ -2692,7 +2798,7 @@ function Dashboard() {
 
                     </p>
 
-                  )}
+                  )} */}
 
  
 
@@ -2726,7 +2832,7 @@ function Dashboard() {
 
                 </div>
 
-                <div className="mt-auto pt-5">
+                {/* <div className="mt-auto pt-5">
 
                   <a
 
@@ -2758,13 +2864,13 @@ function Dashboard() {
 
                       : mapMode === "historical"
 
-                        ? "NRSC Bhuvan flood WMS capabilities"
+                        ? ""
 
-                        : "India Meteorological Department"}
+                        : ""}
 
                   </a>
 
-                </div>
+                </div> */}
 
  
 
@@ -3551,4 +3657,3 @@ function Dashboard() {
  
 
 export default Dashboard;
-

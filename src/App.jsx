@@ -314,9 +314,18 @@ function App() {
                 }
               >
                 <Route
-                  path="/dashboard"
-                  element={<Dashboard />}
-                />
+                  element={
+                    <RoleProtectedRoute
+                      allowedRoles={["super_admin", "admin"]}
+                      fallbackPath="/pre-alerts"
+                    />
+                  }
+                >
+                  <Route
+                    path="/dashboard"
+                    element={<Dashboard />}
+                  />
+                </Route>
 
                 {/* Department */}
 
@@ -425,8 +434,17 @@ function App() {
                   element={<Resources />}
                 />
 
-                {/* Reports */}
+              </Route>
 
+              {/* MIS Reports: super_admin and admin only. */}
+              <Route
+                element={
+                  <RoleProtectedRoute
+                    allowedRoles={["super_admin", "admin"]}
+                    fallbackPath="/dashboard"
+                  />
+                }
+              >
                 <Route
                   path="/reports"
                   element={<Report />}
@@ -564,7 +582,7 @@ function App() {
 
               {/* =================================================
                   VOLUNTEER MANAGEMENT
-                  super_admin + admin + district + subdivision
+                  super_admin + admin + district + subdivision + block
               ================================================= */}
 
               <Route
@@ -575,6 +593,7 @@ function App() {
                       "admin",
                       "district",
                       "subdivision",
+                      "block",
                     ]}
                     fallbackPath="/dashboard"
                   />
@@ -588,7 +607,7 @@ function App() {
 
               {/* =================================================
                   NGO MANAGEMENT
-                  super_admin + admin + district + subdivision
+                  super_admin + admin + district + subdivision + block
               ================================================= */}
 
               <Route
@@ -599,6 +618,7 @@ function App() {
                       "admin",
                       "district",
                       "subdivision",
+                      "block",
                     ]}
                     fallbackPath="/dashboard"
                   />

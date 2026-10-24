@@ -1,596 +1,2535 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { Eye, Check, X, RefreshCw } from "lucide-react";
+
+import { useAuth } from "../../../context/AuthContext";
+
+ 
 
 import {
-  getDistricts,
-  getDistrictUsers,
+
   getAssignedItems,
+
+  getReturnRequests,
+
+  getReturnDetails,
+
   returnStock,
+
+  approveReturn,
+
+  rejectReturn,
+
 } from "../../../services/returnStockService";
 
+ 
+
+import {
+
+  listDistrictUsers,
+
+  getUser,
+
+} from "../../../services/userService";
+
+ 
+
 function ReturnStock() {
-  const [districts, setDistricts] = useState([]);
-  const [users, setUsers] = useState([]);
+
+  const { user } = useAuth();
+
+ 
+
+  const role = String(
+
+    user?.role ??
+
+      user?.role_name ??
+
+      user?.user_type ??
+
+      user?.account_type ??
+
+      ""
+
+  )
+
+    .trim()
+
+    .toLowerCase()
+
+    .replace(/[\s-]+/g, "_");
+
+ 
+
+  const isAdmin = ["admin", "super_admin"].includes(role);
+
+ 
+
   const [items, setItems] = useState([]);
 
-  const [selectedDistrict, setSelectedDistrict] = useState("");
-  const [selectedUser, setSelectedUser] = useState("");
-  const [selectedItem, setSelectedItem] = useState("");
+  const [requests, setRequests] = useState([]);
 
-  const [returnQuantity, setReturnQuantity] = useState("");
+  const [districtUsers, setDistrictUsers] = useState([]);
 
-  const [loadingDistricts, setLoadingDistricts] = useState(true);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [loadingItems, setLoadingItems] = useState(false);
+ 
+
+  const [loading, setLoading] = useState(true);
+
+  const [refreshing, setRefreshing] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
 
+  const [processingId, setProcessingId] = useState(null);
+
+ 
+
   const [error, setError] = useState("");
+
   const [success, setSuccess] = useState("");
 
-  /*
-   * Load districts when page opens
-   */
-  useEffect(() => {
-    let isActive = true;
+ 
 
-    getDistricts()
-      .then((data) => {
-        if (isActive) setDistricts(data);
-      })
-      .catch((err) => {
-        if (isActive) {
-          setError(err.message || "Unable to load districts.");
-        }
-      })
-      .finally(() => {
-        if (isActive) setLoadingDistricts(false);
-      });
+  // District user return-request form
 
-    return () => {
-      isActive = false;
-    };
-  }, []);
+  const [selectedItem, setSelectedItem] = useState(null);
 
-  /*
-   * District changed
-   */
-  const handleDistrictChange = async (event) => {
-    const districtId = event.target.value;
+  const [returnQuantity, setReturnQuantity] = useState("1");
 
-    setSelectedDistrict(districtId);
+ 
 
-    // Reset everything below district
-    setSelectedUser("");
-    setSelectedItem("");
-    setUsers([]);
-    setItems([]);
-    setReturnQuantity("");
+  // Rejection form
 
-    setError("");
-    setSuccess("");
+  const [rejectingId, setRejectingId] = useState(null);
 
-    if (!districtId) {
-      return;
-    }
+  const [rejectionNote, setRejectionNote] = useState("");
 
-    try {
-      setLoadingUsers(true);
+ 
 
-      const data = await getDistrictUsers(districtId);
+  // Admin defaults to pending; District defaults to all.
 
-      setUsers(data);
-    } catch (err) {
-      setError(
-        err.message || "Unable to load district users."
-      );
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
+  const [statusFilter, setStatusFilter] = useState(
 
-  /*
-   * District user changed
-   */
-  const handleUserChange = async (event) => {
-    const userId = event.target.value;
+    isAdmin ? "pending" : "all"
 
-    setSelectedUser(userId);
-
-    // Reset stock item
-    setSelectedItem("");
-    setItems([]);
-    setReturnQuantity("");
-
-    setError("");
-    setSuccess("");
-
-    if (!userId) {
-      return;
-    }
-
-    try {
-      setLoadingItems(true);
-
-      const data = await getAssignedItems(userId);
-
-      const formattedItems = data.map(
-        (item) => ({
-          ...item,
-          return_quantity: 0,
-        })
-      );
-
-      setItems(formattedItems);
-    } catch (err) {
-      setError(
-        err.message || "Unable to load stock items."
-      );
-    } finally {
-      setLoadingItems(false);
-    }
-  };
-
-  /*
-   * Stock item changed
-   */
-  const handleItemChange = (event) => {
-    const inventoryId = event.target.value;
-
-    setSelectedItem(inventoryId);
-    setReturnQuantity("");
-    setError("");
-    setSuccess("");
-  };
-
-  /*
-   * Currently selected item
-   */
-  const selectedItemData = items.find(
-    (item) =>
-      String(item.inventory_id) ===
-      String(selectedItem)
   );
 
-  /*
-   * Quantity changed
-   */
-  const handleQuantityChange = (event) => {
-    let quantity = Number(event.target.value);
+ 
 
-    if (Number.isNaN(quantity)) {
-      quantity = 0;
-    }
+  // View dialog
 
-    const maxQuantity = Number(
-      selectedItemData?.remaining_quantity || 0
+  const [viewingRequest, setViewingRequest] = useState(null);
+
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
+  const [detailsError, setDetailsError] = useState("");
+
+ 
+
+  // Map login user ID -> District user's name.
+
+  const districtUserMap = useMemo(
+
+    () =>
+
+      new Map(
+
+        districtUsers.map((districtUser) => [
+
+          String(districtUser.id),
+
+          districtUser.name,
+
+        ])
+
+      ),
+
+    [districtUsers]
+
+  );
+
+ 
+
+  useEffect(() => {
+
+    setStatusFilter(isAdmin ? "pending" : "all");
+
+  }, [isAdmin]);
+
+ 
+
+  // Load District users for the Admin/Super Admin view.
+
+  useEffect(() => {
+
+    let cancelled = false;
+
+ 
+
+    const loadDistrictUsers = async () => {
+
+      if (!isAdmin) {
+
+        setDistrictUsers([]);
+
+        return;
+
+      }
+
+ 
+
+      try {
+
+        const response = await listDistrictUsers({
+
+          page: 1,
+
+          per_page: 100,
+
+        });
+
+ 
+
+        if (response?.success === false) {
+
+          throw new Error(
+
+            response.message || "Failed to fetch District users."
+
+          );
+
+        }
+
+ 
+
+        // Support the common response shapes.
+
+        const users = Array.isArray(response?.data)
+
+          ? response.data
+
+          : Array.isArray(response?.data?.users)
+
+            ? response.data.users
+
+            : Array.isArray(response?.users)
+
+              ? response.users
+
+              : [];
+
+ 
+
+        if (!cancelled) {
+
+          setDistrictUsers(users);
+
+        }
+
+      } catch (err) {
+
+        console.error("Load District users error:", err);
+
+ 
+
+        if (!cancelled) {
+
+          setDistrictUsers([]);
+
+        }
+
+      }
+
+    };
+
+ 
+
+    loadDistrictUsers();
+
+ 
+
+    return () => {
+
+      cancelled = true;
+
+    };
+
+  }, [isAdmin]);
+
+ 
+
+  // Load Admin requests or District user's assigned stock.
+
+  const loadData = useCallback(
+
+    async ({ silent = false } = {}) => {
+
+      if (!role) {
+
+        setLoading(false);
+
+        return;
+
+      }
+
+ 
+
+      try {
+
+        if (silent) {
+
+          setRefreshing(true);
+
+        } else {
+
+          setLoading(true);
+
+        }
+
+ 
+
+        setError("");
+
+ 
+
+        if (isAdmin) {
+
+          const result = await getReturnRequests({
+
+            status: statusFilter,
+
+            page: 1,
+
+            limit: 100,
+
+          });
+
+ 
+
+          const rows = Array.isArray(result?.items)
+
+            ? result.items
+
+            : [];
+
+ 
+
+          // Admin table excludes not_returned records.
+
+          setRequests(
+
+            rows.filter((request) =>
+
+              ["pending", "approved", "rejected"].includes(
+
+                String(request.status || "").toLowerCase()
+
+              )
+
+            )
+
+          );
+
+        } else {
+
+          const result = await getAssignedItems(
+
+            statusFilter === "all" ? "" : statusFilter
+
+          );
+
+ 
+
+          setItems(Array.isArray(result) ? result : []);
+
+        }
+
+      } catch (err) {
+
+        setError(err.message || "Failed to load return stock data.");
+
+      } finally {
+
+        setLoading(false);
+
+        setRefreshing(false);
+
+      }
+
+    },
+
+    [role, isAdmin, statusFilter]
+
+  );
+
+ 
+
+  useEffect(() => {
+
+    loadData();
+
+  }, [loadData]);
+
+ 
+
+  // Resolve a District user's name from the existing users API.
+
+  const getDistrictUserName = (request) => {
+
+    const userId = request?.district_user_id;
+
+ 
+
+    return (
+
+      request?.district_user_name ||
+
+      districtUserMap.get(String(userId)) ||
+
+      (userId != null ? `User ID: ${userId}` : "Unknown User")
+
     );
 
-    quantity = Math.max(0, quantity);
-    quantity = Math.min(quantity, maxQuantity);
-
-    setReturnQuantity(quantity);
   };
 
-  /*
-   * Return all remaining stock
-   */
-  const handleReturnAll = () => {
-    if (!selectedItemData) {
-      return;
-    }
+ 
 
-    setReturnQuantity(
-      Number(selectedItemData.remaining_quantity || 0)
+  const statusClass = (status) => {
+
+    const classes = {
+
+      not_returned: "bg-slate-100 text-slate-700",
+
+      pending: "bg-amber-100 text-amber-800",
+
+      approved: "bg-green-100 text-green-800",
+
+      rejected: "bg-red-100 text-red-800",
+
+    };
+
+ 
+
+    return (
+
+      classes[String(status || "").toLowerCase()] ||
+
+      "bg-slate-100 text-slate-700"
+
     );
+
   };
 
-  /*
-   * Submit return
-   */
-  const handleSubmit = async (event) => {
+ 
+
+  const formatStatus = (status) =>
+
+    String(status || "unknown")
+
+      .replaceAll("_", " ")
+
+      .replace(/\b\w/g, (character) => character.toUpperCase());
+
+ 
+
+  // Submit a return request as a District user.
+
+  const handleRequestReturn = async (event) => {
+
     event.preventDefault();
 
+ 
+
     setError("");
+
     setSuccess("");
 
-    if (!selectedDistrict) {
-      setError("Please select a district.");
-      return;
-    }
-
-    if (!selectedUser) {
-      setError("Please select a district user.");
-      return;
-    }
+ 
 
     if (!selectedItem) {
-      setError("Please select a stock item.");
+
+      setError("Please select an assigned stock item.");
+
       return;
+
     }
 
-    if (
-      !returnQuantity ||
-      Number(returnQuantity) <= 0
-    ) {
-      setError("Please enter a valid return quantity.");
+ 
+
+    const quantity = Number(returnQuantity);
+
+ 
+
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+
+      setError("Return quantity must be a positive whole number.");
+
       return;
+
     }
 
-    if (
-      Number(returnQuantity) >
-      Number(selectedItemData.remaining_quantity)
-    ) {
-      setError(
-        `Return quantity cannot exceed ${selectedItemData.remaining_quantity}.`
-      );
-      return;
-    }
+ 
 
     try {
+
       setSubmitting(true);
 
-      const result = await returnStock({
-        districtUserId: selectedUser,
+ 
 
-        items: [
-          {
-            inventory_id:
-              selectedItemData.inventory_id,
+      const response = await returnStock({
 
-            issue_id:
-              selectedItemData.issue_id,
+        inventory_id: selectedItem.inventory_id,
 
-            return_quantity:
-              Number(returnQuantity),
-          },
-        ],
+        issue_id: selectedItem.issue_id,
+
+        return_quantity: quantity,
+
       });
 
+ 
+
       setSuccess(
-        result.message ||
-          "Stock returned successfully."
+
+        response?.message || "Return request submitted for approval."
+
       );
 
-      // Refresh stock
-      const data = await getAssignedItems(
-        selectedUser
-      );
+ 
 
-      setItems(
-        data.map((item) => ({
-          ...item,
-          return_quantity: 0,
-        }))
-      );
+      setSelectedItem(null);
 
-      setSelectedItem("");
-      setReturnQuantity("");
+      setReturnQuantity("1");
+
+ 
+
+      await loadData({ silent: true });
+
     } catch (err) {
-      setError(
-        err.message ||
-          "Something went wrong while returning stock."
-      );
+
+      setError(err.message || "Unable to submit return request.");
+
     } finally {
+
       setSubmitting(false);
+
     }
+
   };
 
+ 
+
+  // Approve a pending request. This handler is shared by the table
+
+  // and the View dialog.
+
+  const handleApprove = async (request) => {
+
+    if (
+
+      String(request?.status || "").toLowerCase() !== "pending" ||
+
+      processingId !== null
+
+    ) {
+
+      return;
+
+    }
+
+ 
+
+    const confirmed = window.confirm(
+
+      `Approve return request ${
+
+        request.return_no || request.return_history_id
+
+      }?`
+
+    );
+
+ 
+
+    if (!confirmed) return;
+
+ 
+
+    setError("");
+
+    setSuccess("");
+
+    setProcessingId(request.return_history_id);
+
+ 
+
+    try {
+
+      const response = await approveReturn(request);
+
+ 
+
+      setSuccess(
+
+        response?.message || "Return request approved successfully."
+
+      );
+
+ 
+
+      setViewingRequest(null);
+
+      setRejectingId(null);
+
+      setRejectionNote("");
+
+ 
+
+      await loadData({ silent: true });
+
+    } catch (err) {
+
+      setError(err.message || "Unable to approve return request.");
+
+    } finally {
+
+      setProcessingId(null);
+
+    }
+
+  };
+
+ 
+
+  const handleOpenReject = (request) => {
+
+    if (
+
+      String(request?.status || "").toLowerCase() !== "pending" ||
+
+      processingId !== null
+
+    ) {
+
+      return;
+
+    }
+
+ 
+
+    setError("");
+
+    setSuccess("");
+
+    setRejectingId(request.return_history_id);
+
+    setRejectionNote("");
+
+  };
+
+ 
+
+  // Reject a pending request with a reason.
+
+  const handleReject = async (event, request) => {
+
+    event.preventDefault();
+
+ 
+
+    if (
+
+      String(request?.status || "").toLowerCase() !== "pending" ||
+
+      processingId !== null
+
+    ) {
+
+      return;
+
+    }
+
+ 
+
+    if (!rejectionNote.trim()) {
+
+      setError("Please provide a reason for rejecting this request.");
+
+      return;
+
+    }
+
+ 
+
+    setError("");
+
+    setSuccess("");
+
+    setProcessingId(request.return_history_id);
+
+ 
+
+    try {
+
+      const response = await rejectReturn(
+
+        request.return_history_id,
+
+        rejectionNote
+
+      );
+
+ 
+
+      setSuccess(
+
+        response?.message || "Return request rejected successfully."
+
+      );
+
+ 
+
+      setViewingRequest(null);
+
+      setRejectingId(null);
+
+      setRejectionNote("");
+
+ 
+
+      await loadData({ silent: true });
+
+    } catch (err) {
+
+      setError(err.message || "Unable to reject return request.");
+
+    } finally {
+
+      setProcessingId(null);
+
+    }
+
+  };
+
+ 
+
+  // Load details and resolve the reviewer's name where possible.
+
+  const handleViewDetails = async (request) => {
+
+    setViewingRequest(null);
+
+    setDetailsError("");
+
+    setDetailsLoading(true);
+
+    setRejectingId(null);
+
+    setRejectionNote("");
+
+ 
+
+    try {
+
+      const details = await getReturnDetails(
+
+        request.return_history_id
+
+      );
+
+ 
+
+      if (!details) {
+
+        throw new Error("Return request details were not found.");
+
+      }
+
+ 
+
+      const status = String(
+
+        details.status || request.status || ""
+
+      ).toLowerCase();
+
+ 
+
+      let reviewedByName =
+
+        details.reviewed_by_name ||
+
+        details.reviewer_name ||
+
+        details.reviewed_by_user_name ||
+
+        "";
+
+ 
+
+      const reviewerId =
+
+        details.reviewed_by_user_id ??
+
+        details.reviewed_by_id ??
+
+        details.reviewed_by;
+
+ 
+
+      // Resolve the reviewer only after a decision has been made.
+
+      if (
+
+        ["approved", "rejected"].includes(status) &&
+
+        !reviewedByName &&
+
+        reviewerId != null &&
+
+        /^\d+$/.test(String(reviewerId))
+
+      ) {
+
+        try {
+
+          const userResponse = await getUser(reviewerId);
+
+ 
+
+          const reviewer =
+
+            userResponse?.data?.user ||
+
+            userResponse?.data ||
+
+            userResponse?.user;
+
+ 
+
+          reviewedByName = reviewer?.name || "";
+
+        } catch (userError) {
+
+          console.error("Fetch reviewer name error:", userError);
+
+        }
+
+      }
+
+ 
+
+      if (
+
+        !reviewedByName &&
+
+        typeof reviewerId === "string" &&
+
+        reviewerId.trim() &&
+
+        !/^\d+$/.test(reviewerId.trim())
+
+      ) {
+
+        reviewedByName = reviewerId;
+
+      }
+
+ 
+
+      setViewingRequest({
+
+        ...request,
+
+        ...details,
+
+        status,
+
+        reviewed_by_name: reviewedByName,
+
+        district_user_name:
+
+          details.district_user_name ||
+
+          getDistrictUserName(request),
+
+      });
+
+    } catch (err) {
+
+      setDetailsError(
+
+        err.message || "Failed to load return request details."
+
+      );
+
+    } finally {
+
+      setDetailsLoading(false);
+
+    }
+
+  };
+
+ 
+
+  const closeDetails = () => {
+
+    if (processingId !== null) return;
+
+ 
+
+    setViewingRequest(null);
+
+    setDetailsError("");
+
+    setRejectingId(null);
+
+    setRejectionNote("");
+
+  };
+
+ 
+
   return (
+
     <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-5xl">
 
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
-            Return Stock
-          </h1>
+      <div className="mx-auto max-w-7xl">
 
-          <p className="mt-1 text-sm text-slate-500">
-            Select district, district user and stock item
-            to return inventory.
-          </p>
+        {/* Page header */}
+
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+          <div>
+
+            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+
+              Return Stock
+
+            </h1>
+
+ 
+
+            <p className="mt-1 text-sm text-slate-500">
+
+              {isAdmin
+
+                ? "Review and process stock return requests."
+
+                : "View assigned stock, request returns, and track approval status."}
+
+            </p>
+
+          </div>
+
+ 
+
+          <button
+
+            type="button"
+
+            onClick={() => loadData({ silent: true })}
+
+            disabled={loading || refreshing}
+
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+
+          >
+
+            <RefreshCw
+
+              size={16}
+
+              className={refreshing ? "animate-spin" : ""}
+
+            />
+
+            {refreshing ? "Refreshing..." : "Refresh"}
+
+          </button>
+
         </div>
 
-        {/* Error */}
+ 
+
+        {/* Feedback */}
+
         {error && (
-          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <span className="mr-2 font-bold">!</span>
+
+          <div
+
+            role="alert"
+
+            className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+
+          >
+
             {error}
+
           </div>
+
         )}
 
-        {/* Success */}
+ 
+
         {success && (
-          <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            <span className="mr-2 font-bold">✓</span>
+
+          <div
+
+            role="status"
+
+            className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+
+          >
+
             {success}
+
           </div>
+
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+ 
 
-            {/* Card Header */}
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="font-semibold text-slate-900">
-                Stock Return Details
-              </h2>
+        {loading ? (
 
-              <p className="mt-1 text-xs text-slate-500">
-                Select the required information step by
-                step.
-              </p>
+          <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+
+            Loading return stock information...
+
+          </div>
+
+        ) : isAdmin ? (
+
+          /* ==========================================
+
+             ADMIN / SUPER ADMIN: RETURN REQUESTS
+
+          ========================================== */
+
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
+            <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <div>
+
+                <h2 className="font-semibold text-slate-900">
+
+                  {statusFilter === "all"
+
+                    ? "All Return Requests"
+
+                    : `${formatStatus(statusFilter)} Return Requests`}
+
+                </h2>
+
+ 
+
+                <p className="mt-1 text-sm text-slate-500">
+
+                  Review each request before approving or rejecting it.
+
+                </p>
+
+              </div>
+
+ 
+
+              <div className="flex shrink-0 items-center gap-3">
+
+                <label
+
+                  htmlFor="admin-return-status"
+
+                  className="whitespace-nowrap text-sm font-medium text-slate-700"
+
+                >
+
+                  Status:
+
+                </label>
+
+ 
+
+                <select
+
+                  id="admin-return-status"
+
+                  value={statusFilter}
+
+                  onChange={(event) =>
+
+                    setStatusFilter(event.target.value)
+
+                  }
+
+                  className="min-w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+
+                >
+
+                  <option value="pending">Pending</option>
+
+                  <option value="approved">Approved</option>
+
+                  <option value="rejected">Rejected</option>
+
+                  <option value="all">All Statuses</option>
+
+                </select>
+
+              </div>
+
             </div>
 
-            <div className="space-y-6 p-5 md:p-6">
+ 
 
-              {/* STEP 1 - DISTRICT */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  District
-                  <span className="ml-1 text-red-500">
-                    *
-                  </span>
-                </label>
+            {requests.length === 0 ? (
 
-                <select
-                  value={selectedDistrict}
-                  onChange={handleDistrictChange}
-                  disabled={loadingDistricts}
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100"
-                >
-                  <option value="">
-                    {loadingDistricts
-                      ? "Loading districts..."
-                      : "Select district"}
-                  </option>
+              <div className="p-10 text-center">
 
-                  {districts.map((district) => (
-                    <option
-                      key={district.id}
-                      value={district.id}
-                    >
-                      {district.name}
-                    </option>
-                  ))}
-                </select>
+                <p className="font-medium text-slate-700">
+
+                  No{" "}
+
+                  {statusFilter === "all"
+
+                    ? ""
+
+                    : `${formatStatus(statusFilter).toLowerCase()} `}
+
+                  return requests available.
+
+                </p>
+
               </div>
 
-              {/* STEP 2 - DISTRICT USER */}
+            ) : (
+
+              <div className="overflow-x-auto">
+
+                <table className="w-full min-w-[1150px] text-left text-sm">
+
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+
+                    <tr>
+
+                      <th className="px-4 py-3">Return No.</th>
+
+                      <th className="px-4 py-3">Issue No.</th>
+
+                      <th className="px-4 py-3">Product</th>
+
+                      <th className="px-4 py-3">Equipment</th>
+
+                      <th className="px-4 py-3">District User</th>
+
+                      <th className="px-4 py-3">Return Qty.</th>
+
+                      <th className="px-4 py-3">Requested At</th>
+
+                      <th className="px-4 py-3">Status</th>
+
+                      <th className="px-4 py-3">Actions</th>
+
+                    </tr>
+
+                  </thead>
+
+ 
+
+                  <tbody className="divide-y divide-slate-100">
+
+                    {requests.map((request) => {
+
+                      const isPending =
+
+                        String(request.status || "").toLowerCase() ===
+
+                        "pending";
+
+ 
+
+                      return (
+
+                        <tr
+
+                          key={request.return_history_id}
+
+                          className="align-top hover:bg-slate-50"
+
+                        >
+
+                          <td className="px-4 py-4 font-medium text-slate-800">
+
+                            {request.return_no || "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-600">
+
+                            {request.issue_no || "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4">
+
+                            <p className="font-medium text-slate-800">
+
+                              {request.product_name || "-"}
+
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+
+                              {request.brand_name || ""}
+
+                            </p>
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-600">
+
+                            {request.equipment_type || "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-700">
+
+                            {getDistrictUserName(request)}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 font-semibold text-slate-800">
+
+                            {request.return_quantity ?? "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-600">
+
+                            {request.requested_at ||
+
+                              request.return_requested_at ||
+
+                              "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4">
+
+                            <span
+
+                              className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(
+
+                                request.status
+
+                              )}`}
+
+                            >
+
+                              {formatStatus(request.status)}
+
+                            </span>
+
+                          </td>
+
+ 
+
+                          {/* Icon actions on the same line */}
+
+                          <td className="px-4 py-4">
+
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+
+                              <button
+
+                                type="button"
+
+                                onClick={() => handleViewDetails(request)}
+
+                                disabled={detailsLoading}
+
+                                title="View Details"
+
+                                aria-label="View Details"
+
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition hover:bg-indigo-100 disabled:opacity-50"
+
+                              >
+
+                                <Eye size={16} />
+
+                              </button>
+
+ 
+
+                              {isPending && (
+
+                                <>
+
+                                  <button
+
+                                    type="button"
+
+                                    onClick={() => handleApprove(request)}
+
+                                    disabled={processingId !== null}
+
+                                    title="Approve Return"
+
+                                    aria-label="Approve Return"
+
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-green-200 bg-green-50 text-green-600 transition hover:bg-green-100 disabled:opacity-50"
+
+                                  >
+
+                                    <Check size={16} />
+
+                                  </button>
+
+ 
+
+                                  <button
+
+                                    type="button"
+
+                                    onClick={() => handleOpenReject(request)}
+
+                                    disabled={processingId !== null}
+
+                                    title="Reject Return"
+
+                                    aria-label="Reject Return"
+
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+
+                                  >
+
+                                    <X size={16} />
+
+                                  </button>
+
+                                </>
+
+                              )}
+
+                            </div>
+
+ 
+
+                            {/* Inline rejection form only when the dialog is closed */}
+
+                            {isPending &&
+
+                              rejectingId === request.return_history_id &&
+
+                              !viewingRequest && (
+
+                                <form
+
+                                  onSubmit={(event) =>
+
+                                    handleReject(event, request)
+
+                                  }
+
+                                  className="mt-3 min-w-64 space-y-2"
+
+                                >
+
+                                  <label className="block text-xs font-medium text-slate-700">
+
+                                    Rejection reason
+
+                                  </label>
+
+ 
+
+                                  <textarea
+
+                                    value={rejectionNote}
+
+                                    onChange={(event) =>
+
+                                      setRejectionNote(event.target.value)
+
+                                    }
+
+                                    rows={3}
+
+                                    maxLength={1000}
+
+                                    required
+
+                                    placeholder="Explain why this request is rejected..."
+
+                                    className="w-full rounded-lg border border-slate-300 p-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+
+                                  />
+
+ 
+
+                                  <div className="flex gap-2">
+
+                                    <button
+
+                                      type="submit"
+
+                                      disabled={
+
+                                        processingId !== null ||
+
+                                        !rejectionNote.trim()
+
+                                      }
+
+                                      className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+
+                                    >
+
+                                      Confirm Reject
+
+                                    </button>
+
+ 
+
+                                    <button
+
+                                      type="button"
+
+                                      onClick={() => {
+
+                                        setRejectingId(null);
+
+                                        setRejectionNote("");
+
+                                      }}
+
+                                      className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+
+                                    >
+
+                                      Cancel
+
+                                    </button>
+
+                                  </div>
+
+                                </form>
+
+                              )}
+
+                          </td>
+
+                        </tr>
+
+                      );
+
+                    })}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            )}
+
+          </section>
+
+        ) : (
+
+          /* ==========================================
+
+             DISTRICT USER: ASSIGNED STOCK
+
+          ========================================== */
+
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
+            <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  District User
-                  <span className="ml-1 text-red-500">
-                    *
-                  </span>
+
+                <h2 className="font-semibold text-slate-900">
+
+                  My Assigned Stock
+
+                </h2>
+
+ 
+
+                <p className="mt-1 text-sm text-slate-500">
+
+                  Submit return requests for eligible items and track their
+
+                  status.
+
+                </p>
+
+              </div>
+
+ 
+
+              <div className="flex shrink-0 items-center gap-3">
+
+                <label
+
+                  htmlFor="district-return-status"
+
+                  className="whitespace-nowrap text-sm font-medium text-slate-700"
+
+                >
+
+                  Status:
+
                 </label>
 
+ 
+
                 <select
-                  value={selectedUser}
-                  onChange={handleUserChange}
-                  disabled={
-                    !selectedDistrict ||
-                    loadingUsers
+
+                  id="district-return-status"
+
+                  value={statusFilter}
+
+                  onChange={(event) =>
+
+                    setStatusFilter(event.target.value)
+
                   }
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                >
-                  <option value="">
-                    {!selectedDistrict
-                      ? "Select district first"
-                      : loadingUsers
-                      ? "Loading district users..."
-                      : users.length === 0
-                      ? "No district users found"
-                      : "Select district user"}
-                  </option>
 
-                  {users.map((user) => (
-                    <option
-                      key={user.id}
-                      value={user.id}
-                    >
-                      {user.name} - {user.email}
-                    </option>
-                  ))}
+                  className="min-w-40 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+
+                >
+
+                  <option value="all">All Statuses</option>
+
+                  <option value="not_returned">Not Returned</option>
+
+                  <option value="pending">Pending</option>
+
+                  <option value="approved">Approved</option>
+
+                  <option value="rejected">Rejected</option>
+
                 </select>
+
               </div>
 
-              {/* STEP 3 - STOCK ITEM */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Stock Item
-                  <span className="ml-1 text-red-500">
-                    *
-                  </span>
-                </label>
+            </div>
 
-                <select
-                  value={selectedItem}
-                  onChange={handleItemChange}
-                  disabled={
-                    !selectedUser ||
-                    loadingItems
-                  }
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                >
-                  <option value="">
-                    {!selectedUser
-                      ? "Select district user first"
-                      : loadingItems
-                      ? "Loading stock items..."
-                      : items.length === 0
-                      ? "No stock available"
-                      : "Select stock item"}
-                  </option>
+ 
 
-                  {items.map((item) => (
-                    <option
-                      key={`${item.inventory_id}-${item.issue_id}`}
-                      value={item.inventory_id}
-                      disabled={
-                        Number(
-                          item.remaining_quantity
-                        ) <= 0
-                      }
-                    >
-                      {item.product_name} — Remaining:{" "}
-                      {item.remaining_quantity} —{" "}
-                      {item.issue_no}
-                    </option>
-                  ))}
-                </select>
+            {items.length === 0 ? (
+
+              <div className="p-10 text-center text-sm text-slate-500">
+
+                No assigned stock items available.
+
               </div>
 
-              {/* SELECTED ITEM INFORMATION */}
-              {selectedItemData && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+            ) : (
 
-                  <div className="mb-4">
-                    <h3 className="font-semibold text-slate-800">
-                      Selected Stock
-                    </h3>
+              <div className="overflow-x-auto">
 
-                    <p className="mt-1 text-sm text-slate-500">
-                      {selectedItemData.product_name}
-                    </p>
-                  </div>
+                <table className="w-full min-w-[1100px] text-left text-sm">
 
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
 
-                    <InfoBox
-                      label="Equipment"
-                      value={
-                        selectedItemData.equipment_type
-                      }
-                    />
+                    <tr>
 
-                    <InfoBox
-                      label="Issue No."
-                      value={
-                        selectedItemData.issue_no
-                      }
-                    />
+                      <th className="px-4 py-3">Issue No.</th>
 
-                    <InfoBox
-                      label="Assigned"
-                      value={
-                        selectedItemData.assigned_quantity
-                      }
-                    />
+                      <th className="px-4 py-3">Product</th>
 
-                    <InfoBox
-                      label="Remaining"
-                      value={
-                        selectedItemData.remaining_quantity
-                      }
-                      highlight
-                    />
+                      <th className="px-4 py-3">Equipment</th>
 
-                  </div>
+                      <th className="px-4 py-3">Issued Qty.</th>
 
-                  {/* RETURN QUANTITY */}
-                  <div className="mt-5">
+                      <th className="px-4 py-3">Return Qty.</th>
 
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Return Quantity
-                      <span className="ml-1 text-red-500">
-                        *
-                      </span>
-                    </label>
+                      <th className="px-4 py-3">Return No.</th>
 
-                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <th className="px-4 py-3">Requested At</th>
 
-                      <input
-                        type="number"
-                        min="1"
-                        max={
-                          selectedItemData.remaining_quantity
-                        }
-                        value={returnQuantity}
-                        onChange={handleQuantityChange}
-                        placeholder="Enter quantity"
-                        className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 sm:w-40"
-                      />
+                      <th className="px-4 py-3">Status</th>
 
-                      <button
-                        type="button"
-                        onClick={handleReturnAll}
-                        className="h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                      >
-                        Return All
-                      </button>
+                      <th className="px-4 py-3">Rejection Reason</th>
 
-                    </div>
+                      <th className="px-4 py-3">Action</th>
 
-                    <p className="mt-2 text-xs text-slate-500">
-                      Maximum return quantity:{" "}
-                      <span className="font-semibold">
-                        {
-                          selectedItemData.remaining_quantity
-                        }
-                      </span>
-                    </p>
+                    </tr>
 
-                  </div>
+                  </thead>
+
+ 
+
+                  <tbody className="divide-y divide-slate-100">
+
+                    {items.map((item) => {
+
+                      const status = String(
+
+                        item.status || "not_returned"
+
+                      ).toLowerCase();
+
+ 
+
+                      const canRequest =
+
+                        status === "not_returned" ||
+
+                        status === "rejected";
+
+ 
+
+                      return (
+
+                        <tr
+
+                          key={`${item.inventory_id}-${item.issue_id}`}
+
+                          className="align-top hover:bg-slate-50"
+
+                        >
+
+                          <td className="px-4 py-4 font-medium text-slate-800">
+
+                            {item.issue_no || "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4">
+
+                            <p className="font-medium text-slate-800">
+
+                              {item.product_name || "-"}
+
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+
+                              {item.brand_name || ""}
+
+                            </p>
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-600">
+
+                            {item.equipment_type || "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-600">
+
+                            {item.issued_quantity ?? "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-600">
+
+                            {item.return_quantity ?? "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-600">
+
+                            {item.return_no || "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4 text-slate-600">
+
+                            {item.return_requested_at || "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4">
+
+                            <span
+
+                              className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(
+
+                                status
+
+                              )}`}
+
+                            >
+
+                              {formatStatus(status)}
+
+                            </span>
+
+                          </td>
+
+ 
+
+                          <td className="max-w-56 whitespace-normal px-4 py-4 text-sm text-red-700">
+
+                            {status === "rejected"
+
+                              ? item.rejection_note || "-"
+
+                              : "-"}
+
+                          </td>
+
+ 
+
+                          <td className="px-4 py-4">
+
+                            {canRequest ? (
+
+                              <button
+
+                                type="button"
+
+                                onClick={() => {
+
+                                  setError("");
+
+                                  setSuccess("");
+
+                                  setSelectedItem(item);
+
+                                  setReturnQuantity("1");
+
+                                }}
+
+                                className="whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+
+                              >
+
+                                {status === "rejected"
+
+                                  ? "Request Again"
+
+                                  : "Request Return"}
+
+                              </button>
+
+                            ) : status === "pending" ? (
+
+                              <span className="whitespace-nowrap text-xs font-medium text-amber-700">
+
+                                Awaiting approval
+
+                              </span>
+
+                            ) : (
+
+                              <span className="text-xs text-slate-400">
+
+                                No action
+
+                              </span>
+
+                            )}
+
+                          </td>
+
+                        </tr>
+
+                      );
+
+                    })}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            )}
+
+          </section>
+
+        )}
+
+ 
+
+        {/* District user: request-return dialog */}
+
+        {!isAdmin && selectedItem && (
+
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+
+            <form
+
+              onSubmit={handleRequestReturn}
+
+              className="w-full max-w-lg rounded-xl bg-white shadow-xl"
+
+            >
+
+              <div className="border-b border-slate-100 px-5 py-4">
+
+                <h2 className="text-lg font-semibold text-slate-900">
+
+                  Request Stock Return
+
+                </h2>
+
+ 
+
+                <p className="mt-1 text-sm text-slate-500">
+
+                  This request will be sent to Admin/Super Admin for approval.
+
+                </p>
+
+              </div>
+
+ 
+
+              <div className="space-y-4 p-5">
+
+                <div className="rounded-lg bg-slate-50 p-4">
+
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+
+                    Product
+
+                  </p>
+
+ 
+
+                  <p className="mt-1 font-semibold text-slate-800">
+
+                    {selectedItem.product_name || "-"}
+
+                  </p>
+
+ 
+
+                  <p className="mt-2 text-sm text-slate-600">
+
+                    Issue: {selectedItem.issue_no || "-"}
+
+                  </p>
+
+ 
+
+                  <p className="text-sm text-slate-600">
+
+                    Issued quantity:{" "}
+
+                    {selectedItem.issued_quantity ?? "-"}
+
+                  </p>
+
                 </div>
-              )}
 
-              {/* SUBMIT */}
-              <div className="flex justify-end border-t border-slate-100 pt-5">
+ 
+
+                <div>
+
+                  <label
+
+                    htmlFor="return-quantity"
+
+                    className="mb-2 block text-sm font-medium text-slate-700"
+
+                  >
+
+                    Return Quantity
+
+                  </label>
+
+ 
+
+                  <input
+
+                    id="return-quantity"
+
+                    type="number"
+
+                    min="1"
+
+                    step="1"
+
+                    required
+
+                    value={returnQuantity}
+
+                    onChange={(event) =>
+
+                      setReturnQuantity(event.target.value)
+
+                    }
+
+                    className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+
+                  />
+
+ 
+
+                  <p className="mt-2 text-xs text-slate-500">
+
+                    The backend should validate the quantity eligible for return.
+
+                  </p>
+
+                </div>
+
+              </div>
+
+ 
+
+              <div className="flex justify-end gap-3 border-t border-slate-100 px-5 py-4">
 
                 <button
-                  type="submit"
-                  disabled={
-                    submitting ||
-                    !selectedItem ||
-                    !returnQuantity
-                  }
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+
+                  type="button"
+
+                  onClick={() => {
+
+                    setSelectedItem(null);
+
+                    setReturnQuantity("1");
+
+                  }}
+
+                  disabled={submitting}
+
+                  className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+
                 >
-                  {submitting ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <span>↩</span>
-                      Return Stock
-                    </>
-                  )}
+
+                  Cancel
+
+                </button>
+
+ 
+
+                <button
+
+                  type="submit"
+
+                  disabled={
+
+                    submitting ||
+
+                    !Number.isInteger(Number(returnQuantity)) ||
+
+                    Number(returnQuantity) <= 0
+
+                  }
+
+                  className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+
+                >
+
+                  {submitting ? "Submitting..." : "Submit Request"}
+
                 </button>
 
               </div>
 
-            </div>
+            </form>
+
           </div>
-        </form>
+
+        )}
+
+ 
+
+        {/* ==========================================
+
+            VIEW RETURN REQUEST DETAILS DIALOG
+
+        ========================================== */}
+
+        {(detailsLoading || detailsError || viewingRequest) && (
+
+          <div
+
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4"
+
+            onClick={closeDetails}
+
+          >
+
+            <div
+
+              role="dialog"
+
+              aria-modal="true"
+
+              aria-labelledby="return-details-title"
+
+              className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white shadow-2xl"
+
+              onClick={(event) => event.stopPropagation()}
+
+            >
+
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+
+                <div>
+
+                  <h2
+
+                    id="return-details-title"
+
+                    className="text-lg font-semibold text-slate-900"
+
+                  >
+
+                    Return Request Details
+
+                  </h2>
+
+ 
+
+                  <p className="mt-1 text-sm text-slate-500">
+
+                    Complete information about this stock return.
+
+                  </p>
+
+                </div>
+
+ 
+
+                <button
+
+                  type="button"
+
+                  onClick={closeDetails}
+
+                  disabled={processingId !== null}
+
+                  aria-label="Close dialog"
+
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+
+                >
+
+                  <X size={20} />
+
+                </button>
+
+              </div>
+
+ 
+
+              <div className="p-5">
+
+                {detailsLoading ? (
+
+                  <div className="py-10 text-center text-sm text-slate-500">
+
+                    Loading return request details...
+
+                  </div>
+
+                ) : detailsError ? (
+
+                  <div
+
+                    role="alert"
+
+                    className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+
+                  >
+
+                    {detailsError}
+
+                  </div>
+
+                ) : viewingRequest ? (
+
+                  <>
+
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+
+                      <div>
+
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+
+                          Return Number
+
+                        </p>
+
+ 
+
+                        <p className="mt-1 font-semibold text-slate-900">
+
+                          {viewingRequest.return_no || "-"}
+
+                        </p>
+
+                      </div>
+
+ 
+
+                      <span
+
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
+
+                          viewingRequest.status
+
+                        )}`}
+
+                      >
+
+                        {formatStatus(viewingRequest.status)}
+
+                      </span>
+
+                    </div>
+
+ 
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+                      {[
+
+                        [
+
+                          "Return History ID",
+
+                          viewingRequest.return_history_id,
+
+                        ],
+
+                        [
+
+                          "District User",
+
+                          viewingRequest.district_user_name ||
+
+                            getDistrictUserName(viewingRequest),
+
+                        ],
+
+                        [
+
+                          "District User ID",
+
+                          viewingRequest.district_user_id,
+
+                        ],
+
+                        ["Issue Number", viewingRequest.issue_no],
+
+                        ["Issue ID", viewingRequest.issue_id],
+
+                        ["Issue Date", viewingRequest.issue_date],
+
+                        ["Product", viewingRequest.product_name],
+
+                        ["Brand", viewingRequest.brand_name],
+
+                        ["Equipment Type", viewingRequest.equipment_type],
+
+                        ["Equipment ID", viewingRequest.equipment_id],
+
+                        ["Inventory ID", viewingRequest.inventory_id],
+
+                        ["Issued Quantity", viewingRequest.issued_quantity],
+
+                        ["Return Quantity", viewingRequest.return_quantity],
+
+                        ["Quantity Before", viewingRequest.quantity_before],
+
+                        ["Quantity After", viewingRequest.quantity_after],
+
+                        ["Storage Location", viewingRequest.storage_location],
+
+                        ["Source Location", viewingRequest.source_location],
+
+                        [
+
+                          "Destination Location",
+
+                          viewingRequest.destination_location,
+
+                        ],
+
+                        ["Issue Status", viewingRequest.issue_status],
+
+                        [
+
+                          "Requested At",
+
+                          viewingRequest.requested_at ||
+
+                            viewingRequest.return_requested_at,
+
+                        ],
+
+                      ].map(([label, value]) => (
+
+                        <div
+
+                          key={label}
+
+                          className="rounded-lg border border-slate-200 p-3"
+
+                        >
+
+                          <p className="text-xs font-medium text-slate-500">
+
+                            {label}
+
+                          </p>
+
+ 
+
+                          <p className="mt-1 break-words text-sm font-medium text-slate-800">
+
+                            {value !== null &&
+
+                            value !== undefined &&
+
+                            value !== ""
+
+                              ? String(value)
+
+                              : "-"}
+
+                          </p>
+
+                        </div>
+
+                      ))}
+
+ 
+
+                      {/* Reviewer is only relevant after a decision. */}
+
+                      {["approved", "rejected"].includes(
+
+                        String(viewingRequest.status || "").toLowerCase()
+
+                      ) && (
+
+                        <div className="rounded-lg border border-slate-200 p-3">
+
+                          <p className="text-xs font-medium text-slate-500">
+
+                            Reviewed By
+
+                          </p>
+
+ 
+
+                          <p className="mt-1 break-words text-sm font-medium text-slate-800">
+
+                            {viewingRequest.reviewed_by_name ||
+
+                              "Name unavailable"}
+
+                          </p>
+
+                        </div>
+
+                      )}
+
+ 
+
+                      {/* Rejection reason is shown only for rejected requests. */}
+
+                      {String(viewingRequest.status || "").toLowerCase() ===
+
+                        "rejected" && (
+
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3 sm:col-span-2 lg:col-span-3">
+
+                          <p className="text-xs font-semibold text-red-700">
+
+                            Rejection Reason
+
+                          </p>
+
+ 
+
+                          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-red-800">
+
+                            {viewingRequest.rejection_note ||
+
+                              "No rejection reason was provided."}
+
+                          </p>
+
+                        </div>
+
+                      )}
+
+                    </div>
+
+                  </>
+
+                ) : null}
+
+              </div>
+
+ 
+
+              {/* Dialog actions */}
+
+              <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4">
+
+                {viewingRequest &&
+
+                  String(viewingRequest.status || "").toLowerCase() ===
+
+                    "pending" && (
+
+                    <>
+
+                      {rejectingId ===
+
+                        viewingRequest.return_history_id && (
+
+                        <form
+
+                          onSubmit={(event) =>
+
+                            handleReject(event, viewingRequest)
+
+                          }
+
+                          className="space-y-2"
+
+                        >
+
+                          <label
+
+                            htmlFor="dialog-rejection-reason"
+
+                            className="block text-sm font-medium text-slate-700"
+
+                          >
+
+                            Rejection reason
+
+                          </label>
+
+ 
+
+                          <textarea
+
+                            id="dialog-rejection-reason"
+
+                            value={rejectionNote}
+
+                            onChange={(event) =>
+
+                              setRejectionNote(event.target.value)
+
+                            }
+
+                            rows={3}
+
+                            maxLength={1000}
+
+                            required
+
+                            placeholder="Explain why this request is rejected..."
+
+                            className="w-full rounded-lg border border-slate-300 p-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+
+                          />
+
+ 
+
+                          <button
+
+                            type="submit"
+
+                            disabled={
+
+                              processingId !== null ||
+
+                              !rejectionNote.trim()
+
+                            }
+
+                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+
+                          >
+
+                            {processingId ===
+
+                            viewingRequest.return_history_id
+
+                              ? "Rejecting..."
+
+                              : "Confirm Rejection"}
+
+                          </button>
+
+                        </form>
+
+                      )}
+
+ 
+
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+
+                        <button
+
+                          type="button"
+
+                          onClick={() => handleApprove(viewingRequest)}
+
+                          disabled={processingId !== null}
+
+                          className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+
+                        >
+
+                          <Check size={16} />
+
+                          Approve
+
+                        </button>
+
+ 
+
+                        <button
+
+                          type="button"
+
+                          onClick={() => handleOpenReject(viewingRequest)}
+
+                          disabled={processingId !== null}
+
+                          className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+
+                        >
+
+                          <X size={16} />
+
+                          Reject
+
+                        </button>
+
+ 
+
+                        <button
+
+                          type="button"
+
+                          onClick={closeDetails}
+
+                          disabled={processingId !== null}
+
+                          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+
+                        >
+
+                          Close
+
+                        </button>
+
+                      </div>
+
+                    </>
+
+                  )}
+
+ 
+
+                {viewingRequest &&
+
+                  String(viewingRequest.status || "").toLowerCase() !==
+
+                    "pending" && (
+
+                    <div className="flex justify-end">
+
+                      <button
+
+                        type="button"
+
+                        onClick={closeDetails}
+
+                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+
+                      >
+
+                        Close
+
+                      </button>
+
+                    </div>
+
+                  )}
+
+ 
+
+                {!viewingRequest && detailsError && (
+
+                  <div className="flex justify-end">
+
+                    <button
+
+                      type="button"
+
+                      onClick={closeDetails}
+
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+
+                    >
+
+                      Close
+
+                    </button>
+
+                  </div>
+
+                )}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        )}
+
       </div>
+
     </div>
+
   );
+
 }
 
-function InfoBox({
-  label,
-  value,
-  highlight = false,
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-        {label}
-      </p>
-
-      <p
-        className={`mt-1 text-sm font-semibold ${
-          highlight
-            ? "text-amber-600"
-            : "text-slate-700"
-        }`}
-      >
-        {value || "-"}
-      </p>
-    </div>
-  );
-}
+ 
 
 export default ReturnStock;

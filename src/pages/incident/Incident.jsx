@@ -127,20 +127,32 @@ function Incident() {
     setEditingIncident(null);
   };
 
-  const handleEdit = (incident) => {
+  const handleEdit = async (incident) => {
     if (!canManage) return;
-    setEditingIncident(incident);
-    setForm({
-      title: incident.title || "",
-      incident_type: incident.incident_type || "",
-      description:
-        incident.description || incident.current_situation_summary || "",
-      severity: incident.severity || "",
-    });
-    setShowForm(true);
+
     setError("");
     setSuccess("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    try {
+      const res = await getIncident(incident.id);
+      const details = res?.data?.incident ?? res?.data ?? {};
+      const incidentToEdit = { ...incident, ...details };
+
+      setEditingIncident(incidentToEdit);
+      setForm({
+        title: incidentToEdit.title || "",
+        incident_type: incidentToEdit.incident_type || "",
+        description:
+          incidentToEdit.description ||
+          incidentToEdit.current_situation_summary ||
+          "",
+        severity: incidentToEdit.severity || "",
+      });
+      setShowForm(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      setError(err.message || "Failed to load incident details for editing.");
+    }
   };
 
   const handleCreate = async (e) => {
