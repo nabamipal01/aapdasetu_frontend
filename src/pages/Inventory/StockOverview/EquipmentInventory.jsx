@@ -66,9 +66,27 @@ const CARD_COLORS = [
   },
 ];
 
-function StockOverview() {
-  const navigate = useNavigate();
+const normalizeRole = (role) =>
+  String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 
+const getCurrentUser = () => {
+  try {
+    return (
+      JSON.parse(localStorage.getItem("user") || "null") ||
+      JSON.parse(localStorage.getItem("authUser") || "null") ||
+      JSON.parse(localStorage.getItem("currentUser") || "null")
+    );
+  } catch {
+    return null;
+  }
+};
+
+function StockOverview({ user: userProp }) {
+  const navigate = useNavigate();
+const currentUser = userProp || getCurrentUser();
   const [summary, setSummary] = useState(null);
   const [equipTypes, setEquipTypes] = useState([]);
   const [items, setItems] = useState([]);
@@ -81,7 +99,14 @@ function StockOverview() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
+const role = normalizeRole(
+    currentUser?.role || currentUser?.user?.role
+  );
 
+  const canAccessInventory = [
+    "super_admin",
+    "admin",
+  ].includes(role);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -94,7 +119,16 @@ function StockOverview() {
   // ============================================================
   // Fetch inventory
   // ============================================================
+  useEffect(() => {
+  if (!canAccessInventory) {
+    navigate("/unauthorized", { replace: true });
+  }
+}, [canAccessInventory, navigate]);
   const fetchAll = useCallback(async () => {
+    if (!canAccessInventory) {
+  setLoading(false);
+  return;
+}
     setLoading(true);
     setError("");
 
@@ -135,7 +169,7 @@ function StockOverview() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, canAccessInventory]);
 
   useEffect(() => {
     fetchAll();
@@ -313,7 +347,9 @@ function StockOverview() {
         .includes(search)
     );
   });
-
+if (!canAccessInventory) {
+  return null;
+}
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-8">
       <div className="mx-auto w-full max-w-[1400px]">

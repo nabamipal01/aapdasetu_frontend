@@ -350,52 +350,61 @@ function App() {
                   element={<Law />}
                 />
 
-                {/* Inventory */}
+                {/* Inventory: super_admin and admin only */}
 
                 <Route
-                  path="/inventory/overview"
-                  element={<StockOverview />}
-                />
+                  element={
+                    <RoleProtectedRoute
+                      allowedRoles={["super_admin", "admin"]}
+                      fallbackPath="/dashboard"
+                    />
+                  }
+                >
+                  <Route
+                    path="/inventory/overview"
+                    element={<StockOverview />}
+                  />
 
-                <Route
-                  path="/inventory/history"
-                  element={<StockHistory />}
-                />
+                  <Route
+                    path="/inventory/history"
+                    element={<StockHistory />}
+                  />
 
-                <Route
-                  path="/inventory/issue"
-                  element={<IssueStock />}
-                />
+                  <Route
+                    path="/inventory/issue"
+                    element={<IssueStock />}
+                  />
 
-                <Route
-                  path="/inventory/return"
-                  element={<ReturnStock />}
-                />
+                  <Route
+                    path="/inventory/return"
+                    element={<ReturnStock />}
+                  />
 
-                <Route
-                  path="/inventory/add"
-                  element={<AddStock />}
-                />
+                  <Route
+                    path="/inventory/add"
+                    element={<AddStock />}
+                  />
 
-                <Route
-                  path="/inventory/equipmentCategory"
-                  element={<EquipmentCategory />}
-                />
+                  <Route
+                    path="/inventory/equipmentCategory"
+                    element={<EquipmentCategory />}
+                  />
 
-                <Route
-                  path="/inventory/category/:id"
-                  element={<CategoryDetail />}
-                />
+                  <Route
+                    path="/inventory/category/:id"
+                    element={<CategoryDetail />}
+                  />
 
-                <Route
-                  path="/inventory/history/return"
-                  element={<ReturnHistory />}
-                />
+                  <Route
+                    path="/inventory/history/return"
+                    element={<ReturnHistory />}
+                  />
 
-                <Route
-                  path="/inventory/history/issue"
-                  element={<IssueStockHistory />}
-                />
+                  <Route
+                    path="/inventory/history/issue"
+                    element={<IssueStockHistory />}
+                  />
+                </Route>
 
                 {/* Disaster Management */}
 
@@ -416,18 +425,27 @@ function App() {
                   element={<Resources />}
                 />
 
-                {/* Training */}
-
-                <Route
-                  path="/training"
-                  element={<Training />}
-                />
-
                 {/* Reports */}
 
                 <Route
                   path="/reports"
                   element={<Report />}
+                />
+              </Route>
+
+              {/* Training is available to staff, volunteers, and NGO contacts. */}
+              <Route
+                element={
+                  <RoleProtectedRoute
+                    allowedRoles={GENERAL_ROLES}
+                    allowedUserTypes={OPERATIONAL_USER_TYPES}
+                    fallbackPath="/pre-alerts"
+                  />
+                }
+              >
+                <Route
+                  path="/training"
+                  element={<Training />}
                 />
               </Route>
 

@@ -9,6 +9,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { addAlertNotification } from "../../utils/alertNotifications";
 
 import DownloadMenu from "../../components/common/DownloadMenu";
+import { useAuth } from "../../context/AuthContext";
+import { canViewAlerts,canManageAlerts, } from "../../utils/roles";
 
  
 
@@ -17,6 +19,12 @@ const EMPTY_FORM = { title: "", description: "", instruction: "" };
  
 
 function PreAlert() {
+
+  const { user } = useAuth();
+
+  const canView = canViewAlerts(user);
+const canManage = canManageAlerts(user);
+
 
   const location = useLocation();
 
@@ -162,6 +170,8 @@ function PreAlert() {
 
   const openEdit = (alert) => {
 
+    if (!canManage) return;
+
     setEditingAlert(alert);
 
     setForm({
@@ -183,6 +193,8 @@ function PreAlert() {
  
 
   const handleCreate = async (e) => {
+
+    if (!canManage) return;
 
     e.preventDefault();
 
@@ -274,6 +286,8 @@ function PreAlert() {
 
   const handleDelete = async (id, title) => {
 
+    if (!canManage) return;
+
     if (!window.confirm(`Delete alert "${title}"?`)) return;
 
     try {
@@ -293,6 +307,8 @@ function PreAlert() {
  
 
   const handleUpdate = async (e) => {
+
+    if (!canManage) return;
 
     e.preventDefault();
 
@@ -424,13 +440,12 @@ function PreAlert() {
 
             </button>
 
-            <button onClick={() => { setShowForm(!showForm); setError(""); setSuccess(""); }}
-
-              className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
-
-              {showForm ? <><X size={15} /> Cancel</> : <><Plus size={15} /> Create Alert</>}
-
-            </button>
+            {canManage && (
+              <button onClick={() => { setShowForm(!showForm); setError(""); setSuccess(""); }}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+                {showForm ? <><X size={15} /> Cancel</> : <><Plus size={15} /> Create Alert</>}
+              </button>
+            )}
 
           </div>
 
@@ -448,6 +463,7 @@ function PreAlert() {
 
         {/* Create Form */}
 
+        {canManage && (
         <div className={`grid transition-all duration-300 ease-in-out ${showForm ? "mb-6 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 pointer-events-none"}`}>
 
           <div className="overflow-hidden">
@@ -527,11 +543,9 @@ function PreAlert() {
             </div>
 
           </div>
-
         </div>
-
+        )}
  
-
         {/* Alert cards */}
 
         {loading ? (
@@ -554,7 +568,11 @@ function PreAlert() {
 
             <p className="font-medium text-slate-700">No active alerts</p>
 
-            <p className="mt-1 text-sm text-slate-500">Create an alert to broadcast it to all users.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {canManage
+                ? "Create an alert to broadcast it to all users."
+                : "Alerts published by administrators will appear here."}
+            </p>
 
           </div>
 
@@ -612,6 +630,8 @@ function PreAlert() {
 
                       </button>
 
+                      {canManage && (
+                        <>
                       <button onClick={() => openEdit(alert)}
 
                         className="rounded p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="Edit alert">
@@ -627,6 +647,8 @@ function PreAlert() {
                         <Trash2 size={16} />
 
                       </button>
+                        </>
+                      )}
 
                     </div>
 
@@ -644,7 +666,7 @@ function PreAlert() {
 
  
 
-        {editingAlert && (
+        {canManage && editingAlert && (
 
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
 

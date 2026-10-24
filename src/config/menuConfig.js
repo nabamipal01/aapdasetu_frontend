@@ -29,7 +29,11 @@ import {
   PackageCheck,
   ClipboardMinus,
 } from "lucide-react";
-import { isOperationalUser } from "../utils/roles";
+
+import {
+  getUserRole,
+  isOperationalUser,
+} from "../utils/roles";
 
 const commonMenus = [
   {
@@ -38,13 +42,10 @@ const commonMenus = [
     path: "/dashboard",
   },
 
-
-
   {
     label: "Department",
     icon: Building2,
     children: [
-
       {
         label: "Electricity",
         icon: Zap,
@@ -55,7 +56,6 @@ const commonMenus = [
         icon: Flame,
         path: "/department/fire",
       },
-
       {
         label: "Health",
         icon: HeartPulse,
@@ -72,14 +72,11 @@ const commonMenus = [
           },
         ],
       },
-
       {
         label: "Food Dept.",
         icon: Utensils,
         path: "/department/food",
       },
-
-
       {
         label: "Law & Order",
         icon: Scale,
@@ -136,7 +133,6 @@ const commonMenus = [
     ],
   },
 
-
   {
     label: "Alerts",
     icon: BellRing,
@@ -151,59 +147,30 @@ const commonMenus = [
         icon: FileBarChart,
         path: "/post-alerts",
       },
-
-
       {
         label: "Incident",
         icon: Siren,
         path: "/incident",
       },
-
       {
         label: "Task",
         icon: ClipboardCheck,
         path: "/task",
       },
-
-
     ],
   },
 
-
-  // // {
-  //   label: "Resources",
-  //   icon: Package,
-  //   path: "/resources",
-  // },
   {
     label: "Training",
     icon: GraduationCap,
     path: "/training",
   },
 
-
-  //   {
-  //   label: "Disaster Management",
-  //   icon: Siren,
-  //   children: [
-  //     {
-  //       label: "ERSS",
-  //       icon: Radio,
-  //       path: "/disaster/erss",
-  //     },
-  //     {
-  //       label: "CCTNS",
-  //       icon: ShieldCheck,
-  //       path: "/disaster/cctns",
-  //     },
-  //   ],
-  // },
   {
     label: "MIS Reports",
     icon: FileBarChart,
     path: "/reports",
   },
-
 ];
 
 const locationMenus = {
@@ -250,15 +217,9 @@ const locationMenus = {
       },
     ],
   },
-
-
-
-
 };
 
-
 const userMenus = {
-
   super_admin: {
     label: "Users",
     icon: Users,
@@ -288,16 +249,13 @@ const userMenus = {
         icon: Users,
         path: "/volunteers",
       },
-
       {
         label: "NGO",
         icon: HandHelping,
         path: "/ngo",
-      }
+      },
     ],
   },
-
-
 
   admin: {
     label: "Users",
@@ -323,12 +281,11 @@ const userMenus = {
         icon: Users,
         path: "/volunteers",
       },
-
       {
         label: "NGO",
         icon: HandHelping,
         path: "/ngo",
-      }
+      },
     ],
   },
 
@@ -351,12 +308,11 @@ const userMenus = {
         icon: Users,
         path: "/volunteers",
       },
-
       {
         label: "NGO",
         icon: HandHelping,
         path: "/ngo",
-      }
+      },
     ],
   },
 
@@ -374,21 +330,25 @@ const userMenus = {
         icon: Users,
         path: "/volunteers",
       },
-
       {
         label: "NGO",
         icon: HandHelping,
         path: "/ngo",
-      }
+      },
     ],
   },
 
   block: null,
 };
 
+// Menus available to NGO and Volunteer users.
 const getOperationalMenus = () => {
   const alertsMenu = commonMenus.find(
     (menu) => menu.label === "Alerts"
+  );
+
+  const trainingMenu = commonMenus.find(
+    (menu) => menu.label === "Training"
   );
 
   const allowedAlertPaths = [
@@ -408,6 +368,7 @@ const getOperationalMenus = () => {
     ...(alertsMenu?.children || []).filter((item) =>
       allowedAlertPaths.includes(item.path)
     ),
+    ...(trainingMenu ? [trainingMenu] : []),
     sosMenu,
   ];
 };
@@ -415,17 +376,14 @@ const getOperationalMenus = () => {
 export const getMenuForUser = (user) => {
   if (!user) return [];
 
-  const role =
-    user.role == null
-      ? null
-      : String(user.role).trim().toLowerCase();
+  const role = getUserRole(user);
 
-  // Volunteers and NGO contact persons
+  // NGO and Volunteer users get operational menus plus Training.
   if (isOperationalUser(user)) {
     return getOperationalMenus();
   }
 
-  // Only recognized staff roles get the staff menu
+  // Only recognized staff roles get the staff menu.
   const staffRoles = [
     "super_admin",
     "admin",
@@ -438,7 +396,25 @@ export const getMenuForUser = (user) => {
     return [];
   }
 
-  const menus = [...commonMenus];
+  const menus = commonMenus.filter((menu) => {
+  if (
+    menu.label === "Inventory" &&
+    role !== "super_admin" &&
+    role !== "admin"
+  ) {
+    return false;
+  }
+
+  if (
+    menu.label === "MIS Reports" &&
+    role !== "super_admin" &&
+    role !== "admin"
+  ) {
+    return false;
+  }
+
+  return true;
+});
 
   const locationMenu = locationMenus[role];
   const userMenu = userMenus[role];
@@ -454,9 +430,12 @@ export const getMenuForUser = (user) => {
   return menus;
 };
 
-// Backward compatibility if another component still uses this function.
+// Backward compatibility for components using this function.
 export const getMenuForRole = (role) => {
   if (!role) return [];
 
-  return getMenuForUser({ role, user_type: "staff" });
+  return getMenuForUser({
+    role,
+    user_type: "staff",
+  });
 };

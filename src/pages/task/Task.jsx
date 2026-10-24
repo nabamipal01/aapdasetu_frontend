@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import {
     ClipboardList,
@@ -124,22 +123,20 @@ const normalizeTask = (task) => {
         due_at: task.due_at ?? task.due_date ?? "",
         location:
             task.latitude != null &&
-                task.longitude != null &&
-                task.latitude !== "" &&
-                task.longitude !== ""
+            task.longitude != null &&
+            task.latitude !== "" &&
+            task.longitude !== ""
                 ? `Lat: ${task.latitude}, Lng: ${task.longitude}`
                 : task.location ||
-                task.incident_location ||
-                incident?.location ||
-                incident?.address ||
-                "",
+                  task.incident_location ||
+                  incident?.location ||
+                  incident?.address ||
+                  "",
         created_by_name:
             creator?.name ??
             task.created_by_name ??
             task.creator_name ??
-            `#User ${task.created_by}` ??
-            "Department",
-        // created_at: task.created_at ?? "",
+            (task.created_by != null ? `#User ${task.created_by}` : "Department"),
     };
 };
 
@@ -158,7 +155,7 @@ const normalizeAgency = (agency) => ({
     // tasks.assigned_to stores the agency profile ID.
     id: String(agency.id),
     name: agency.contact_person
-        ? `${agency.contact_person} — ${agency.name}`
+        ? `${agency.contact_person} — ${agency.name ?? "NGO"}`
         : agency.name ?? "Unnamed NGO",
     type: "ngo",
 });
@@ -184,10 +181,20 @@ const formatLabel = (value) =>
         .replaceAll("_", " ")
         .replace(/\b\w/g, (character) => character.toUpperCase());
 
+const normalizeRole = (value) =>
+    String(value ?? "")
+        .trim()
+        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+        .replace(/[\s-]+/g, "_")
+        .toLowerCase();
+
 export default function Task() {
     const { user } = useAuth();
 
-    // This utility should identify volunteer and NGO task-only accounts.
+    const role = normalizeRole(user?.role);
+    const canManageTasks = ["super_admin", "admin"].includes(role);
+
+    // Keep the existing volunteer and NGO assigned-task behavior.
     const isTaskOnly = isOperationalUser(user);
 
     const [tasks, setTasks] = useState([]);
@@ -204,11 +211,8 @@ export default function Task() {
     const [selectedTask, setSelectedTask] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
 
-    // ------------------------------------------------------------
-    // Fetch tasks
-    // Operational users rely on the PHP API to return only their
-    // assigned tasks. Do not fetch volunteer or user profiles here.
-    // ------------------------------------------------------------
+    // Fetch tasks. Volunteers and NGO contacts retain their existing
+    // assigned-task experience. Only managers load task-form options.
     const fetchTasks = useCallback(async () => {
         setLoading(true);
         setError("");
@@ -221,17 +225,14 @@ export default function Task() {
 
             const records = extractRecords(response, "tasks");
             const normalized = records.map(normalizeTask);
-
             setTasks(normalized);
 
-            // Volunteers and NGO contacts do not need admin data.
-            if (isTaskOnly) {
+            if (!canManageTasks) {
                 setIncidents([]);
                 setAssignees([]);
                 return;
             }
 
-            // Only management users load assignment form options.
             const results = await Promise.allSettled([
                 listIncidents({ page: 1, per_page: 100 }),
                 listVolunteers({ status: "active", page: 1, per_page: 100 }),
@@ -241,9 +242,7 @@ export default function Task() {
             const [incidentResult, volunteerResult, agencyResult] = results;
 
             if (incidentResult.status === "fulfilled") {
-                setIncidents(
-                    extractRecords(incidentResult.value, "incidents")
-                );
+                setIncidents(extractRecords(incidentResult.value, "incidents"));
             } else {
                 setIncidents([]);
             }
@@ -261,13 +260,13 @@ export default function Task() {
             const activeAssignees = [
                 ...volunteers.map(normalizeVolunteer),
                 ...agencies
-                    .filter((agency) =>
-                        String(agency.type ?? "ngo").toLowerCase() === "ngo"
+                    .filter(
+                        (agency) =>
+                            String(agency.type ?? "ngo").toLowerCase() === "ngo"
                     )
                     .map(normalizeAgency),
             ];
 
-            // Deduplicate profile options by type and profile ID.
             const uniqueAssignees = Array.from(
                 new Map(
                     activeAssignees.map((item) => [
@@ -295,15 +294,13 @@ export default function Task() {
         } finally {
             setLoading(false);
         }
-    }, [isTaskOnly]);
+    }, [canManageTasks]);
 
     useEffect(() => {
         fetchTasks();
     }, [fetchTasks]);
 
-    // ------------------------------------------------------------
     // Form helpers
-    // ------------------------------------------------------------
     const handleChange = (event) => {
         const { name, value } = event.target;
 
@@ -320,7 +317,7 @@ export default function Task() {
     };
 
     const openCreateForm = () => {
-        if (isTaskOnly) return;
+        if (!canManageTasks) return;
 
         setError("");
         setSuccess("");
@@ -330,7 +327,7 @@ export default function Task() {
     };
 
     const openEditForm = (task) => {
-        if (isTaskOnly) return;
+        if (!canManageTasks) return;
 
         setError("");
         setSuccess("");
@@ -339,12 +336,8 @@ export default function Task() {
         setForm({
             title: task.title ?? "",
             description: task.description ?? "",
-            incident_id: task.incident_id
-                ? String(task.incident_id)
-                : "",
-            assigned_to: task.assigned_to
-                ? String(task.assigned_to)
-                : "",
+            incident_id: task.incident_id ? String(task.incident_id) : "",
+            assigned_to: task.assigned_to ? String(task.assigned_to) : "",
             priority: task.priority ?? "medium",
             status: task.status ?? "assigned",
             due_at: task.due_at
@@ -355,13 +348,11 @@ export default function Task() {
         setShowForm(true);
     };
 
-    // ------------------------------------------------------------
     // Create / update
-    // ------------------------------------------------------------
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        if (isTaskOnly) return;
+        if (!canManageTasks) return;
 
         if (!form.title.trim()) {
             setError("Task title is required.");
@@ -381,18 +372,14 @@ export default function Task() {
             const payload = {
                 title: form.title.trim(),
                 description: form.description.trim(),
-                incident_id: form.incident_id
-                    ? Number(form.incident_id)
-                    : null,
-
+                incident_id: form.incident_id ? Number(form.incident_id) : null,
                 // Profile ID, not users.id.
                 assigned_to: Number(form.assigned_to),
-
                 priority: form.priority,
                 status: form.status,
                 due_at: form.due_at
                     ? form.due_at.replace("T", " ") +
-                    (form.due_at.length === 16 ? ":00" : "")
+                      (form.due_at.length === 16 ? ":00" : "")
                     : null,
             };
 
@@ -414,28 +401,28 @@ export default function Task() {
         }
     };
 
-    // ------------------------------------------------------------
-    // Header
-    // ------------------------------------------------------------
     return (
         <div className="min-h-screen bg-slate-50 p-4 md:p-8">
             <div className="mx-auto max-w-7xl">
                 <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                        <ClipboardList
-                            size={30}
-                            className="text-blue-600"
-                        />
+                        <ClipboardList size={30} className="text-blue-600" />
 
                         <div>
                             <h1 className="text-2xl font-bold text-slate-900">
-                                {isTaskOnly ? "My Assigned Tasks" : "Task Management"}
+                                {isTaskOnly
+                                    ? "My Assigned Tasks"
+                                    : canManageTasks
+                                      ? "Task Management"
+                                      : "Tasks"}
                             </h1>
 
                             <p className="mt-1 text-sm text-slate-500">
                                 {isTaskOnly
                                     ? "View the tasks assigned to you."
-                                    : "Create, assign, and manage operational tasks."}
+                                    : canManageTasks
+                                      ? "Create, assign, and manage operational tasks."
+                                      : "View tasks available to your role."}
                             </p>
                         </div>
                     </div>
@@ -454,7 +441,7 @@ export default function Task() {
                             Refresh
                         </button>
 
-                        {!isTaskOnly && (
+                        {canManageTasks && (
                             <button
                                 type="button"
                                 onClick={openCreateForm}
@@ -486,22 +473,18 @@ export default function Task() {
                     </div>
                 )}
 
-                {/* ------------------------------------------------------
-            Create / edit form — management users only
-        ------------------------------------------------------- */}
-
-                {/* CREATE / EDIT FORM */}
-                {!isTaskOnly && (
+                {/* Create / edit form — super_admin and admin only */}
+                {canManageTasks && (
                     <div
-                        className={`grid transition-all duration-300 ease-in-out ${showForm
-                            ? "mb-6 grid-rows-[1fr] opacity-100"
-                            : "pointer-events-none grid-rows-[0fr] opacity-0"
-                            }`}
+                        className={`grid transition-all duration-300 ease-in-out ${
+                            showForm
+                                ? "mb-6 grid-rows-[1fr] opacity-100"
+                                : "pointer-events-none grid-rows-[0fr] opacity-0"
+                        }`}
                         aria-hidden={!showForm}
                     >
                         <div className="min-h-0 overflow-hidden">
                             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-                                {/* FORM HEADER */}
                                 <div className="mb-5 flex items-center justify-between">
                                     <div>
                                         <h2 className="text-lg font-semibold text-slate-900">
@@ -525,7 +508,6 @@ export default function Task() {
                                 </div>
 
                                 <form onSubmit={handleSubmit} className="space-y-5">
-                                    {/* TASK FIELDS */}
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <div>
                                             <label
@@ -688,7 +670,6 @@ export default function Task() {
                                         />
                                     </div>
 
-                                    {/* FORM ACTIONS */}
                                     <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4">
                                         <button
                                             type="button"
@@ -707,8 +688,8 @@ export default function Task() {
                                             {submitting
                                                 ? "Saving..."
                                                 : editingTask
-                                                    ? "Update Task"
-                                                    : "Create Task"}
+                                                  ? "Update Task"
+                                                  : "Create Task"}
                                         </button>
                                     </div>
                                 </form>
@@ -717,14 +698,16 @@ export default function Task() {
                     </div>
                 )}
 
-                {/* ------------------------------------------------------
-            Task table — role-specific columns
-        ------------------------------------------------------- */}
+                {/* Task table */}
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                         <div>
                             <h2 className="font-semibold text-slate-900">
-                                {isTaskOnly ? "My Assigned Tasks" : "All Tasks"}
+                                {isTaskOnly
+                                    ? "My Assigned Tasks"
+                                    : canManageTasks
+                                      ? "All Tasks"
+                                      : "Tasks"}
                             </h2>
 
                             <p className="mt-1 text-sm text-slate-500">
@@ -756,7 +739,9 @@ export default function Task() {
                             <p className="mt-1 text-sm text-slate-500">
                                 {isTaskOnly
                                     ? "Your assigned tasks will appear here."
-                                    : "Create a task to get started."}
+                                    : canManageTasks
+                                      ? "Create a task to get started."
+                                      : "Tasks available to your role will appear here."}
                             </p>
                         </div>
                     ) : (
@@ -779,10 +764,7 @@ export default function Task() {
                                         <th className="px-4 py-3 font-semibold">Due Date</th>
 
                                         {!isTaskOnly && (
-                                            <>
-                                                <th className="px-4 py-3 font-semibold">Created By</th>
-                                                {/* <th className="px-4 py-3 font-semibold">Created At</th> */}
-                                            </>
+                                            <th className="px-4 py-3 font-semibold">Created By</th>
                                         )}
 
                                         <th className="px-4 py-3 text-right font-semibold">
@@ -820,7 +802,6 @@ export default function Task() {
                                             {!isTaskOnly && (
                                                 <td className="px-4 py-4 text-slate-700">
                                                     <p>{task.assigned_to_name}</p>
-
                                                     {task.assigned_to_type && (
                                                         <p className="mt-1 text-xs text-slate-500">
                                                             {formatLabel(task.assigned_to_type)}
@@ -831,9 +812,10 @@ export default function Task() {
 
                                             <td className="px-4 py-4">
                                                 <span
-                                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${PRIORITY_STYLES[task.priority] ??
+                                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                                        PRIORITY_STYLES[task.priority] ??
                                                         "bg-slate-100 text-slate-700"
-                                                        }`}
+                                                    }`}
                                                 >
                                                     {formatLabel(task.priority)}
                                                 </span>
@@ -841,9 +823,10 @@ export default function Task() {
 
                                             <td className="px-4 py-4">
                                                 <span
-                                                    className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[task.status] ??
+                                                    className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
+                                                        STATUS_STYLES[task.status] ??
                                                         "bg-slate-100 text-slate-700"
-                                                        }`}
+                                                    }`}
                                                 >
                                                     {formatLabel(task.status)}
                                                 </span>
@@ -860,15 +843,9 @@ export default function Task() {
                                             </td>
 
                                             {!isTaskOnly && (
-                                                <>
-                                                    <td className="px-4 py-4 text-slate-600">
-                                                        {task.created_by_name}
-                                                    </td>
-
-                                                    {/* <td className="whitespace-nowrap px-4 py-4 text-slate-600">
-                                                        {formatDate(task.created_at)}
-                                                    </td> */}
-                                                </>
+                                                <td className="px-4 py-4 text-slate-600">
+                                                    {task.created_by_name}
+                                                </td>
                                             )}
 
                                             <td className="px-4 py-4">
@@ -883,7 +860,7 @@ export default function Task() {
                                                         <Eye size={16} />
                                                     </button>
 
-                                                    {!isTaskOnly && (
+                                                    {canManageTasks && (
                                                         <button
                                                             type="button"
                                                             onClick={() => openEditForm(task)}
@@ -904,9 +881,7 @@ export default function Task() {
                     )}
                 </div>
 
-                {/* ------------------------------------------------------
-            View details — both roles, no edit for task-only users
-        ------------------------------------------------------- */}
+                {/* View details — all roles that can view tasks */}
                 {selectedTask && (
                     <div
                         className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
@@ -1002,27 +977,18 @@ export default function Task() {
                                     </div>
 
                                     {!isTaskOnly && (
-                                        <>
-                                            <div>
-                                                <p className="text-xs text-slate-500">Created By</p>
-                                                <p className="mt-1 text-sm font-medium text-slate-800">
-                                                    {selectedTask.created_by_name}
-                                                </p>
-                                            </div>
-
-                                            {/* <div>
-                                                <p className="text-xs text-slate-500">Created At</p>
-                                                <p className="mt-1 text-sm font-medium text-slate-800">
-                                                    {formatDate(selectedTask.created_at)}
-                                                </p>
-                                            </div> */}
-                                        </>
+                                        <div>
+                                            <p className="text-xs text-slate-500">Created By</p>
+                                            <p className="mt-1 text-sm font-medium text-slate-800">
+                                                {selectedTask.created_by_name}
+                                            </p>
+                                        </div>
                                     )}
                                 </div>
                             </div>
 
                             <div className="flex justify-end gap-3 border-t border-slate-200 p-5">
-                                {!isTaskOnly && (
+                                {canManageTasks && (
                                     <button
                                         type="button"
                                         onClick={() => {

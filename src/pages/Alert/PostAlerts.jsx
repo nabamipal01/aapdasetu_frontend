@@ -10,6 +10,8 @@ import {
 } from "../../services";
 import { addAlertNotification } from "../../utils/alertNotifications";
 import DownloadMenu from "../../components/common/DownloadMenu";
+import { useAuth } from "../../context/AuthContext";
+import { canManageAlerts } from "../../utils/roles";
 
 const RESPONSE_ACTIONS = [
   "Evacuation",
@@ -162,6 +164,9 @@ function AlertPhoto({ source, index }) {
 }
 
 function PostAlert() {
+  const { user } = useAuth();
+  const canManage = canManageAlerts(user);
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -335,6 +340,8 @@ function PostAlert() {
   };
 
   const handleSubmit = async (e) => {
+    if (!canManage) return;
+
     e.preventDefault();
 
     if (formData.response_action_required.length === 0) {
@@ -448,6 +455,8 @@ function PostAlert() {
   const closeModal = () => setViewingAlert(null);
 
   const handleDelete = async (alert) => {
+    if (!canManage) return;
+
     const id = getPostAlertKey(alert);
 
     if (!id) {
@@ -529,12 +538,14 @@ function PostAlert() {
             </div>
 
             <p className="mt-1 text-xs text-slate-500">
-              Create and manage emergency alerts
+              {canManage
+                ? "Create and manage emergency alerts"
+                : "View emergency alerts"}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            {canManage && <button
               type="button"
               onClick={() => {
                 setShowForm((visible) => !visible);
@@ -554,7 +565,7 @@ function PostAlert() {
                   <Plus size={15} /> Create Alert
                 </>
               )}
-            </button>
+            </button>}
 
             <div className="flex w-fit items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-600">
@@ -623,7 +634,7 @@ function PostAlert() {
         )}
 
         {/* Create alert */}
-        <div
+        {canManage && <div
           id="post-alert-form"
           className={`grid transition-all duration-300 ease-in-out ${
             showForm
@@ -856,7 +867,7 @@ function PostAlert() {
           </form>
         </section>
           </div>
-        </div>
+        </div>}
 
         {/* Alert list */}
         <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -866,7 +877,9 @@ function PostAlert() {
                 Post Alerts
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                Manage existing emergency alerts
+                {canManage
+                  ? "Manage existing emergency alerts"
+                  : "View existing emergency alerts"}
               </p>
             </div>
 
@@ -934,9 +947,11 @@ function PostAlert() {
                 <p className="mt-2 text-xs font-semibold text-slate-700">
                   No post alerts found
                 </p>
-                <p className="mt-1 text-[10px] text-slate-400">
-                  Select Create Alert to publish an emergency update.
-                </p>
+                {canManage && (
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Select Create Alert to publish an emergency update.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -1003,7 +1018,7 @@ function PostAlert() {
                             View
                           </button>
 
-                          <button
+                          {canManage && <button
                             type="button"
                             onClick={() => handleDelete(alert)}
                             disabled={
@@ -1017,7 +1032,7 @@ function PostAlert() {
                               <Trash2 size={13} />
                             )}
                             Delete
-                          </button>
+                          </button>}
                         </div>
                       </div>
                     </article>

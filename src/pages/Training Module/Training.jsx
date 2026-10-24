@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import {Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import {
   CalendarDays,
@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { downloadStyledPdf, downloadStyledXlsx } from "../../utils/tableExport";
+import { getUserRole, isOperationalUser } from "../../utils/roles";
 
 import {
   createTraining,
@@ -425,6 +426,7 @@ function Training() {
   };
 
   const handleTrainingDownload = async (format) => {
+     if (!canManageTraining) return;
     setDownloading(true);
     setError("");
 
@@ -631,6 +633,7 @@ function Training() {
   ============================================================ */
 
   const handleAdd = () => {
+    if (!canManageTraining) return;
     setEditingId(null);
 
     setFormData({
@@ -679,6 +682,7 @@ function Training() {
   ============================================================ */
 
   const handleEdit = async (id) => {
+    if (!canManageTraining) return;
     try {
       setLoading(true);
       setError("");
@@ -738,7 +742,7 @@ function Training() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+if (!canManageTraining) return;
     try {
       setSaving(true);
       setError("");
@@ -858,6 +862,8 @@ function Training() {
   ============================================================ */
 
   const handleDelete = async (id) => {
+    if (!canManageTraining) return;
+
     const confirmed = window.confirm(
       "Are you sure you want to delete this training event?",
     );
@@ -942,6 +948,24 @@ function Training() {
     return <Monitor size={14} />;
   };
 
+const user = JSON.parse(localStorage.getItem("user") || "null");
+
+const role = user ? getUserRole(user) : null;
+
+const canManageTraining = ["super_admin", "admin"].includes(role);
+
+const hasTrainingAccess = [
+  "super_admin",
+  "admin",
+  "district",
+  "subdivision",
+  "block",
+].includes(role);
+
+if (!hasTrainingAccess && !isOperationalUser(user)) {
+  return <Navigate to="/dashboard" replace />;
+}
+
   /* ============================================================
      RENDER
   ============================================================ */
@@ -971,14 +995,16 @@ function Training() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          <Plus size={18} />
-          Add Training
-        </button>
+{canManageTraining && (
+  <button
+    type="button"
+    onClick={handleAdd}
+    className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+  >
+    <Plus size={16} className="mr-2 inline" />
+    Add Training
+  </button>
+)}
       </div>
 
       {/* ========================================================
@@ -1109,6 +1135,7 @@ function Training() {
             </p>
           </div>
 
+          {canManageTraining && (
           <div className="flex items-center gap-3">
             {loading && (
               <div className="flex items-center gap-2 text-xs font-medium text-blue-600">
@@ -1180,6 +1207,7 @@ function Training() {
               )}
             </div>
           </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -1265,14 +1293,16 @@ function Training() {
                         Try changing your search or create a new training event.
                       </p>
 
-                      <button
-                        type="button"
-                        onClick={handleAdd}
-                        className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
-                      >
-                        <Plus size={15} />
-                        Add Training
-                      </button>
+                        {canManageTraining && (
+                          <button
+                            type="button"
+                            onClick={handleAdd}
+                            className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                          >
+                            <Plus size={16} className="mr-2 inline" />
+                            Add Training
+                          </button>
+                        )}
                     </div>
                   </td>
                 </tr>
@@ -1543,27 +1573,27 @@ function Training() {
                             <Eye size={16} />
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleEdit(training.training_event_id)
-                            }
-                            title="Edit Training"
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600"
-                          >
-                            <Pencil size={16} />
-                          </button>
+                          {canManageTraining && (
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(training.training_event_id)}
+                              title="Edit Training"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-600"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                          )}
 
+                          {canManageTraining && (
                           <button
                             type="button"
-                            onClick={() =>
-                              handleDelete(training.training_event_id)
-                            }
+                            onClick={() => handleDelete(training.training_event_id)}
                             title="Delete Training"
                             className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                           >
                             <Trash2 size={16} />
                           </button>
+                        )}
                         </div>
                       </td>
                     </tr>
