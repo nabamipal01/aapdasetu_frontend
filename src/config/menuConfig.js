@@ -415,7 +415,8 @@ export const getMenuForUser = (user) => {
   if (
     menu.label === "Dashboard" &&
     role !== "super_admin" &&
-    role !== "admin"
+    role !== "admin" &&
+    role !== "district"
   ) {
     return false;
   }

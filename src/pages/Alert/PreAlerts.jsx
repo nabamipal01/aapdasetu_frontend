@@ -144,8 +144,6 @@ const canManage = canManageAlerts(user);
 
       );
 
-      setViewingAlert(alert);
-
       navigate(location.pathname, { replace: true, state: null });
 
     }, 0);
@@ -251,7 +249,7 @@ const canManage = canManageAlerts(user);
 
         description: payload.description,
 
-        path: "/alerts/pre-alerts",
+        path: "/pre-alerts",
 
         alert: {
 

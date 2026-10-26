@@ -391,7 +391,7 @@ function PostAlert() {
           type: "Post alert",
           title: formData.title,
           description: `${formData.location} · ${formData.current_situation_summary}`,
-          path: "/alerts/post-alerts",
+          path: "/post-alerts",
           alert: {
             ...createdAlert,
             title: formData.title,

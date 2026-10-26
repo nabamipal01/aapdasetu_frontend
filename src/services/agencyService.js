@@ -85,3 +85,7 @@ export const rejectAgency = (id, rejectionNote = "") =>
  */
 export const generateAgencyCredentials = (id, credentials) =>
   post(`/api/agencies/credentials.php?id=${id}`, credentials);
+
+// Fetch active users who can be assigned tasks.
+export const listActiveEndUsers = (type) =>
+    get("/api/tasks/activeenduser.php", { type });

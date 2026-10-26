@@ -1,4 +1,4 @@
-import { get, post, patch } from "./api";
+import { get, post, patch, del } from "./api";
 
 /**
  * Task Service
@@ -60,3 +60,10 @@ export const listTasks = (params = {}) => {
  */
 export const updateTask = (id, taskData) =>
   patch(`/api/tasks/update.php?id=${id}`, taskData);
+
+/**
+ * Delete a task by ID.
+ * @param {number|string} id
+ */
+export const deleteTask = (id) =>
+  del(`/api/tasks/delete.php?id=${encodeURIComponent(id)}`);

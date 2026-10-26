@@ -316,7 +316,7 @@ function App() {
                 <Route
                   element={
                     <RoleProtectedRoute
-                      allowedRoles={["super_admin", "admin"]}
+                      allowedRoles={["super_admin", "admin", "district"]}
                       fallbackPath="/pre-alerts"
                     />
                   }

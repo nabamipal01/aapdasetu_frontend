@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Users,
   Plus,
@@ -120,6 +120,9 @@ const formatFileSize = (bytes) => {
   )} ${units[index]}`;
 };
 
+const isImageFile = (fileName) =>
+  /\.(jpe?g|png|webp)(?:[?#]|$)/i.test(String(fileName || ""));
+
 const getStoredCredentials = (volunteer) => {
   try {
     const stored = localStorage.getItem(
@@ -229,6 +232,11 @@ export default function Volunteers() {
 
   const [viewModal, setViewModal] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
+  const [filePreview, setFilePreview] = useState(null);
+  const selectedIdCardPreviewUrl = useMemo(
+    () => (form.id_card ? URL.createObjectURL(form.id_card) : ""),
+    [form.id_card]
+  );
 
   const [rejectModal, setRejectModal] = useState(null);
   const [rejectNote, setRejectNote] = useState("");
@@ -237,6 +245,26 @@ export default function Volunteers() {
   const [credModal, setCredModal] = useState(null);
   const [cred, setCred] = useState(EMPTY_CRED);
   const [credSubmitting, setCredSubmitting] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (filePreview?.revokeUrl) {
+        URL.revokeObjectURL(filePreview.url);
+      }
+    };
+  }, [filePreview]);
+
+  useEffect(() => {
+    return () => {
+      if (selectedIdCardPreviewUrl) {
+        URL.revokeObjectURL(selectedIdCardPreviewUrl);
+      }
+    };
+  }, [selectedIdCardPreviewUrl]);
+
+  const openFilePreview = (url, name, isImage, revokeUrl = false) => {
+    setFilePreview({ url, name, isImage, revokeUrl });
+  };
 
   /* -------------------------------------------------------
      FETCH
@@ -1011,17 +1039,44 @@ export default function Volunteers() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                         {form.id_card ? (
-                          <img
-                            src={URL.createObjectURL(form.id_card)}
-                            alt="Selected Aadhaar or ID card"
-                            className="h-full w-full object-contain"
-                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openFilePreview(
+                                URL.createObjectURL(form.id_card),
+                                form.id_card.name,
+                                true,
+                                true
+                              )
+                            }
+                            className="h-full w-full"
+                            aria-label="Preview selected Aadhaar or ID card"
+                          >
+                            <img
+                              src={selectedIdCardPreviewUrl}
+                              alt="Selected Aadhaar or ID card"
+                              className="h-full w-full object-contain"
+                            />
+                          </button>
                         ) : existingIdCard ? (
-                          <img
-                            src={getFileUrl(existingIdCard)}
-                            alt="Existing volunteer ID card"
-                            className="h-full w-full object-contain"
-                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openFilePreview(
+                                getFileUrl(existingIdCard),
+                                "Volunteer ID card",
+                                true
+                              )
+                            }
+                            className="h-full w-full"
+                            aria-label="Preview existing volunteer ID card"
+                          >
+                            <img
+                              src={getFileUrl(existingIdCard)}
+                              alt="Existing volunteer ID card"
+                              className="h-full w-full object-contain"
+                            />
+                          </button>
                         ) : (
                           <div className="text-center text-slate-400">
                             <ImageIcon size={23} className="mx-auto" />
@@ -1048,14 +1103,19 @@ export default function Volunteers() {
                         </p>
 
                         {existingIdCard && !form.id_card && (
-                          <a
-                            href={getFileUrl(existingIdCard)}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openFilePreview(
+                                getFileUrl(existingIdCard),
+                                "Volunteer ID card",
+                                true
+                              )
+                            }
                             className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 hover:underline"
                           >
                             View current image <ExternalLink size={11} />
-                          </a>
+                          </button>
                         )}
 
                         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1166,14 +1226,21 @@ export default function Volunteers() {
                               {doc.document_name || "Supporting document"}
                             </span>
 
-                            <a
-                              href={getFileUrl(doc.document_path)}
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openFilePreview(
+                                  getFileUrl(doc.document_path),
+                                  doc.document_name || "Supporting document",
+                                  isImageFile(
+                                    `${doc.document_name || ""} ${doc.document_path || ""}`
+                                  )
+                                )
+                              }
                               className="text-xs font-semibold text-indigo-700 hover:underline"
                             >
                               View
-                            </a>
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -1539,6 +1606,52 @@ export default function Volunteers() {
         </section>
       </div>
 
+      {filePreview && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setFilePreview(null);
+            }
+          }}
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={filePreview.name}
+            className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+          >
+            <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <h2 className="min-w-0 truncate text-sm font-semibold text-slate-800">
+                {filePreview.name}
+              </h2>
+              <IconButton
+                title="Close preview"
+                onClick={() => setFilePreview(null)}
+              >
+                <X size={17} />
+              </IconButton>
+            </header>
+            <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-3">
+              {filePreview.isImage ? (
+                <img
+                  src={filePreview.url}
+                  alt={filePreview.name}
+                  className="mx-auto max-h-[78vh] max-w-full object-contain"
+                />
+              ) : (
+                <iframe
+                  src={filePreview.url}
+                  title={filePreview.name}
+                  className="h-[78vh] w-full rounded-lg border border-slate-200 bg-white"
+                />
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
       {/* -----------------------------------------------------
           VIEW VOLUNTEER MODAL
       ----------------------------------------------------- */}
@@ -1614,11 +1727,16 @@ export default function Volunteers() {
                     </h4>
 
                     {viewModal.id_card ? (
-                      <a
-                        href={getFileUrl(viewModal.id_card)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-3 rounded-lg bg-slate-50 p-2.5 hover:bg-teal-50"
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openFilePreview(
+                            getFileUrl(viewModal.id_card),
+                            "Volunteer ID card",
+                            true
+                          )
+                        }
+                        className="flex w-full items-center gap-3 rounded-lg bg-slate-50 p-2.5 text-left hover:bg-teal-50"
                       >
                         <img
                           src={getFileUrl(viewModal.id_card)}
@@ -1630,11 +1748,11 @@ export default function Volunteers() {
                             View uploaded image
                           </p>
                           <p className="mt-1 text-[10px] text-slate-400">
-                            Open the original image in a new tab
+                            Open image preview
                           </p>
                         </div>
                         <ExternalLink size={15} className="text-teal-600" />
-                      </a>
+                      </button>
                     ) : (
                       <p className="text-xs text-slate-400">
                         No ID image uploaded.
@@ -1676,14 +1794,21 @@ export default function Volunteers() {
                                 </p>
                               )}
                             </div>
-                            <a
-                              href={getFileUrl(doc.document_path)}
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openFilePreview(
+                                  getFileUrl(doc.document_path),
+                                  doc.document_name || "Supporting document",
+                                  isImageFile(
+                                    `${doc.document_name || ""} ${doc.document_path || ""}`
+                                  )
+                                )
+                              }
                               className="rounded-md px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
                             >
                               View
-                            </a>
+                            </button>
                           </div>
                         ))}
                       </div>

@@ -1204,7 +1204,7 @@ function Dashboard() {
 
           <StatCard
 
-            title="Resolved"
+            title="Task Resolved"
 
             value={stats.resolved}
 

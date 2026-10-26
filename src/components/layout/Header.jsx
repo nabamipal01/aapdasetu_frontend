@@ -211,9 +211,9 @@ function Header({
 
     const notificationType = notification.type?.toLowerCase();
     const destination = notificationType?.includes("post")
-      ? "/alerts/post-alerts"
+      ? "/post-alerts"
       : notificationType?.includes("pre")
-        ? "/alerts/pre-alerts"
+        ? "/pre-alerts"
         : notification.path;
 
     if (!destination) {

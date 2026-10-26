@@ -9,12 +9,14 @@ import {
     Eye,
     CalendarDays,
     AlertTriangle,
+    Trash2,
 } from "lucide-react";
 
 import {
     listTasks,
     createTask,
     updateTask,
+    deleteTask,
 } from "../../services";
 
 import { useAuth } from "../../context/AuthContext";
@@ -22,11 +24,13 @@ import { listIncidents } from "../../services/incidentService";
 import { listVolunteers } from "../../services/volunteerService";
 import { listAgencies } from "../../services/agencyService";
 import { isOperationalUser } from "../../utils/roles";
+import { listActiveEndUsers } from "../../services/agencyService";
 
 const EMPTY_FORM = {
     title: "",
     description: "",
     incident_id: "",
+    assignee_type: "",
     assigned_to: "",
     priority: "medium",
     status: "assigned",
@@ -60,6 +64,8 @@ const STATUS_STYLES = {
 
 const extractRecords = (response, key) => {
     const candidates = [
+        response?.data?.data?.records,
+        response?.data?.records,
         response?.data?.data?.[key],
         response?.data?.[key],
         response?.[key],
@@ -160,6 +166,36 @@ const normalizeAgency = (agency) => ({
     type: "ngo",
 });
 
+const isCredentialIssued = (record) => {
+    const issuedValue = String(record?.credentials_issued ?? "")
+        .trim()
+        .toLowerCase();
+    const hasIssuedFlag = ["1", "true", "yes", "issued"].includes(issuedValue);
+
+    return Boolean(record?.user_id ?? record?.userId) || hasIssuedFlag;
+};
+
+const hasStoredCredentials = (storageKey) => {
+    try {
+        const stored = localStorage.getItem(storageKey);
+        if (!stored) return false;
+        if (stored === "issued") return true;
+
+        const credentials = JSON.parse(stored);
+        return credentials?.issued === true;
+    } catch {
+        return false;
+    }
+};
+
+const hasVolunteerLogin = (volunteer) =>
+    isCredentialIssued(volunteer) ||
+    hasStoredCredentials(`volunteer-credentials-${volunteer.id}`);
+
+const hasAgencyLogin = (agency) =>
+    isCredentialIssued(agency) ||
+    hasStoredCredentials(`agency-credentials-${agency.id}`);
+
 const formatDate = (value) => {
     if (!value) return "—";
 
@@ -203,6 +239,7 @@ export default function Task() {
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [deletingTaskId, setDeletingTaskId] = useState(null);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
@@ -210,6 +247,10 @@ export default function Task() {
     const [editingTask, setEditingTask] = useState(null);
     const [selectedTask, setSelectedTask] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
+
+    const [assigneeType, setAssigneeType] = useState("");
+    const [assigneeOptions, setAssigneeOptions] = useState([]);
+    const [assigneeLoading, setAssigneeLoading] = useState(false);
 
     // Fetch tasks. Volunteers and NGO contacts retain their existing
     // assigned-task experience. Only managers load task-form options.
@@ -258,11 +299,14 @@ export default function Task() {
                     : [];
 
             const activeAssignees = [
-                ...volunteers.map(normalizeVolunteer),
+                ...volunteers
+                    .filter(hasVolunteerLogin)
+                    .map(normalizeVolunteer),
                 ...agencies
                     .filter(
                         (agency) =>
-                            String(agency.type ?? "ngo").toLowerCase() === "ngo"
+                            String(agency.type ?? "ngo").toLowerCase() === "ngo" &&
+                            hasAgencyLogin(agency)
                     )
                     .map(normalizeAgency),
             ];
@@ -300,6 +344,74 @@ export default function Task() {
         fetchTasks();
     }, [fetchTasks]);
 
+    useEffect(() => {
+    if (!canManageTasks || !showForm || !assigneeType) {
+        setAssigneeOptions([]);
+        setAssigneeLoading(false);
+        return;
+    }
+
+    let cancelled = false;
+
+    const fetchAssignees = async () => {
+        setAssigneeLoading(true);
+        setAssigneeOptions([]);
+
+        try {
+            const response = await listActiveEndUsers(assigneeType);
+
+            if (response?.success === false) {
+                throw new Error(
+                    response.message || "Failed to load assignees."
+                );
+            }
+
+            const records = extractRecords(response, "records");
+
+            const normalized = records.map((record) => {
+                if (assigneeType === "volunteer") {
+                    return {
+                        id: String(record.id),
+                        name:
+                            record.name ??
+                            record.full_name ??
+                            record.volunteer_name ??
+                            "Unnamed volunteer",
+                    };
+                }
+
+                return {
+                    id: String(record.id),
+                    name: record.contact_person
+                        ? `${record.contact_person} — ${record.name ?? "NGO"}`
+                        : record.name ?? "Unnamed NGO",
+                };
+            });
+
+            if (!cancelled) {
+                setAssigneeOptions(normalized);
+            }
+        } catch (err) {
+            if (!cancelled) {
+                setAssigneeOptions([]);
+                setError(
+                    err?.message || "Failed to load active assignees."
+                );
+            }
+        } finally {
+            if (!cancelled) {
+                setAssigneeLoading(false);
+            }
+        }
+    };
+
+    fetchAssignees();
+
+    return () => {
+        cancelled = true;
+    };
+}, [assigneeType, showForm, canManageTasks]);
+
     // Form helpers
     const handleChange = (event) => {
         const { name, value } = event.target;
@@ -311,23 +423,36 @@ export default function Task() {
     };
 
     const resetForm = () => {
-        setForm(EMPTY_FORM);
-        setEditingTask(null);
-        setShowForm(false);
-    };
+    setForm(EMPTY_FORM);
+    setAssigneeType("");
+    setAssigneeOptions([]);
+    setEditingTask(null);
+    setShowForm(false);
+};
 
     const openCreateForm = () => {
-        if (!canManageTasks) return;
+    if (!canManageTasks) return;
 
-        setError("");
-        setSuccess("");
-        setEditingTask(null);
-        setForm(EMPTY_FORM);
-        setShowForm(true);
-    };
+    setError("");
+    setSuccess("");
+    setEditingTask(null);
+    setAssigneeType("");
+    setAssigneeOptions([]);
+    setForm(EMPTY_FORM);
+    setShowForm(true);
+};
 
     const openEditForm = (task) => {
         if (!canManageTasks) return;
+
+        const existingType =
+    String(task.assigned_to_type ?? "").toLowerCase();
+
+const selectedType =
+    existingType === "volunteer" ? "volunteer" : "agency";
+
+setAssigneeType(selectedType);
+setAssigneeOptions([]);
 
         setError("");
         setSuccess("");
@@ -359,6 +484,11 @@ export default function Task() {
             return;
         }
 
+        if (!form.assignee_type) {
+    setError("Please select Volunteer or NGO Contact Person.");
+    return;
+}
+
         if (!form.assigned_to) {
             setError("Please select a volunteer or NGO.");
             return;
@@ -370,18 +500,21 @@ export default function Task() {
 
         try {
             const payload = {
-                title: form.title.trim(),
-                description: form.description.trim(),
-                incident_id: form.incident_id ? Number(form.incident_id) : null,
-                // Profile ID, not users.id.
-                assigned_to: Number(form.assigned_to),
-                priority: form.priority,
-                status: form.status,
-                due_at: form.due_at
-                    ? form.due_at.replace("T", " ") +
-                      (form.due_at.length === 16 ? ":00" : "")
-                    : null,
-            };
+    title: form.title.trim(),
+    description: form.description.trim(),
+    incident_id: form.incident_id
+        ? Number(form.incident_id)
+        : null,
+    assigned_to: Number(form.assigned_to),
+    assigned_to_type:
+        form.assignee_type === "agency" ? "ngo" : "volunteer",
+    priority: form.priority,
+    status: form.status,
+    due_at: form.due_at
+        ? form.due_at.replace("T", " ") +
+          (form.due_at.length === 16 ? ":00" : "")
+        : null,
+};
 
             if (editingTask) {
                 await updateTask(editingTask.id, payload);
@@ -398,6 +531,35 @@ export default function Task() {
             setError(err?.message || "Failed to save task.");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleDeleteTask = async (task) => {
+        if (!canManageTasks || task.id == null) return;
+        if (!window.confirm(`Delete task "${task.title}"?`)) return;
+
+        setDeletingTaskId(task.id);
+        setError("");
+        setSuccess("");
+
+        try {
+            const response = await deleteTask(task.id);
+            if (response?.success === false) {
+                throw new Error(response.message || "Failed to delete task.");
+            }
+
+            setTasks((currentTasks) =>
+                currentTasks.filter((item) => String(item.id) !== String(task.id))
+            );
+            setSelectedTask((currentTask) =>
+                currentTask?.id === task.id ? null : currentTask
+            );
+            setSuccess("Task deleted successfully.");
+        } catch (err) {
+            console.error("[Tasks] Delete error:", err);
+            setError(err?.message || "Failed to delete task.");
+        } finally {
+            setDeletingTaskId(null);
         }
     };
 
@@ -558,33 +720,78 @@ export default function Task() {
                                             </select>
                                         </div>
 
-                                        <div>
-                                            <label
-                                                htmlFor="task-assignee"
-                                                className="mb-1.5 block text-sm font-medium text-slate-700"
-                                            >
-                                                Assign To *
-                                            </label>
-                                            <select
-                                                id="task-assignee"
-                                                name="assigned_to"
-                                                value={form.assigned_to}
-                                                onChange={handleChange}
-                                                required
-                                                disabled={!showForm || submitting}
-                                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
-                                            >
-                                                <option value="">Select volunteer or NGO</option>
-                                                {assignees.map((assignee) => (
-                                                    <option
-                                                        key={`${assignee.type}:${assignee.id}`}
-                                                        value={assignee.id}
-                                                    >
-                                                        {assignee.name} ({formatLabel(assignee.type)})
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
+                                        
+<div>
+  <label
+    htmlFor="task-assignee-type"
+    className="mb-1.5 block text-sm font-medium text-slate-700"
+  >
+    Assign User Type *
+  </label>
+  <select
+    id="task-assignee-type"
+    name="assignee_type"
+    value={assigneeType}
+    required
+    disabled={!showForm || submitting}
+    onChange={(event) => {
+      const type = event.target.value;
+      setAssigneeType(type);
+      setForm((previous) => ({
+        ...previous,
+        assignee_type: type,
+        assigned_to: "",
+      }));
+      setAssigneeOptions([]);
+      setError("");
+    }}
+    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+  >
+    <option value="">Select user type</option>
+    <option value="volunteer">Volunteer</option>
+    <option value="agency">NGO Contact Person</option>
+  </select>
+</div>
+
+<div>
+  <label
+    htmlFor="task-assignee"
+    className="mb-1.5 block text-sm font-medium text-slate-700"
+  >
+    Assign To *
+  </label>
+  <select
+    id="task-assignee"
+    name="assigned_to"
+    value={form.assigned_to}
+    onChange={handleChange}
+    required
+    disabled={
+      !showForm ||
+      submitting ||
+      !assigneeType ||
+      assigneeLoading
+    }
+    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
+  >
+    <option value="">
+      {!assigneeType
+        ? "Select user type first"
+        : assigneeLoading
+          ? "Loading active users..."
+          : assigneeOptions.length === 0
+            ? "No active users available"
+            : "Select an assignee"}
+    </option>
+
+    {assigneeOptions.map((assignee) => (
+      <option key={assignee.id} value={assignee.id}>
+        {assignee.name}
+      </option>
+    ))}
+  </select>
+</div>
+
 
                                         <div>
                                             <label
@@ -861,15 +1068,31 @@ export default function Task() {
                                                     </button>
 
                                                     {canManageTasks && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEditForm(task)}
-                                                            title="Edit task"
-                                                            aria-label={`Edit task ${task.id}`}
-                                                            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-amber-50 hover:text-amber-700"
-                                                        >
-                                                            <Pencil size={16} />
-                                                        </button>
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openEditForm(task)}
+                                                                title="Edit task"
+                                                                aria-label={`Edit task ${task.id}`}
+                                                                className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-amber-50 hover:text-amber-700"
+                                                            >
+                                                                <Pencil size={16} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteTask(task)}
+                                                                disabled={deletingTaskId === task.id}
+                                                                title="Delete task"
+                                                                aria-label={`Delete task ${task.id}`}
+                                                                className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            >
+                                                                {deletingTaskId === task.id ? (
+                                                                    <span className="block h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-600" />
+                                                                ) : (
+                                                                    <Trash2 size={16} />
+                                                                )}
+                                                            </button>
+                                                        </>
                                                     )}
                                                 </div>
                                             </td>
