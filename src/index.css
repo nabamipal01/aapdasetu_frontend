@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
-.leaflet-layer.bhuvan-flood-red {
-    filter: hue-rotate(180deg) saturate(1.5);
+
+html,
+body,
+#root {
+  margin: 0;
+  border-top: none;
+  background: #ffffff;
+}
+
+.dashboard-map .leaflet-overlay-pane path.leaflet-interactive:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.dashboard-map .leaflet-overlay-pane path.leaflet-interactive:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 1px;
+}
+.leaflet-tooltip.district-name-tooltip {
+  z-index: 10000 !important;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #334155;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 0;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.leaflet-tooltip.district-name-tooltip::before {
+  display: none;
+}
+.leaflet-tooltip-pane {
+  z-index: 10000 !important;
 }

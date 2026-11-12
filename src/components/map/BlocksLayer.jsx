@@ -410,13 +410,13 @@ export default function BlocksLayer({
          * -----------------------------------------------------
          */
 
-        layer.bindTooltip(
-            blockName,
-            {
-                sticky: true,
-                direction: "top",
-            }
-        );
+        // layer.bindTooltip(
+        //     blockName,
+        //     {
+        //         sticky: true,
+        //         direction: "top",
+        //     }
+        // );
 
 
         /*

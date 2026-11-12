@@ -228,13 +228,13 @@ export default function SubdivisionLayer({
          * -----------------------------------------------------
          */
 
-        layer.bindTooltip(
-            subdivisionName,
-            {
-                sticky: true,
-                direction: "top",
-            }
-        );
+        // layer.bindTooltip(
+        //     subdivisionName,
+        //     {
+        //         sticky: true,
+        //         direction: "top",
+        //     }
+        // );
 
 
         /*

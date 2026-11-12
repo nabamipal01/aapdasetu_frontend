@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -6,7 +7,7 @@ import { getUserRole, getUserType } from "../utils/roles";
 function RoleProtectedRoute({
   allowedRoles = [],
   allowedUserTypes = [],
-  fallbackPath = "/task",
+  fallbackPath = "/dashboard",
 }) {
   const { user } = useAuth();
 
@@ -19,11 +20,11 @@ function RoleProtectedRoute({
   const userTypeAllowed =
     userType !== null && allowedUserTypes.includes(userType);
 
-  if (!roleAllowed && !userTypeAllowed) {
-    return <Navigate to={fallbackPath} replace />;
+  if (roleAllowed || userTypeAllowed) {
+    return <Outlet />;
   }
 
-  return <Outlet />;
+  return <Navigate to={fallbackPath} replace />;
 }
 
 export default RoleProtectedRoute;

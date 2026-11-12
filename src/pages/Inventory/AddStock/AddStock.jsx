@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { createInventoryItem, listEquipmentTypes } from "../../../services";
 import { PackagePlus, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -11,12 +11,37 @@ const EMPTY_FORM = {
   location: "",
   quantity: "",
   purchase_date: "",
-  expiry_date: "",
 };
+
+const getTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getExpiryDate = (purchaseDate) => {
+  if (!purchaseDate) return "";
+
+  const [year, month, day] = purchaseDate.split("-").map(Number);
+  const expiry = new Date(year, month - 1, day + 30);
+  const expiryYear = expiry.getFullYear();
+  const expiryMonth = String(expiry.getMonth() + 1).padStart(2, "0");
+  const expiryDay = String(expiry.getDate()).padStart(2, "0");
+
+  return `${expiryYear}-${expiryMonth}-${expiryDay}`;
+};
+
+const createEmptyForm = () => ({
+  ...EMPTY_FORM,
+  purchase_date: getTodayDate(),
+});
 
 function AddStock() {
   const navigate   = useNavigate();
-  const [form, setForm]               = useState(EMPTY_FORM);
+  const [form, setForm]               = useState(createEmptyForm);
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState("");
   const [success, setSuccess]         = useState(null); // holds created item on success
@@ -53,12 +78,15 @@ function AddStock() {
         ...(form.brand_name    && { brand_name:    form.brand_name.trim() }),
         ...(form.oem           && { oem:           form.oem.trim() }),
         ...(form.location      && { location:      form.location.trim() }),
-        ...(form.purchase_date && { purchase_date: form.purchase_date }),
-        ...(form.expiry_date   && { expiry_date:   form.expiry_date }),
+        purchase_date: form.purchase_date,
+        expiry_date: getExpiryDate(form.purchase_date),
       };
       const res = await createInventoryItem(payload);
-      setSuccess(res.data);
-      setForm(EMPTY_FORM);
+      setSuccess({
+        ...res.data,
+        expiry_date: res.data?.expiry_date || payload.expiry_date,
+      });
+      setForm(createEmptyForm());
     } catch (err) {
       setError(err.message || "Failed to add stock item");
     } finally {
@@ -95,6 +123,7 @@ function AddStock() {
               <span className="font-medium">Type:</span>     <span>{success.equipment_type}</span>
               <span className="font-medium">Quantity:</span> <span>{success.quantity}</span>
               <span className="font-medium">Location:</span> <span>{success.location || "—"}</span>
+              <span className="font-medium">Expires:</span> <span>{success.expiry_date || "—"}</span>
             </div>
             <div className="mt-3 flex gap-3">
               <button onClick={() => setSuccess(null)}
@@ -187,17 +216,17 @@ function AddStock() {
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
                   Purchase Date
                 </label>
-                <input name="purchase_date" type="date" value={form.purchase_date} onChange={handleChange}
+                <input name="purchase_date" type="date" required value={form.purchase_date} onChange={handleChange}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
               </div>
 
               {/* Expiry date */}
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Expiry Date
+                  Expiry Date (30 days after purchase)
                 </label>
-                <input name="expiry_date" type="date" value={form.expiry_date} onChange={handleChange}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+                <input name="expiry_date" type="date" value={getExpiryDate(form.purchase_date)} readOnly
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-600 outline-none" />
               </div>
 
             </div>

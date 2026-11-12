@@ -114,9 +114,12 @@ export default function DistrictLayer({
       "Unknown District";
 
     layer.bindTooltip(districtName, {
-      sticky: true,
-      direction: "top",
-    });
+  permanent: true,
+  direction: "center",
+  className: "district-name-tooltip",
+  opacity: 1,
+  interactive: false,
+});
 
     layer.on({
       mouseover: (event) => {

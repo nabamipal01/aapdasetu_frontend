@@ -1,8 +1,9 @@
 const NOTIFICATION_EVENT = "app:alert-notifications-changed";
 const STORAGE_PREFIX = "aapdasetu-alert-notifications";
+const DISCOVERED_ALERTS_PREFIX = "aapdasetu-discovered-alerts";
 const MAX_NOTIFICATIONS = 30;
 
-const getStorageKey = () => {
+const getUserStorageSuffix = () => {
     let user = null;
     try {
         user = JSON.parse(localStorage.getItem("user") || "null");
@@ -11,7 +12,38 @@ const getStorageKey = () => {
     }
 
     const userId = user?.user_id ?? user?.id ?? user?.email ?? "guest";
-    return `${STORAGE_PREFIX}:${userId}`;
+    return userId;
+};
+
+const getStorageKey = () =>
+    `${STORAGE_PREFIX}:${getUserStorageSuffix()}`;
+
+const getDiscoveredAlertsStorageKey = () =>
+    `${DISCOVERED_ALERTS_PREFIX}:${getUserStorageSuffix()}`;
+
+const getAlertKey = (type, alertId) => {
+    if (alertId == null || alertId === "") return null;
+
+    const category = type?.toLowerCase().includes("post")
+        ? "post"
+        : type?.toLowerCase().includes("pre")
+            ? "pre"
+            : type?.toLowerCase();
+
+    return category ? `${category}:${alertId}` : null;
+};
+
+const getDiscoveredAlertKeys = () => {
+    try {
+        const savedKeys = localStorage.getItem(getDiscoveredAlertsStorageKey());
+        if (!savedKeys) return [];
+
+        const keys = JSON.parse(savedKeys);
+        return Array.isArray(keys) ? keys : [];
+    } catch (error) {
+        console.error("Unable to load discovered alerts.", error);
+        return [];
+    }
 };
 
 export const getAlertNotifications = () => {
@@ -45,8 +77,34 @@ export const addAlertNotification = ({
     path,
     alert,
     alertId,
+    districtId,
+    createdAt,
 }) => {
     const notifications = getAlertNotifications();
+    const alertKey = getAlertKey(type, alertId);
+    if (alertKey) {
+        const discoveredKeys = getDiscoveredAlertKeys();
+        const alreadyNotified = notifications.some(
+            (notification) =>
+                getAlertKey(notification.type, notification.alertId) === alertKey
+        );
+
+        if (alreadyNotified || discoveredKeys.includes(alertKey)) {
+            if (!discoveredKeys.includes(alertKey)) {
+                localStorage.setItem(
+                    getDiscoveredAlertsStorageKey(),
+                    JSON.stringify([...discoveredKeys, alertKey])
+                );
+            }
+            return notifications;
+        }
+
+        localStorage.setItem(
+            getDiscoveredAlertsStorageKey(),
+            JSON.stringify([...discoveredKeys, alertKey])
+        );
+    }
+
     const notification = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         type,
@@ -55,7 +113,8 @@ export const addAlertNotification = ({
         path,
         alert,
         alertId,
-        createdAt: new Date().toISOString(),
+        districtId: districtId ?? null,
+        createdAt: createdAt ?? new Date().toISOString(),
         read: false,
     };
 

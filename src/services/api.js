@@ -125,6 +125,12 @@ export const postFormData = (endpoint, formData) =>
 export const patch = (endpoint, body) =>
   apiFetch(endpoint, { method: "PATCH", body: JSON.stringify(body) });
 
+export const patchFormData = (endpoint, formData) =>
+  apiFetch(endpoint, {
+    method: "PATCH",
+    body: formData,
+  });
+
 export const put = (endpoint, body) =>
   apiFetch(endpoint, { method: "PUT", body: JSON.stringify(body) });
 

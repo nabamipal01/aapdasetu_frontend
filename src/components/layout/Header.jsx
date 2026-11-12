@@ -13,7 +13,12 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../../config/Config";
-import { isOperationalUser } from "../../utils/roles";
+import { getPostAlerts, listAlerts } from "../../services";
+import { useAuth } from "../../context/AuthContext";
+import {
+  isAlertVisibleToUser,
+  isOperationalUser,
+} from "../../utils/roles";
 import {
   ALERT_NOTIFICATIONS_EVENT,
   getAlertNotifications,
@@ -38,6 +43,7 @@ function Header({
   setSidebarCollapsed,
   hideNav = false,
 }) {
+  const { user } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState(
@@ -50,10 +56,17 @@ function Header({
   const notificationsRef = useRef(null);
   const navigate = useNavigate();
   const combinedNotifications = [
-    ...notifications.map((notification) => ({
+    ...notifications
+      .filter((notification) =>
+        isAlertVisibleToUser(
+          notification.alert ?? { district_id: notification.districtId },
+          user
+        )
+      )
+      .map((notification) => ({
       ...notification,
       source: "alert",
-    })),
+      })),
     ...trainingNotifications.map((notification) => ({
       ...notification,
       source: "training",
@@ -66,8 +79,6 @@ function Header({
   const unreadCount = combinedNotifications.filter(
     (notification) => !notification.read
   ).length;
-
-  const user = JSON.parse(localStorage.getItem("user") || "null");
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -121,6 +132,86 @@ function Header({
       window.removeEventListener("storage", syncFromStorage);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const getAlertItems = (response, label) => {
+      if (response?.success === false) {
+        throw new Error(response.message || `Unable to load ${label}.`);
+      }
+
+      const data = response?.data ?? response;
+      const items = data?.items ?? data?.alerts ?? data?.data ?? data;
+      return Array.isArray(items) ? items : [];
+    };
+
+    const syncPublishedAlerts = async () => {
+      try {
+        const [preAlertResponse, postAlertResponse] = await Promise.all([
+          listAlerts({ page: 1, limit: 50 }),
+          getPostAlerts(1, 50),
+        ]);
+        if (cancelled) return;
+
+        const preAlerts = getAlertItems(preAlertResponse, "pre-alerts");
+        const postAlerts = getAlertItems(postAlertResponse, "post alerts");
+
+        preAlerts
+          .filter((alert) => isAlertVisibleToUser(alert, user))
+          .forEach((alert) => {
+            const alertId = alert.alert_id ?? alert.id;
+            if (alertId == null) return;
+
+            addAlertNotification({
+              type: "Pre-alert",
+              title: alert.title || "New Pre-alert",
+              description: alert.description || "",
+              path: "/pre-alerts",
+              alert,
+              alertId,
+              districtId: alert.district_id ?? alert.districtId,
+              createdAt: alert.created_at ?? alert.createdAt,
+            });
+          });
+
+        postAlerts
+          .filter((alert) => isAlertVisibleToUser(alert, user))
+          .forEach((alert) => {
+            const alertId = alert.post_alert_id ?? alert.id;
+            if (alertId == null) return;
+
+            addAlertNotification({
+              type: "Post alert",
+              title: alert.title || "New Post alert",
+              description: [
+                alert.location,
+                alert.current_situation_summary,
+              ]
+                .filter(Boolean)
+                .join(" · "),
+              path: "/post-alerts",
+              alert,
+              alertId,
+              districtId: alert.district_id ?? alert.districtId,
+              createdAt: alert.created_at ?? alert.createdAt,
+            });
+          });
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Unable to sync alert notifications.", error);
+        }
+      }
+    };
+
+    syncPublishedAlerts();
+    const intervalId = window.setInterval(syncPublishedAlerts, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [user]);
 
   // Sync training notifications from custom event / storage
   useEffect(() => {

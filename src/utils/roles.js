@@ -22,12 +22,31 @@ const normalizeRoleValue = (value) =>
         .replace(/[\s-]+/g, "_")
         .toLowerCase();
 
-export const getUserRole = (user) => {
-    if (!user || user.role == null) return null;
 
-    const role = normalizeRoleValue(user.role);
-    return STAFF_ROLES.includes(role) ? role : null;
+export const getUserRole = (user) => {
+    if (!user) return null;
+
+    const rawRole = user.role ?? user.user_role;
+
+    if (rawRole == null) return null;
+
+    const role = normalizeRoleValue(rawRole);
+
+    const roleAliases = {
+        superadmin: "super_admin",
+        district_user: "district",
+        subdivision_user: "subdivision",
+        block_user: "block",
+        admin_user: "admin",
+    };
+
+    const normalizedRole = roleAliases[role] ?? role;
+
+    return STAFF_ROLES.includes(normalizedRole)
+        ? normalizedRole
+        : null;
 };
+
 
 export const getUserType = (user) => {
     if (!user) return null;
@@ -70,6 +89,42 @@ export const canManageAlerts = (user) => {
         .filter((value) => value != null)
         .map(normalizeRoleValue)
         .some((role) => role === "admin" || role === "super_admin");
+};
+
+export const canCreateAlerts = (user) => {
+    if (!user) return false;
+
+    const identities = [user.role, user.user_role, user.user_type]
+        .filter((value) => value != null)
+        .map(normalizeRoleValue);
+
+    return canManageAlerts(user)
+        || identities.some((identity) => identity === "district" || identity === "district_user");
+};
+
+export const getUserDistrictId = (user) =>
+    user?.district_id ??
+    user?.districtId ??
+    user?.linked_id ??
+    user?.linkedId ??
+    user?.district?.id ??
+    null;
+
+export const getAlertDistrictId = (alert) =>
+    alert?.district_id ??
+    alert?.districtId ??
+    alert?.district?.id ??
+    null;
+
+export const isAlertVisibleToUser = (alert, user) => {
+    if (canManageAlerts(user)) return true;
+
+    const alertDistrictId = getAlertDistrictId(alert);
+    if (alertDistrictId == null || alertDistrictId === "") return true;
+
+    const userDistrictId = getUserDistrictId(user);
+    return userDistrictId != null
+        && String(alertDistrictId) === String(userDistrictId);
 };
 
 export const hasFullAccess = (user) => {
@@ -133,4 +188,3 @@ export const canViewIncidents = (user) => {
 export const canManageIncidents = (user) => {
     return canManageAlerts(user);
 };
-

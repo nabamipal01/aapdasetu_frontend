@@ -31,6 +31,9 @@ import {
   Pencil,
 } from "lucide-react";
 import DownloadMenu from "../../../components/common/DownloadMenu";
+import { useAuth } from "../../../context/AuthContext";
+import { getUserRole } from "../../../utils/roles";
+import DistrictIssueStock from "./DistrictIssueStock";
 
 const EMPTY_FORM = {
   district_id: "",
@@ -39,16 +42,14 @@ const EMPTY_FORM = {
   remarks: "",
 };
 
-const DEFAULT_PAGINATION = {
-  page: 1,
-  limit: 10,
-  total_items: 0,
-  total_pages: 1,
-  has_next_page: false,
-  has_previous_page: false,
-};
+const getIssueDetails = (response) =>
+  response?.data?.issue ??
+  response?.issue ??
+  response?.data ??
+  response ??
+  {};
 
-function IssueStock() {
+function AdminIssueStock() {
   const [inventoryItems, setInventoryItems] = useState([]);
   const [issues, setIssues] = useState([]);
   const [districtUsers, setDistrictUsers] = useState([]);
@@ -66,8 +67,11 @@ function IssueStock() {
   const [editingIssueId, setEditingIssueId] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [districtFilter, setDistrictFilter] = useState("all");
+  const [issueItemsMap, setIssueItemsMap] = useState({});
+  const [issueItemsLoading, setIssueItemsLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
   const [previewIssue, setPreviewIssue] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -84,7 +88,7 @@ function IssueStock() {
     try {
       const [invRes, issueRes, userRes] = await Promise.allSettled([
         listInventoryItems({ page: 1, limit: 200 }),
-        listStockIssues({ page, limit: LIMIT, search: searchTerm }),
+        listStockIssues(),
         listUsers({ role: "district", page: 1, per_page: 100 }),
       ]);
 
@@ -106,10 +110,8 @@ function IssueStock() {
           (Array.isArray(data) ? data : []);
 
         setIssues(issueList);
-        setPagination(data?.pagination ?? DEFAULT_PAGINATION);
       } else {
         setIssues([]);
-        setPagination(DEFAULT_PAGINATION);
       }
 
       if (userRes.status === "fulfilled") {
@@ -127,10 +129,11 @@ function IssueStock() {
     } finally {
       setLoading(false);
     }
-  }, [page, searchTerm, showToast]);
+  }, [showToast]);
 
   useEffect(() => {
-    fetchAll();
+    const timeoutId = window.setTimeout(fetchAll, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchAll]);
 
   const fetchDistricts = useCallback(async () => {
@@ -155,12 +158,9 @@ function IssueStock() {
   }, [showToast]);
 
   useEffect(() => {
-    fetchDistricts();
+    const timeoutId = window.setTimeout(fetchDistricts, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchDistricts]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -260,12 +260,12 @@ function IssueStock() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!form.district_id) {
+    if (!editingIssueId && !form.district_id) {
       showToast("error", "Please select a district.");
       return;
     }
 
-    if (!form.district_user_id) {
+    if (!editingIssueId && !form.district_user_id) {
       showToast("error", "Please select a district user.");
       return;
     }
@@ -275,12 +275,12 @@ function IssueStock() {
       return;
     }
 
-    if (selectedItems.length === 0) {
+    if (!editingIssueId && selectedItems.length === 0) {
       showToast("error", "Add at least one item to issue.");
       return;
     }
 
-    const invalidRow = selectedItems.find(
+    const invalidRow = !editingIssueId && selectedItems.find(
       (row) => !row.inventory_id || Number(row.quantity) <= 0
     );
 
@@ -296,7 +296,7 @@ function IssueStock() {
         quantity: Number(row.quantity),
       }));
 
-    if (itemsPayload.length === 0) {
+    if (!editingIssueId && itemsPayload.length === 0) {
       showToast("error", "Please add valid inventory items.");
       return;
     }
@@ -310,6 +310,19 @@ function IssueStock() {
         items: itemsPayload,
         ...(form.remarks.trim() && { remarks: form.remarks.trim() }),
       };
+
+      if (editingIssueId) {
+        await updateStockIssue(editingIssueId, {
+          storage_location: payload.storage_location,
+          remarks: payload.remarks ?? "",
+        });
+
+        resetForm();
+        setPage(1);
+        showToast("success", "Stock issue updated successfully.");
+        await fetchAll();
+        return;
+      }
 
       const response = await createStockIssue(payload);
       const createdIssue =
@@ -379,6 +392,7 @@ function IssueStock() {
       });
 
       resetForm();
+      setPage(1);
       showToast("success", "Stock issue created successfully.");
       await fetchAll();
     } catch (err) {
@@ -401,9 +415,11 @@ function IssueStock() {
 
     try {
       const response = await getStockIssue(issueId);
-      const detail = response?.data;
+      const detail = getIssueDetails(response);
 
-      if (!detail) throw new Error("Stock issue details not found.");
+      if (!detail || typeof detail !== "object") {
+        throw new Error("Stock issue details not found.");
+      }
       setPreviewIssue(detail);
     } catch (err) {
       console.error("Failed to load stock issue:", err);
@@ -425,9 +441,11 @@ function IssueStock() {
 
     try {
       const response = await getStockIssue(issueId);
-      const detail = response?.data;
+      const detail = getIssueDetails(response);
 
-      if (!detail) throw new Error("Stock issue details not found.");
+      if (!detail || typeof detail !== "object") {
+        throw new Error("Stock issue details not found.");
+      }
 
       const districtUserId = String(detail.district_user_id ?? "");
       const districtUser = districtUsers.find(
@@ -504,11 +522,6 @@ function IssueStock() {
         )
       );
 
-      setPagination((prev) => ({
-        ...prev,
-        total_items: Math.max(0, Number(prev.total_items || 0) - 1),
-      }));
-
       setPreviewIssue((current) => {
         if (
           current &&
@@ -529,22 +542,153 @@ function IssueStock() {
     }
   };
 
-  const filteredIssues = issues.filter((issue) => {
-    const search = searchTerm.toLowerCase().trim();
-    if (!search) return true;
 
-    return (
-      String(issue.issue_no ?? issue.id ?? issue.issue_id ?? "")
-        .toLowerCase()
-        .includes(search) ||
-      String(issue.district_user_name ?? issue.assigned_to ?? "")
-        .toLowerCase()
-        .includes(search) ||
-      String(issue.district_user_id ?? "").toLowerCase().includes(search) ||
-      String(issue.storage_location ?? "").toLowerCase().includes(search) ||
-      String(issue.remarks ?? "").toLowerCase().includes(search)
+  const fetchIssueItems = useCallback(async () => {
+    const missingIssues = issues.filter((issue) => {
+      const id = String(issue.issue_id ?? issue.id ?? "");
+      const listedItems = Array.isArray(issue.items)
+        ? issue.items
+        : issue.issue_items;
+      return (
+        id &&
+        (!Array.isArray(listedItems) || listedItems.length === 0) &&
+        !Object.prototype.hasOwnProperty.call(issueItemsMap, id)
+      );
+    });
+
+    if (missingIssues.length === 0) return;
+
+    setIssueItemsLoading(true);
+
+  try {
+    const results = await Promise.all(
+        missingIssues.map(async (issue) => {
+          const id = String(issue.issue_id ?? issue.id);
+        try {
+          const response = await getStockIssue(id);
+          const detail = getIssueDetails(response);
+
+            return [id, detail.items ?? detail.issue_items ?? []];
+        } catch {
+            return [id, []];
+        }
+      })
     );
-  });
+
+      setIssueItemsMap((previous) => ({
+        ...previous,
+        ...Object.fromEntries(results),
+      }));
+  } catch (err) {
+    console.error("Failed to load issue items:", err);
+    } finally {
+      setIssueItemsLoading(false);
+  }
+  }, [issues, issueItemsMap]);
+
+useEffect(() => {
+  if (!searchTerm.trim() || issues.length === 0) return undefined;
+
+  const timeoutId = window.setTimeout(fetchIssueItems, 0);
+  return () => window.clearTimeout(timeoutId);
+}, [issues, searchTerm, fetchIssueItems]);
+
+const statusOptions = [
+  ...new Set(
+    issues
+      .map((issue) => String(issue.status || "issued").trim().toLowerCase())
+      .filter(Boolean)
+  ),
+].sort();
+
+const filteredIssues = issues.filter((issue) => {
+  const search = searchTerm.trim().toLowerCase();
+  const issueId = String(issue.issue_id ?? issue.id ?? "");
+  const items =
+    issueItemsMap[issueId] ??
+    (issue.items?.length ? issue.items : issue.issue_items ?? issue.items ?? []);
+  const districtUser = districtUsers.find(
+    (user) => String(user.id) === String(issue.district_user_id)
+  );
+  const issueDistrictId =
+    issue.district_id ??
+    issue.district?.id ??
+    districtUser?.district_id ??
+    districtUser?.district?.id ??
+    districtUser?.linked_id;
+  const status = String(issue.status || "issued").trim().toLowerCase();
+
+  const issueTextMatches =
+    !search ||
+    [
+      issue.issue_no,
+      issue.id,
+      issue.issue_id,
+      issue.district_user_name,
+      issue.assigned_to,
+      issue.district_user_id,
+      issue.storage_location,
+      issue.remarks,
+      issue.district_name,
+      issue.district?.name,
+      districtUser?.name,
+    ].some((value) =>
+      String(value ?? "").toLowerCase().includes(search)
+    );
+
+  const itemTextMatches =
+    !search ||
+    items.some((item) => {
+      const inventoryItem = inventoryItems.find(
+        (inventory) =>
+          String(inventory.inventory_id ?? inventory.id) ===
+          String(item.inventory_id ?? item.id)
+      );
+      const product = item.product ?? {};
+      const equipment = item.equipment ?? {};
+
+      return [
+        item.product_name,
+        item.item_name,
+        item.equipment_type,
+        item.category_name,
+        item.brand_name,
+        item.brand,
+        item.oem,
+        item.source_location,
+        item.inventory_id,
+        product.product_name,
+        product.brand_name,
+        equipment.equipment_type,
+        inventoryItem?.product_name,
+        inventoryItem?.item_name,
+        inventoryItem?.equipment_type,
+        inventoryItem?.category_name,
+        inventoryItem?.brand_name,
+        inventoryItem?.brand,
+        inventoryItem?.oem,
+      ].some((value) =>
+        String(value ?? "").toLowerCase().includes(search)
+      );
+    });
+
+  return (
+    (issueTextMatches || itemTextMatches) &&
+    (statusFilter === "all" || status === statusFilter) &&
+    (districtFilter === "all" || String(issueDistrictId) === districtFilter)
+  );
+});
+
+const totalPages = Math.max(1, Math.ceil(filteredIssues.length / LIMIT));
+const currentPage = Math.min(page, totalPages);
+const hasActiveFilters =
+  Boolean(searchTerm.trim()) ||
+  statusFilter !== "all" ||
+  districtFilter !== "all";
+const paginatedIssues = filteredIssues.slice(
+  (currentPage - 1) * LIMIT,
+  currentPage * LIMIT
+);
 
   const formatDate = (date) => {
     if (!date) return "—";
@@ -627,7 +771,7 @@ function IssueStock() {
                   </h1>
                   {!loading && (
                     <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600">
-                      {pagination.total_items ?? issues.length}
+                      {filteredIssues.length}
                     </span>
                   )}
                 </div>
@@ -686,7 +830,9 @@ function IssueStock() {
                       {editingIssueId ? "Edit Stock Issue" : "New Stock Issue"}
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Select recipient and inventory items to issue.
+                      {editingIssueId
+                        ? "Update the storage location or remarks for this issue."
+                        : "Select recipient and inventory items to issue."}
                     </p>
                   </div>
                 </div>
@@ -702,7 +848,7 @@ function IssueStock() {
                       name="district_id"
                       value={form.district_id}
                       onChange={handleDistrictChange}
-                      disabled={districtsLoading}
+                      disabled={districtsLoading || Boolean(editingIssueId)}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:bg-slate-50"
                     >
                       <option value="">
@@ -725,7 +871,9 @@ function IssueStock() {
                       value={form.district_user_id}
                       onChange={handleChange}
                       disabled={
-                        !form.district_id || filteredDistrictUsers.length === 0
+                        Boolean(editingIssueId) ||
+                        !form.district_id ||
+                        filteredDistrictUsers.length === 0
                       }
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:bg-slate-50"
                     >
@@ -756,7 +904,7 @@ function IssueStock() {
                       <input
                         name="storage_location"
                         value={form.storage_location}
-                        readOnly
+                        readOnly={!editingIssueId}
                         placeholder={
                           form.district_id
                             ? "No storage location configured"
@@ -781,7 +929,7 @@ function IssueStock() {
                   </div>
                 </div>
 
-                <div className="mt-5">
+                <div className={`mt-5 ${editingIssueId ? "hidden" : ""}`}>
                   <div className="mb-3 flex items-center justify-between">
                     <div>
                       <p className="text-sm font-bold text-slate-800">Products</p>
@@ -931,7 +1079,7 @@ function IssueStock() {
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-bold text-slate-900">Stock Issues</h2>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                    {pagination.total_items ?? issues.length}
+                    {filteredIssues.length}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
@@ -940,28 +1088,70 @@ function IssueStock() {
               </div>
 
               <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
-                <div className="relative w-full md:w-96">
+                <div className="relative w-full md:w-72">
                   <Search
                     size={17}
                     className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
                   />
                   <input
-                    type="text"
+                    type="search"
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search issue, user or location..."
+                    onChange={(event) => {
+                      setSearchTerm(event.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Search issue, recipient, product..."
+                    aria-label="Search stock issues"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-10 text-sm outline-none transition focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-100"
                   />
                   {searchTerm && (
                     <button
                       type="button"
-                      onClick={() => setSearchTerm("")}
+                      onClick={() => {
+                        setSearchTerm("");
+                        setPage(1);
+                      }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                      aria-label="Clear search"
                     >
                       <X size={15} />
                     </button>
                   )}
                 </div>
+
+                <select
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Filter stock issues by status"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                >
+                  <option value="all">All statuses</option>
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {status.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase())}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={districtFilter}
+                  onChange={(event) => {
+                    setDistrictFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Filter stock issues by district"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                >
+                  <option value="all">All districts</option>
+                  {districts.map((district) => (
+                    <option key={district.id} value={String(district.id)}>
+                      {district.name}
+                    </option>
+                  ))}
+                </select>
 
                 <DownloadMenu
                   records={filteredIssues.map((issue, index) => ({
@@ -1001,23 +1191,42 @@ function IssueStock() {
                   <p className="mt-1 text-xs text-slate-400">Please wait</p>
                 </div>
               </div>
+            ) : searchTerm.trim() && issueItemsLoading ? (
+              <div className="flex min-h-[300px] items-center justify-center">
+                <div className="text-center">
+                  <RefreshCw
+                    size={28}
+                    className="mx-auto mb-3 animate-spin text-orange-500"
+                  />
+                  <p className="text-sm font-semibold text-slate-700">
+                    Searching issued items...
+                  </p>
+                </div>
+              </div>
             ) : filteredIssues.length === 0 ? (
               <div className="flex min-h-[300px] flex-col items-center justify-center px-5 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                   <Search size={25} />
                 </div>
                 <p className="mt-4 font-bold text-slate-700">
-                  {searchTerm ? "No matching stock issues" : "No stock issue records"}
+                  {hasActiveFilters
+                    ? "No matching stock issues"
+                    : "No stock issue records"}
                 </p>
                 <p className="mt-1 max-w-sm text-sm text-slate-400">
-                  {searchTerm
-                    ? "Try a different search term."
+                  {hasActiveFilters
+                    ? "Adjust or clear your filters."
                     : "No stock has been issued yet."}
                 </p>
-                {searchTerm && (
+                {hasActiveFilters && (
                   <button
                     type="button"
-                    onClick={() => setSearchTerm("")}
+                    onClick={() => {
+                      setSearchTerm("");
+                      setStatusFilter("all");
+                      setDistrictFilter("all");
+                      setPage(1);
+                    }}
                     className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700"
                   >
                     Clear Search
@@ -1057,7 +1266,7 @@ function IssueStock() {
                     </thead>
 
                     <tbody className="divide-y divide-slate-100">
-                      {filteredIssues.map((issue) => {
+                      {paginatedIssues.map((issue) => {
                         const id = issue.id ?? issue.issue_id;
                         const userName =
                           issue.district_user_name ??
@@ -1195,22 +1404,22 @@ function IssueStock() {
                   </table>
                 </div>
 
-                {pagination.total_pages > 1 && (
+                {totalPages > 1 && (
                   <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-slate-500">
                       Page{" "}
                       <span className="font-bold text-slate-700">
-                        {pagination.page ?? page}
+                        {currentPage}
                       </span>{" "}
                       of{" "}
                       <span className="font-bold text-slate-700">
-                        {pagination.total_pages}
+                        {totalPages}
                       </span>
                     </p>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        disabled={!pagination.has_previous_page}
+                        disabled={currentPage <= 1}
                         onClick={() => setPage((prev) => Math.max(1, prev - 1))}
                         className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
@@ -1218,12 +1427,12 @@ function IssueStock() {
                         Previous
                       </button>
                       <span className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">
-                        {pagination.page ?? page}
+                        {currentPage}
                       </span>
                       <button
                         type="button"
-                        disabled={!pagination.has_next_page}
-                        onClick={() => setPage((prev) => prev + 1)}
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                         className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Next
@@ -1528,6 +1737,16 @@ function IssueStock() {
         </div>
       )}
     </>
+  );
+}
+
+function IssueStock() {
+  const { user } = useAuth();
+
+  return getUserRole(user) === "district" ? (
+    <DistrictIssueStock />
+  ) : (
+    <AdminIssueStock />
   );
 }
 

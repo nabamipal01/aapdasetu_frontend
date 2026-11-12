@@ -1,17 +1,29 @@
-
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, Plus, Trash2, X } from "lucide-react";
+import {
+  BellRing,
+  Eye,
+  Plus,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import API_BASE_URL from "../../config/Config";
 import {
   createPostAlert,
   deletePostAlert,
   getPostAlerts,
+  listDistricts,
 } from "../../services";
 import { addAlertNotification } from "../../utils/alertNotifications";
 import DownloadMenu from "../../components/common/DownloadMenu";
 import { useAuth } from "../../context/AuthContext";
-import { canManageAlerts } from "../../utils/roles";
+import {
+  canCreateAlerts,
+  canManageAlerts,
+  getUserDistrictId,
+  isAlertVisibleToUser,
+} from "../../utils/roles";
 
 const RESPONSE_ACTIONS = [
   "Evacuation",
@@ -20,6 +32,16 @@ const RESPONSE_ACTIONS = [
   "Medical Support",
   "Other",
 ];
+
+const EMPTY_FORM = {
+  title: "",
+  location: "",
+  incident_date: "",
+  current_situation_summary: "",
+  response_action_required: [],
+  incident_photo: [],
+  district_id: "",
+};
 
 const getResponseActions = (alert) => {
   const actions = alert?.response_action_required;
@@ -36,11 +58,9 @@ const getPostAlertKey = (alert) =>
 const samePostAlert = (first, second) => {
   const firstId = first.post_alert_id ?? first.id;
   const secondId = second.post_alert_id ?? second.id;
-
   if (firstId != null && secondId != null) {
     return String(firstId) === String(secondId);
   }
-
   return (
     first.title === second.title &&
     first.incident_date === second.incident_date
@@ -91,95 +111,37 @@ const getPhotoSource = (photo) => {
           photo?.file_name,
           photo?.filename,
           photo?.path,
-        ].find(
-          (value) => typeof value === "string" && value.length > 0,
-        );
+        ].find((value) => typeof value === "string" && value.length > 0);
 
   if (!path) return "";
-
-  if (/^(https?:|data:|blob:)/i.test(path)) {
-    return path;
-  }
+  if (/^(https?:|data:|blob:)/i.test(path)) return path;
 
   if (typeof photo === "object" && (photo.photo || photo.image)) {
     return getPhotoSource(photo.photo || photo.image);
   }
 
   const baseUrl = new URL(API_BASE_URL, window.location.origin);
-  const normalizedPath = String(path)
-    .replace(/\\/g, "/")
-    .replace(/^\/+/, "");
-
+  const normalizedPath = String(path).replace(/\\/g, "/").replace(/^\/+/, "");
   const basePath = baseUrl.pathname.replace(/\/+$/, "");
   const normalizedBasePath = basePath.replace(/^\/+/, "");
-
-  const relativePath = normalizedPath.startsWith(
-    `${normalizedBasePath}/`,
-  )
+  const relativePath = normalizedPath.startsWith(`${normalizedBasePath}/`)
     ? normalizedPath.slice(normalizedBasePath.length + 1)
     : normalizedPath;
 
-  return new URL(
-    relativePath,
-    `${baseUrl.origin}${basePath}/`,
-  ).toString();
+  return new URL(relativePath, `${baseUrl.origin}${basePath}/`).toString();
 };
-
-function AlertPhoto({ source, index }) {
-  const [loadError, setLoadError] = useState(false);
-
-  if (loadError) {
-    return (
-      <div className="flex min-h-24 items-center justify-center rounded-md border border-amber-200 bg-amber-50 p-2.5 text-center">
-        <div>
-          <p className="text-xs font-semibold text-amber-800">
-            Photo {index + 1} could not be loaded.
-          </p>
-          <p className="mt-1 text-[10px] text-amber-700">
-            Check that the image URL is reachable.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="group overflow-hidden rounded-md border border-slate-200 bg-white">
-      <div className="relative flex h-24 items-center justify-center overflow-hidden bg-slate-100">
-        <img
-          src={source}
-          alt={`Incident photo ${index + 1}`}
-          onError={() => setLoadError(true)}
-          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-        />
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2.5 pb-2 pt-5">
-          <p className="text-[10px] font-semibold text-white">
-            Incident Photo {index + 1}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function PostAlert() {
   const { user } = useAuth();
+  const canCreate = canCreateAlerts(user);
   const canManage = canManageAlerts(user);
-
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    title: "",
-    location: "",
-    incident_date: "",
-    current_situation_summary: "",
-    response_action_required: [],
-    incident_photo: [],
-  });
-
+  const [formData, setFormData] = useState({ ...EMPTY_FORM });
   const [alerts, setAlerts] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [districtsLoading, setDistrictsLoading] = useState(canManage);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -187,25 +149,20 @@ function PostAlert() {
   const [showForm, setShowForm] = useState(false);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
-
   const [viewingAlert, setViewingAlert] = useState(null);
   const [highlightedAlertKey, setHighlightedAlertKey] = useState(null);
-
   const highlightedAlertRef = useRef(null);
   const pendingNotificationAlertRef = useRef(null);
-
   const [deletingId, setDeletingId] = useState(null);
 
   const loadAlerts = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-
       const result = await getPostAlerts(page, 10);
 
       if (result?.success) {
         const data = result.data;
-
         const alertItems = Array.isArray(data?.items)
           ? data.items
           : Array.isArray(data?.alerts)
@@ -213,24 +170,24 @@ function PostAlert() {
             : Array.isArray(data)
               ? data
               : [];
+        const visibleAlerts = alertItems.filter((alert) =>
+          isAlertVisibleToUser(alert, user)
+        );
 
         const pendingAlert = pendingNotificationAlertRef.current;
-
         if (pendingAlert) {
-          const existingAlert = alertItems.find((alert) =>
-            samePostAlert(alert, pendingAlert),
+          const existingAlert = visibleAlerts.find((alert) =>
+              samePostAlert(alert, pendingAlert)
           );
-
           const visibleAlert = existingAlert ?? pendingAlert;
           const nextAlerts = existingAlert
-            ? alertItems
-            : [pendingAlert, ...alertItems];
-
+              ? visibleAlerts
+              : [pendingAlert, ...visibleAlerts];
           setAlerts(nextAlerts);
           setHighlightedAlertKey(getPostAlertKey(visibleAlert));
           pendingNotificationAlertRef.current = null;
         } else {
-          setAlerts(alertItems);
+          setAlerts(visibleAlerts);
         }
 
         setPagination(data?.pagination || null);
@@ -242,28 +199,45 @@ function PostAlert() {
       setError(
         err?.response?.data?.message ||
           err.message ||
-          "Unable to load post alerts.",
+          "Unable to load post alerts."
       );
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, user]);
+
+  useEffect(() => {
+    if (!canManage) return;
+
+    listDistricts()
+      .then((result) => {
+        const items = result?.data?.districts ?? result?.data ?? [];
+        if (!Array.isArray(items)) {
+          throw new Error("Unable to load districts.");
+        }
+        setDistricts(items);
+      })
+      .catch((err) => setError(err.message || "Failed to load districts"))
+      .finally(() => setDistrictsLoading(false));
+  }, [canManage]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       loadAlerts();
     }, 0);
-
     return () => window.clearTimeout(timeoutId);
   }, [loadAlerts]);
 
   useEffect(() => {
     const notification = location.state?.alertNotification;
-
     if (
       !notification?.type?.toLowerCase().includes("post") ||
       !notification.alert
     ) {
+      return undefined;
+    }
+    if (!isAlertVisibleToUser(notification.alert, user)) {
+      navigate(location.pathname, { replace: true, state: null });
       return undefined;
     }
 
@@ -272,7 +246,6 @@ function PostAlert() {
         notification.alert.post_alert_id ??
         notification.alert.id ??
         notification.alertId;
-
       const alert = {
         ...notification.alert,
         ...(alertId ? { post_alert_id: alertId } : {}),
@@ -281,19 +254,17 @@ function PostAlert() {
 
       pendingNotificationAlertRef.current = alert;
       setPage(1);
-
       setAlerts((currentAlerts) =>
         currentAlerts.some((item) => samePostAlert(item, alert))
           ? currentAlerts
-          : [alert, ...currentAlerts],
+          : [alert, ...currentAlerts]
       );
-
       setHighlightedAlertKey(getPostAlertKey(alert));
       navigate(location.pathname, { replace: true, state: null });
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [location.key, location.pathname, location.state, navigate]);
+  }, [location.key, location.pathname, location.state, navigate, user]);
 
   useEffect(() => {
     if (!loading && highlightedAlertRef.current) {
@@ -306,11 +277,7 @@ function PostAlert() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleActionChange = (e) => {
@@ -319,7 +286,7 @@ function PostAlert() {
       response_action_required: e.target.checked
         ? [...prev.response_action_required, e.target.value]
         : prev.response_action_required.filter(
-            (action) => action !== e.target.value,
+            (action) => action !== e.target.value
           ),
     }));
   };
@@ -333,19 +300,32 @@ function PostAlert() {
 
   const formatIncidentDate = (value) => {
     if (!value) return "";
-
     return value.length === 16
       ? value.replace("T", " ") + ":00"
       : value.replace("T", " ");
   };
 
-  const handleSubmit = async (e) => {
-    if (!canManage) return;
+  const resetForm = () => {
+    setFormData({ ...EMPTY_FORM });
+    setShowForm(false);
+    const fileInput = document.getElementById("incident_photo");
+    if (fileInput) fileInput.value = "";
+  };
 
+  const handleSubmit = async (e) => {
+    if (!canCreate) return;
     e.preventDefault();
 
     if (formData.response_action_required.length === 0) {
       setError("Select at least one response action.");
+      setSuccess("");
+      return;
+    }
+    const districtId = canManage
+      ? formData.district_id || null
+      : getUserDistrictId(user);
+    if (!canManage && districtId == null) {
+      setError("Your account is not associated with a district.");
       setSuccess("");
       return;
     }
@@ -356,22 +336,20 @@ function PostAlert() {
 
     try {
       const data = new FormData();
-
       data.append("title", formData.title);
       data.append("location", formData.location);
-      data.append(
-        "incident_date",
-        formatIncidentDate(formData.incident_date),
-      );
+      data.append("incident_date", formatIncidentDate(formData.incident_date));
       data.append(
         "current_situation_summary",
-        formData.current_situation_summary,
+        formData.current_situation_summary
       );
-
+      data.append(
+        "district_id",
+        districtId == null ? "" : String(districtId)
+      );
       formData.response_action_required.forEach((action) => {
         data.append("response_action_required[]", action);
       });
-
       formData.incident_photo.forEach((file) => {
         data.append("incident_photo[]", file);
       });
@@ -379,67 +357,62 @@ function PostAlert() {
       const result = await createPostAlert(data);
 
       if (result.success) {
-        setSuccess("Post Alert created successfully.");
-
+        setSuccess(
+          `Post Alert created for ${
+            districtId == null
+              ? "all districts"
+              : districts.find((district) => String(district.id) === String(districtId))?.name || "the selected district"
+          }.`
+        );
         const createdAlert =
           result.data?.alert ??
           result.data?.post_alert ??
           result.data ??
           {};
 
+        const scopedAlert = {
+          ...createdAlert,
+          district_id: districtId == null ? null : Number(districtId),
+          title: formData.title,
+          location: formData.location,
+          incident_date: formatIncidentDate(formData.incident_date),
+          current_situation_summary: formData.current_situation_summary,
+          response_action_required: [...formData.response_action_required],
+          photos:
+            createdAlert.photos ??
+            createdAlert.incident_photos ??
+            createdAlert.images ??
+            [],
+        };
+
         addAlertNotification({
           type: "Post alert",
           title: formData.title,
           description: `${formData.location} · ${formData.current_situation_summary}`,
           path: "/post-alerts",
-          alert: {
-            ...createdAlert,
-            title: formData.title,
-            location: formData.location,
-            incident_date: formatIncidentDate(
-              formData.incident_date,
-            ),
-            current_situation_summary:
-              formData.current_situation_summary,
-            response_action_required: [
-              ...formData.response_action_required,
-            ],
-            photos:
-              createdAlert.photos ??
-              createdAlert.incident_photos ??
-              createdAlert.incident_photo ??
-              [],
-          },
+          alert: scopedAlert,
           alertId: createdAlert.post_alert_id ?? createdAlert.id,
+          districtId,
         });
 
-        setFormData({
-          title: "",
-          location: "",
-          incident_date: "",
-          current_situation_summary: "",
-          response_action_required: [],
-          incident_photo: [],
-        });
-        setShowForm(false);
-
-        const fileInput = document.getElementById("incident_photo");
-        if (fileInput) fileInput.value = "";
-
-        await loadAlerts();
-      } else {
-        setError(
-          result.message ||
-            "Unable to create post alert.",
+        pendingNotificationAlertRef.current = scopedAlert;
+        setAlerts((currentAlerts) =>
+          currentAlerts.some((item) => samePostAlert(item, scopedAlert))
+            ? currentAlerts
+            : [scopedAlert, ...currentAlerts]
         );
+        setPage(1);
+        resetForm();
+        if (page === 1) await loadAlerts();
+      } else {
+        setError(result.message || "Unable to create post alert.");
       }
     } catch (err) {
       console.error(err);
-
       setError(
         err?.response?.data?.message ||
           err.message ||
-          "Something went wrong while creating the alert.",
+          "Something went wrong while creating the alert."
       );
     } finally {
       setSubmitting(false);
@@ -448,26 +421,19 @@ function PostAlert() {
 
   const formatDate = (date) => {
     if (!date) return "-";
-
     return new Date(date.replace(" ", "T")).toLocaleString();
   };
 
-  const handleView = (alert) => {
-    setViewingAlert(alert);
-  };
-
+  const handleView = (alert) => setViewingAlert(alert);
   const closeModal = () => setViewingAlert(null);
 
   const handleDelete = async (alert) => {
     if (!canManage) return;
-
     const id = getPostAlertKey(alert);
-
     if (!id) {
       setError("Unable to delete this alert because its ID is missing.");
       return;
     }
-
     if (!window.confirm(`Delete alert "${alert.title}"?`)) return;
 
     setDeletingId(id);
@@ -476,17 +442,15 @@ function PostAlert() {
 
     try {
       const result = await deletePostAlert(id);
-
       if (result?.success === false) {
         throw new Error(result.message || "Unable to delete post alert.");
       }
 
       setAlerts((currentAlerts) =>
         currentAlerts.filter(
-          (item) => String(item.post_alert_id ?? item.id) !== String(id),
-        ),
+          (item) => String(item.post_alert_id ?? item.id) !== String(id)
+        )
       );
-
       setSuccess("Post Alert deleted successfully.");
 
       if (alerts.length === 1 && page > 1) {
@@ -496,594 +460,419 @@ function PostAlert() {
       }
     } catch (err) {
       console.error(err);
-
       setError(
         err?.response?.data?.message ||
           err.message ||
-          "Unable to delete post alert.",
+          "Unable to delete post alert."
       );
     } finally {
       setDeletingId(null);
     }
   };
 
-  const inputClass =
-    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-2 focus:ring-red-100";
+  const exportRecords = alerts.map((alert, index) => ({
+    "S.No.": index + 1,
+    "Alert Title": alert.title ?? "",
+    Location: alert.location ?? "",
+    "Incident Date & Time": alert.incident_date ?? "",
+    "Situation Summary": alert.current_situation_summary ?? "",
+    "Required Response Actions": Array.isArray(alert.response_action_required)
+      ? alert.response_action_required.join(", ")
+      : alert.response_action_required ?? "",
+  }));
 
+  const fieldClass =
+    "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100";
   const labelClass =
-    "mb-1 block text-xs font-semibold text-slate-700";
+    "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600";
 
   return (
-    <div className="min-h-screen bg-slate-50 px-3 py-3 sm:px-4 sm:py-4 lg:px-5">
-      <div className="mx-auto max-w-4xl">
-        {/* Page header */}
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-600 text-white shadow-sm">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"
-                  />
-                </svg>
-              </div>
-
-              <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
-                Post Alert
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-red-50/30 p-4 sm:p-6 md:p-8">
+      <div className="mx-auto max-w-7xl">
+        {/* Header — same structure as Pre-Alert */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <BellRing className="text-red-500" size={28} />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                Post-Alerts
               </h1>
+              <p className="text-sm text-slate-500">
+                {canManage
+                  ? "Create and manage emergency situation updates"
+                  : canCreate
+                    ? "Create emergency situation updates"
+                    : "View emergency situation updates"}
+              </p>
             </div>
-
-            <p className="mt-1 text-xs text-slate-500">
-              {canManage
-                ? "Create and manage emergency alerts"
-                : "View emergency alerts"}
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {canManage && <button
+          <div className="flex flex-wrap gap-2">
+            <DownloadMenu
+              records={exportRecords}
+              title="Post Alerts"
+              disabled={loading}
+              onError={(err) =>
+                setError(err.message || "Failed to download post alerts.")
+              }
+            />
+            <button
               type="button"
-              onClick={() => {
-                setShowForm((visible) => !visible);
-                setError("");
-                setSuccess("");
-              }}
-              aria-expanded={showForm}
-              aria-controls="post-alert-form"
-              className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+              onClick={loadAlerts}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              {showForm ? (
-                <>
-                  <X size={15} /> Cancel
-                </>
-              ) : (
-                <>
-                  <Plus size={15} /> Create Alert
-                </>
-              )}
-            </button>}
-
-            <div className="flex w-fit items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-600">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 8v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"
-                  />
-                </svg>
-              </div>
-
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
-                  Total Alerts
-                </p>
-                <p className="text-lg font-bold leading-tight text-slate-900">
-                  {pagination?.total_items ?? alerts.length}
-                </p>
-              </div>
-            </div>
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              Refresh
+            </button>
+            {canCreate && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (showForm) {
+                    resetForm();
+                  } else {
+                    setFormData({ ...EMPTY_FORM });
+                    setShowForm(true);
+                  }
+                  setError("");
+                  setSuccess("");
+                }}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                {showForm ? (
+                  <>
+                    <X size={15} /> Cancel
+                  </>
+                ) : (
+                  <>
+                    <Plus size={15} /> Create Alert
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Status messages */}
+        {/* Feedback — same as Pre-Alert */}
         {success && (
-          <div
-            role="status"
-            className="mb-3 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700"
-          >
-            <span className="text-sm">✓</span>
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {success}
-            <button
-              type="button"
-              onClick={() => setSuccess("")}
-              aria-label="Dismiss success message"
-              className="ml-auto rounded p-1 hover:bg-emerald-100"
-            >
-              <X size={14} />
-            </button>
           </div>
         )}
-
         {error && (
-          <div
-            role="alert"
-            className="mb-3 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
-          >
-            <span className="text-sm font-bold">!</span>
-            <span>{error}</span>
-            <button
-              type="button"
-              onClick={() => setError("")}
-              aria-label="Dismiss error message"
-              className="ml-auto shrink-0 rounded p-1 hover:bg-red-100"
-            >
-              <X size={14} />
-            </button>
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
           </div>
         )}
 
-        {/* Create alert */}
-        {canManage && <div
-          id="post-alert-form"
-          className={`grid transition-all duration-300 ease-in-out ${
-            showForm
-              ? "mb-4 grid-rows-[1fr] opacity-100"
-              : "grid-rows-[0fr] opacity-0 pointer-events-none"
-          }`}
-        >
-          <div className="overflow-hidden">
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2.5 border-b border-slate-200 px-3 py-2.5 sm:px-4">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-red-50 text-red-600">
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-            </div>
+        {/* Create form — same collapsible card shell as Pre-Alert */}
+        {canCreate && (
+          <div
+            className={`grid transition-all duration-300 ease-in-out ${
+              showForm
+                ? "mb-6 grid-rows-[1fr] opacity-100"
+                : "pointer-events-none grid-rows-[0fr] opacity-0"
+            }`}
+          >
+            <div className="overflow-hidden">
+              <div className="rounded-xl border border-red-100 bg-white p-6 shadow-sm">
+                <h2 className="mb-5 text-lg font-semibold text-slate-900">
+                  Issue New Post Alert
+                </h2>
 
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Create Post Alert
-              </h2>
-              <p className="text-[11px] text-slate-500">
-                Publish an emergency situation alert
-              </p>
-            </div>
-          </div>
+                <form onSubmit={handleSubmit}>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {canManage && (
+                      <div className="md:col-span-2">
+                        <label className={labelClass}>District</label>
+                        <select
+                          name="district_id"
+                          value={formData.district_id}
+                          onChange={handleChange}
+                          disabled={districtsLoading}
+                          className={fieldClass}
+                        >
+                          <option value="">
+                            {districtsLoading ? "Loading districts..." : "All Districts"}
+                          </option>
+                          {districts.map((district) => (
+                            <option key={district.id} value={district.id}>
+                              {district.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>Alert Title *</label>
+                      <input
+                        name="title"
+                        value={formData.title}
+                        onChange={handleChange}
+                        required
+                        placeholder="e.g. Flood situation update — Howrah"
+                        className={fieldClass}
+                      />
+                    </div>
 
-          <form onSubmit={handleSubmit} className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {/* Alert title */}
-              <div>
-                <label htmlFor="alert_title" className={labelClass}>
-                  Alert Title <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="alert_title"
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleChange}
-                  placeholder="e.g. Flood Emergency"
-                  required
-                  className={inputClass}
-                />
-              </div>
+                    <div>
+                      <label className={labelClass}>Location *</label>
+                      <input
+                        name="location"
+                        value={formData.location}
+                        onChange={handleChange}
+                        required
+                        placeholder="District / area"
+                        className={fieldClass}
+                      />
+                    </div>
 
-              {/* Location */}
-              <div>
-                <label htmlFor="alert_location" className={labelClass}>
-                  Location <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="alert_location"
-                  type="text"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleChange}
-                  placeholder="Enter incident location"
-                  required
-                  className={inputClass}
-                />
-              </div>
-
-              {/* Incident date */}
-              <div>
-                <label htmlFor="incident_date" className={labelClass}>
-                  Incident Date &amp; Time{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="incident_date"
-                  type="datetime-local"
-                  name="incident_date"
-                  value={formData.incident_date}
-                  onChange={handleChange}
-                  required
-                  className={inputClass}
-                />
-              </div>
-
-              {/* Response actions */}
-              <div>
-                <label className={labelClass}>
-                  Response Action Required{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-
-                <div className="rounded-md border border-slate-200 p-2">
-                  <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
-                    {RESPONSE_ACTIONS.map((action) => (
-                      <label
-                        key={action}
-                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-slate-700 transition hover:bg-red-50"
-                      >
-                        <input
-                          type="checkbox"
-                          value={action}
-                          checked={formData.response_action_required.includes(
-                            action,
-                          )}
-                          onChange={handleActionChange}
-                          className="h-3.5 w-3.5 rounded border-slate-300 text-red-600 focus:ring-red-500"
-                        />
-                        {action}
+                    <div>
+                      <label className={labelClass}>
+                        Incident Date &amp; Time *
                       </label>
-                    ))}
+                      <input
+                        type="datetime-local"
+                        name="incident_date"
+                        value={formData.incident_date}
+                        onChange={handleChange}
+                        required
+                        className={fieldClass}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>
+                        Current Situation Summary *
+                      </label>
+                      <textarea
+                        name="current_situation_summary"
+                        rows={3}
+                        value={formData.current_situation_summary}
+                        onChange={handleChange}
+                        required
+                        placeholder="Describe the current situation in detail…"
+                        className={`${fieldClass} resize-none`}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>
+                        Response Actions Required *
+                      </label>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {RESPONSE_ACTIONS.map((action) => (
+                          <label
+                            key={action}
+                            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                          >
+                            <input
+                              type="checkbox"
+                              value={action}
+                              checked={formData.response_action_required.includes(
+                                action
+                              )}
+                              onChange={handleActionChange}
+                              className="rounded border-slate-300 text-red-600 focus:ring-red-500"
+                            />
+                            {action}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className={labelClass}>Incident Photos</label>
+                      <input
+                        id="incident_photo"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleFileChange}
+                        className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-red-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-red-700 hover:file:bg-red-100"
+                      />
+                      {formData.incident_photo.length > 0 && (
+                        <p className="mt-2 text-xs text-slate-500">
+                          {formData.incident_photo.length} file(s) selected
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  <p className="mt-1 px-2 text-[10px] text-slate-400">
-                    Select one or more response actions.
-                  </p>
-                </div>
-              </div>
-
-              {/* Summary and photos: side by side on desktop */}
-              <div className="grid grid-cols-1 gap-3 md:col-span-2 md:grid-cols-2">
-                {/* Current situation summary */}
-                <div className="flex min-w-0 flex-col">
-                  <label
-                    htmlFor="situation_summary"
-                    className={labelClass}
-                  >
-                    Current Situation Summary{" "}
-                    <span className="text-red-500">*</span>
-                  </label>
-
-                  <textarea
-                    id="situation_summary"
-                    name="current_situation_summary"
-                    value={formData.current_situation_summary}
-                    onChange={handleChange}
-                    placeholder="Describe the situation, affected areas, risks, or important instructions..."
-                    rows={4}
-                    required
-                    className={`${inputClass} min-h-[120px] flex-1 resize-y leading-5`}
-                  />
-                </div>
-
-                {/* Incident photos */}
-                <div className="flex min-w-0 flex-col">
-                  <label
-                    htmlFor="incident_photo"
-                    className={labelClass}
-                  >
-                    Incident Photos{" "}
-                    <span className="font-normal text-slate-400">
-                      (Optional)
-                    </span>
-                  </label>
-
-                  <label
-                    htmlFor="incident_photo"
-                    className="group flex min-h-[120px] flex-1 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-center transition hover:border-red-400 hover:bg-red-50/40"
-                  >
-                    <svg
-                      className="mb-1.5 h-5 w-5 text-slate-400 transition group-hover:text-red-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  <div className="mt-5 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-10h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting || (canManage && districtsLoading)}
+                      className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submitting ? "Sending…" : "Issue Alert"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
 
-                    <p className="text-xs font-semibold text-slate-700">
-                      Click to upload incident photos
-                    </p>
-                    <p className="mt-1 text-[10px] text-slate-400">
-                      PNG, JPG, JPEG or WebP · Multiple images supported
-                    </p>
+        {/* Cards — same pattern as Pre-Alert */}
+        {loading ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-40 animate-pulse rounded-2xl bg-slate-200"
+              />
+            ))}
+          </div>
+        ) : alerts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-20 text-center">
+            <BellRing size={40} className="mb-3 text-slate-300" />
+            <p className="font-medium text-slate-700">No post alerts found</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {canCreate
+                ? "Create an alert to publish an emergency update."
+                : "Alerts published by authorized users will appear here."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {alerts.map((alert, index) => {
+              const isHighlighted =
+                getPostAlertKey(alert) === highlightedAlertKey;
+              const summary =
+                alert.current_situation_summary ||
+                alert.description ||
+                "No situation summary available.";
+              const photos = getAlertPhotos(alert);
 
-                    <input
-                      id="incident_photo"
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      multiple
-                      onChange={handleFileChange}
-                      className="sr-only"
-                    />
-                  </label>
-
-                  {formData.incident_photo.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {formData.incident_photo.map((file, index) => (
-                        <div
-                          key={`${file.name}-${index}`}
-                          className="flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[10px] text-slate-600"
-                        >
-                          <span className="text-red-500">▧</span>
-                          <span className="max-w-[200px] truncate">
-                            {file.name}
-                          </span>
-                          <span className="text-slate-400">
-                            {(file.size / 1024).toFixed(0)} KB
-                          </span>
-                        </div>
-                      ))}
+              return (
+                <article
+                  key={getPostAlertKey(alert) ?? index}
+                  ref={isHighlighted ? highlightedAlertRef : null}
+                  className={`group flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-[0_12px_24px_-10px_rgba(15,23,42,0.15)] ${
+                    isHighlighted
+                      ? "border-red-300 ring-2 ring-red-100"
+                      : "border-slate-200/80"
+                  }`}
+                >
+                  <div className="border-b border-slate-100 bg-gradient-to-r from-red-50/80 to-white px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-600/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                        Post-Alert
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        {formatDate(alert.incident_date)}
+                      </span>
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
+                    <h3 className="mt-1.5 line-clamp-2 text-sm font-semibold text-slate-900">
+                      {alert.title || "Untitled Alert"}
+                    </h3>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {alert.location || "Location not available"}
+                    </p>
+                  </div>
 
-            {/* Submit */}
-            <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting && (
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                )}
-                {submitting ? "Creating Alert..." : "Create Post Alert"}
-              </button>
-            </div>
-          </form>
-        </section>
-          </div>
-        </div>}
+                  <div className="flex flex-1 flex-col px-4 py-3">
+                    <p className="line-clamp-3 text-sm leading-relaxed text-slate-600">
+                      {summary}
+                    </p>
 
-        {/* Alert list */}
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-2.5 sm:px-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">
-                Post Alerts
-              </h2>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                {canManage
-                  ? "Manage existing emergency alerts"
-                  : "View existing emergency alerts"}
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-                {pagination?.total_items ?? alerts.length}
-              </span>
-              
-                <DownloadMenu
-                  records={alerts.map((alert, index) => (
-                    console.log(alert),
-                    {
-                    "S.No.": index + 1,
-                    "Alert Title": alert.title,
-                    "Location": alert.location,
-                    "Incident Date & Time": alert.incident_date,
-                    "Situation Summary": alert.current_situation_summary,
-                    "Required Response Actions": Array.isArray(alert.response_action_required)
-                      ? alert.response_action_required.join(", ")
-                      : alert.response_action_required ?? "",
-                  }))}
-                  
-                  title="Post Alerts"
-                  disabled={loading}
-                  onError={(err) =>
-                    setError(
-                      err.message || "Failed to download post alerts.",
-                    )
-                    
-                  }
-                />
-                
-
-              
-            </div>
-          </div>
-
-          <div className="p-2.5 sm:p-3">
-            {loading ? (
-              <div className="flex min-h-20 items-center justify-center">
-                <div className="text-center">
-                  <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-red-100 border-t-red-600" />
-                  <p className="mt-2 text-xs text-slate-500">
-                    Loading alerts...
-                  </p>
-                </div>
-              </div>
-            ) : alerts.length === 0 ? (
-              <div className="flex min-h-28 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 text-center">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-500">
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 9v3m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"
-                    />
-                  </svg>
-                </div>
-                <p className="mt-2 text-xs font-semibold text-slate-700">
-                  No post alerts found
-                </p>
-                {canManage && (
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    Select Create Alert to publish an emergency update.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {alerts.map((alert, index) => {
-                  const isHighlighted =
-                    getPostAlertKey(alert) === highlightedAlertKey;
-
-                  return (
-                    <article
-                      key={getPostAlertKey(alert) ?? index}
-                      ref={isHighlighted ? highlightedAlertRef : null}
-                      className={`rounded-md border p-2.5 transition hover:border-slate-300 hover:shadow-sm sm:p-3 ${
-                        isHighlighted
-                          ? "border-red-300 bg-red-50/40 ring-1 ring-red-100"
-                          : "border-slate-200 bg-white"
-                      }`}
-                    >
-                      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">
-                              Emergency
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {formatDate(alert.incident_date)}
-                            </span>
-                          </div>
-
-                          <h3 className="mt-1 truncate text-sm font-semibold text-slate-900">
-                            {alert.title || "Untitled Alert"}
-                          </h3>
-
-                          <p className="mt-0.5 truncate text-xs text-slate-500">
-                            <svg
-                              className="mr-1 inline h-3.5 w-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                    {photos.length > 0 && (
+                      <div className="mt-3 flex gap-2 overflow-hidden">
+                        {photos.slice(0, 3).map((photo, photoIndex) => {
+                          const source = getPhotoSource(photo);
+                          if (!source) return null;
+                          return (
+                            <div
+                              key={`${getPostAlertKey(alert)}-photo-${photoIndex}`}
+                              className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"
+                              <img
+                                src={source}
+                                alt={`Incident photo ${photoIndex + 1}`}
+                                className="h-full w-full object-cover"
                               />
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                              />
-                            </svg>
-                            {alert.location || "Location not available"}
-                          </p>
-                        </div>
-
-                        <div className="flex shrink-0 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleView(alert)}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                          >
-                            <Eye size={13} />
-                            View
-                          </button>
-
-                          {canManage && <button
-                            type="button"
-                            onClick={() => handleDelete(alert)}
-                            disabled={
-                              deletingId === getPostAlertKey(alert)
-                            }
-                            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {deletingId === getPostAlertKey(alert) ? (
-                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-red-200 border-t-red-600" />
-                            ) : (
-                              <Trash2 size={13} />
-                            )}
-                            Delete
-                          </button>}
-                        </div>
+                            </div>
+                          );
+                        })}
+                        {photos.length > 3 && (
+                          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                            +{photos.length - 3}
+                          </div>
+                        )}
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
+                    )}
+
+                    <div className="mt-auto flex items-center justify-end gap-1 border-t border-slate-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => handleView(alert)}
+                        className="rounded-lg p-2 text-slate-400 transition hover:bg-blue-50 hover:text-blue-600"
+                        title="View alert"
+                      >
+                        <Eye size={16} />
+                      </button>
+
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(alert)}
+                          disabled={deletingId === getPostAlertKey(alert)}
+                          className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          title="Delete alert"
+                        >
+                          {deletingId === getPostAlertKey(alert) ? (
+                            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-600" />
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
-        </section>
+        )}
 
         {/* Pagination */}
         {pagination && pagination.total_pages > 1 && (
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
+          <div className="mt-6 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
             <button
               type="button"
               disabled={page <= 1 || loading}
-              onClick={() =>
-                setPage((currentPage) => Math.max(1, currentPage - 1))
-              }
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               Previous
             </button>
-
-            <span className="text-[11px] font-medium text-slate-500">
-              Page {page} of {pagination.total_pages}
-            </span>
-
+            <p className="text-xs text-slate-500">
+              Page {pagination.current_page ?? page} of {pagination.total_pages}
+            </p>
             <button
               type="button"
               disabled={page >= pagination.total_pages || loading}
-              onClick={() =>
-                setPage((currentPage) =>
-                  Math.min(pagination.total_pages, currentPage + 1),
-                )
-              }
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               Next
             </button>
           </div>
         )}
 
-        {/* View alert modal */}
+        {/* View modal — same pattern as Pre-Alert */}
         {viewingAlert && (
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-[2px] sm:p-3"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
             role="presentation"
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) closeModal();
@@ -1093,223 +882,102 @@ function PostAlert() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="post-alert-details-title"
-              className="relative flex max-h-[75vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-2xl"
+              className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
             >
-              {/* Modal header */}
-              <header className="flex shrink-0 items-center justify-between gap-3 bg-red-600 px-3 py-2.5 text-white sm:px-4">
-                <div className="flex min-w-0 items-center gap-2">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/15">
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"
-                      />
-                    </svg>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-red-100">
-                      Emergency Alert
-                    </p>
-                    <h2
-                      id="post-alert-details-title"
-                      className="truncate text-sm font-bold"
-                    >
-                      Alert Details
-                    </h2>
-                  </div>
-                </div>
-
+              <div className="flex items-center justify-between gap-3">
+                <h2
+                  id="post-alert-details-title"
+                  className="text-lg font-semibold text-slate-900"
+                >
+                  {viewingAlert.title || "Post-alert details"}
+                </h2>
                 <button
                   type="button"
                   onClick={closeModal}
-                  aria-label="Close alert details"
-                  className="shrink-0 rounded-md p-1.5 transition hover:bg-white/15"
+                  className="rounded p-1.5 text-slate-400 hover:bg-slate-100"
+                  title="Close"
                 >
-                  <X size={17} />
+                  <X size={18} />
                 </button>
-              </header>
+              </div>
 
-              {/* Modal body */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-2.5">
-                <div className="space-y-1.5">
-                  {/* Emergency information */}
-                  <section className="rounded-md border border-slate-200 bg-white p-2.5">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-red-600">
-                        Emergency Information
-                      </span>
-                    </div>
-
-                    <h3 className="break-words text-sm font-bold text-slate-900 sm:text-base">
-                      {viewingAlert.title || "Untitled Alert"}
-                    </h3>
-
-                    <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                      <div className="rounded-md bg-slate-50 p-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
-                          Location
-                        </p>
-                        <p className="mt-1 break-words text-xs font-semibold text-slate-800">
-                          {viewingAlert.location || "-"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-md bg-slate-50 p-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
-                          Incident Date &amp; Time
-                        </p>
-                        <p className="mt-1 text-xs font-semibold text-slate-800">
-                          {formatDate(viewingAlert.incident_date)}
-                        </p>
-                      </div>
-                    </div>
-                  </section>
-
-                  {/* Current situation */}
-                  <section className="rounded-md border border-slate-200 bg-white">
-                    <div className="border-b border-slate-100 px-3 py-2">
-                      <h4 className="text-xs font-bold text-slate-900">
-                        Current Situation
-                      </h4>
-                    </div>
-                    <div className="p-2.5">
-                      <p className="whitespace-pre-wrap break-words rounded-md bg-slate-50 p-2 text-xs leading-4 text-slate-700">
-                        {viewingAlert.current_situation_summary ||
-                          "No situation summary available."}
-                      </p>
-                    </div>
-                  </section>
-
-                  {/* Response actions */}
-                  <section className="rounded-md border border-slate-200 bg-white">
-                    <div className="border-b border-slate-100 px-3 py-2">
-                      <h4 className="text-xs font-bold text-slate-900">
-                        Response Actions Required
-                      </h4>
-                    </div>
-
-                    <div className="p-2.5">
-                      {getResponseActions(viewingAlert).length > 0 ? (
-                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                          {getResponseActions(viewingAlert).map(
-                            (action, index) => (
-                              <div
-                                key={`${action}-${index}`}
-                                className="flex items-center gap-2 rounded-md border border-red-100 bg-red-50/60 px-2.5 py-2"
-                              >
-                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-600 text-white">
-                                  <svg
-                                    className="h-3 w-3"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="2"
-                                      d="M5 13l4 4L19 7"
-                                    />
-                                  </svg>
-                                </span>
-                                <span className="break-words text-xs font-semibold text-red-800">
-                                  {action}
-                                </span>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      ) : (
-                        <p className="rounded-md bg-slate-50 p-2.5 text-xs text-slate-500">
-                          No response actions specified.
-                        </p>
-                      )}
-                    </div>
-                  </section>
-
-                  {/* Incident photos */}
-                  <section className="rounded-md border border-slate-200 bg-white">
-                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
-                      <h4 className="text-xs font-bold text-slate-900">
-                        Incident Photos
-                      </h4>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600">
-                        {getAlertPhotos(viewingAlert).length}{" "}
-                        {getAlertPhotos(viewingAlert).length === 1
-                          ? "Photo"
-                          : "Photos"}
-                      </span>
-                    </div>
-
-                    <div className="p-2.5">
-                      {getAlertPhotos(viewingAlert).length > 0 ? (
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                          {getAlertPhotos(viewingAlert).map(
-                            (photo, index) => {
-                              const source = getPhotoSource(photo);
-
-                              if (!source) {
-                                return (
-                                  <div
-                                    key={photo?.id ?? index}
-                                    className="flex min-h-24 items-center justify-center rounded-md border border-amber-200 bg-amber-50 p-2.5 text-center"
-                                  >
-                                    <div>
-                                      <p className="text-xs font-semibold text-amber-800">
-                                        Photo {index + 1}
-                                      </p>
-                                      <p className="mt-1 text-[10px] text-amber-700">
-                                        No image URL available.
-                                      </p>
-                                    </div>
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <AlertPhoto
-                                  key={photo?.id ?? `${source}-${index}`}
-                                  source={source}
-                                  index={index}
-                                />
-                              );
-                            },
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex min-h-20 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 text-center">
-                          <p className="text-xs font-semibold text-slate-700">
-                            No incident photos
-                          </p>
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            No images were attached to this alert.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </section>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Location
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-slate-800">
+                    {viewingAlert.location || "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Incident Date
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-slate-800">
+                    {formatDate(viewingAlert.incident_date)}
+                  </p>
                 </div>
               </div>
 
-              {/* Modal footer */}
-              <footer className="flex shrink-0 justify-end border-t border-slate-200 bg-white px-3 py-2">
+              <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                {viewingAlert.current_situation_summary ||
+                  "No situation summary available."}
+              </p>
+
+              {getResponseActions(viewingAlert).length > 0 && (
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Response Actions
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {getResponseActions(viewingAlert).map((action) => (
+                      <span
+                        key={action}
+                        className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700"
+                      >
+                        {action}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {getAlertPhotos(viewingAlert).length > 0 && (
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Photos
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {getAlertPhotos(viewingAlert).map((photo, index) => {
+                      const source = getPhotoSource(photo);
+                      if (!source) return null;
+                      return (
+                        <div
+                          key={photo?.id ?? `${source}-${index}`}
+                          className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                        >
+                          <img
+                            src={source}
+                            alt={`Incident photo ${index + 1}`}
+                            className="h-28 w-full object-cover"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-5 flex justify-end">
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-md bg-slate-800 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
                 >
                   Close
                 </button>
-              </footer>
+              </div>
             </section>
           </div>
         )}

@@ -39,7 +39,7 @@ function DashboardLayout() {
           hideNav={isTaskOnly}
         />
 
-        <main className="p-4 sm:p-6">
+        <main className="p-2 sm:p-3 lg:p-4">
           <Outlet />
         </main>
 

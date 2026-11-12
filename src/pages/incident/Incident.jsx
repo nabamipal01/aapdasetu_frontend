@@ -14,10 +14,12 @@ import {
   Trash2,
   Eye,
   Pencil,
+  ChevronDown,
 } from "lucide-react";
 import DownloadMenu from "../../components/common/DownloadMenu";
 import { useAuth } from "../../context/AuthContext";
 import { canViewIncidents, canManageIncidents } from "../../utils/roles";
+import { listDistricts } from "../../services/districtService";
 
 const SEVERITY_STYLES = {
   low: "bg-green-100 text-green-700",
@@ -39,7 +41,52 @@ const EMPTY_FORM = {
   incident_type: "",
   description: "",
   severity: "",
+  latitude: "",
+  longitude: "",
+  district_id: "",
 };
+
+const normalizeRole = (value) =>
+  String(value ?? "")
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+
+const firstPresent = (...values) =>
+  values.find((value) => value != null && String(value).trim() !== "") ?? "";
+
+const getUserDistrictId = (user) =>
+  firstPresent(
+    user?.district_id,
+    user?.districtId,
+    user?.region_id,
+    user?.regionId,
+    user?.linked_id,
+    user?.linkedId,
+    user?.district?.id,
+    user?.district?.district_id,
+    user?.region?.id,
+    user?.region?.region_id
+  );
+
+const getIncidentDistrictId = (incident) =>
+  firstPresent(
+    incident?.district_id,
+    incident?.districtId,
+    incident?.region_id,
+    incident?.regionId,
+    incident?.district?.id,
+    incident?.district?.district_id,
+    incident?.region?.id,
+    incident?.region?.region_id,
+    incident?.user?.district_id,
+    incident?.user?.districtId,
+    incident?.user?.region_id,
+    incident?.user?.regionId,
+    incident?.user?.linked_id,
+    incident?.user?.linkedId
+  );
 
 const getCreatedAt = (incident) =>
   incident?.created_at ??
@@ -83,6 +130,9 @@ function Incident() {
   const { user } = useAuth();
   const canView = canViewIncidents(user);
   const canManage = canManageIncidents(user);
+  const isDistrictUser = [user?.role, user?.user_role, user?.user_type]
+    .some((value) => ["district", "district_user"].includes(normalizeRole(value)));
+  const userDistrictId = getUserDistrictId(user);
 
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +145,9 @@ function Incident() {
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [showOverview, setShowOverview] = useState(false);
 
+  const [districts, setDistricts] = useState([]);
+  const [districtsLoading, setDistrictsLoading] = useState(false);
+
   const fetchIncidents = useCallback(async () => {
     if (!canView) {
       setLoading(false);
@@ -103,19 +156,58 @@ function Incident() {
     setLoading(true);
     setError("");
     try {
-      const res = await listIncidents({ page: 1, per_page: 50 });
+      if (isDistrictUser && (userDistrictId === "" || userDistrictId == null)) {
+        throw new Error("Your account is not linked to a district.");
+      }
+
+      const res = await listIncidents({
+        ...(isDistrictUser ? { region_id: Number(userDistrictId) } : {}),
+        page: 1,
+        per_page: 50,
+      });
       const data = res?.data?.incidents ?? res?.data?.items ?? res?.data ?? [];
-      setIncidents(Array.isArray(data) ? data : []);
+      const records = Array.isArray(data) ? data : [];
+      setIncidents(
+        isDistrictUser
+          ? records.filter(
+              (incident) =>
+                String(getIncidentDistrictId(incident)) ===
+                String(userDistrictId)
+            )
+          : records
+      );
     } catch (err) {
       setError(err.message || "Failed to load incidents");
     } finally {
       setLoading(false);
     }
-  }, [canView]);
+  }, [canView, isDistrictUser, userDistrictId]);
 
   useEffect(() => {
     fetchIncidents();
   }, [fetchIncidents]);
+
+  const fetchDistricts = useCallback(async () => {
+    if (districts.length > 0) return;
+    setDistrictsLoading(true);
+    try {
+      const res = await listDistricts({ per_page: 100 });
+      const list =
+        res?.data?.districts ??
+        res?.data?.items ??
+        res?.data ??
+        [];
+      setDistricts(Array.isArray(list) ? list : []);
+    } catch {
+      // non-fatal — dropdown stays empty
+    } finally {
+      setDistrictsLoading(false);
+    }
+  }, [districts.length]);
+
+  useEffect(() => {
+    fetchDistricts();
+  }, [fetchDistricts]);
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -147,8 +239,12 @@ function Incident() {
           incidentToEdit.current_situation_summary ||
           "",
         severity: incidentToEdit.severity || "",
+        latitude: incidentToEdit.latitude ?? "",
+        longitude: incidentToEdit.longitude ?? "",
+        district_id: incidentToEdit.district_id ? String(incidentToEdit.district_id) : "",
       });
       setShowForm(true);
+      fetchDistricts();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       setError(err.message || "Failed to load incident details for editing.");
@@ -163,6 +259,18 @@ function Incident() {
       return;
     }
 
+    const latitude = form.latitude === "" ? null : Number(form.latitude);
+    const longitude = form.longitude === "" ? null : Number(form.longitude);
+
+    if (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) {
+      setError("Latitude must be a number between -90 and 90.");
+      return;
+    }
+    if (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) {
+      setError("Longitude must be a number between -180 and 180.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
     setSuccess("");
@@ -172,11 +280,18 @@ function Incident() {
         incident_type: form.incident_type,
         ...(form.description.trim() && { description: form.description.trim() }),
         ...(form.severity && { severity: form.severity }),
+        ...(latitude !== null && { latitude }),
+        ...(longitude !== null && { longitude }),
+        ...(form.district_id && { district_id: Number(form.district_id) }),
       };
 
       if (editingIncident) {
         const res = await updateIncident(editingIncident.id, payload);
-        const updatedIncident = { ...editingIncident, ...(res?.data?.incident ?? res?.data ?? {}) };
+        const updatedIncident = {
+          ...editingIncident,
+          ...payload,
+          ...(res?.data?.incident ?? res?.data ?? {}),
+        };
         setIncidents((prev) =>
           prev.map((incident) =>
             incident.id === editingIncident.id ? updatedIncident : incident
@@ -190,6 +305,7 @@ function Incident() {
         const res = await createIncident(payload);
         const responseData = res?.data?.incident ?? res?.data ?? {};
         const createdIncident = {
+          ...payload,
           ...responseData,
           created_at: getCreatedAt(responseData) ?? new Date().toISOString(),
         };
@@ -224,18 +340,51 @@ function Incident() {
     }
   };
 
-  const handleIncidentClick = async (incident) => {
-    setSelectedIncident(incident);
-    setShowOverview(true);
-    try {
-      const res = await getIncident(incident.id);
-      const details = res?.data?.incident ?? res?.data ?? {};
-      setSelectedIncident((prev) =>
-        prev?.id === incident.id ? { ...prev, ...details } : prev
-      );
-    } catch (err) {
-      console.error("Failed to load incident details:", err);
+const handleIncidentClick = async (incident) => {
+  setSelectedIncident(incident);
+  setShowOverview(true);
+  fetchDistricts();
+
+  try {
+    const res = await getIncident(incident.id);
+    const details = res?.data?.incident ?? res?.data ?? {};
+
+    setSelectedIncident((prev) =>
+      prev?.id === incident.id ? { ...prev, ...details } : prev
+    );
+  } catch (err) {
+    console.error("Failed to load incident details:", err);
+  }
+};
+
+
+  const getDistrictName = (incident) => {
+    if (incident.district?.name) return incident.district.name;
+    if (incident.district_name) return incident.district_name;
+
+    const incidentDistrictId = getIncidentDistrictId(incident);
+    const district = districts.find(
+      (item) => String(item.id) === String(incidentDistrictId)
+    );
+
+    if (district?.name || district?.district_name) {
+      return district.name || district.district_name;
     }
+
+    if (
+      isDistrictUser &&
+      String(incidentDistrictId) === String(userDistrictId)
+    ) {
+      return (
+        user?.district_name ??
+        user?.region_name ??
+        user?.district?.name ??
+        user?.region?.name ??
+        `District #${userDistrictId}`
+      );
+    }
+
+    return "—";
   };
 
   if (!canView) {
@@ -257,6 +406,8 @@ function Incident() {
     "Incident Type": incident.incident_type || "",
     Severity: incident.severity || "",
     Status: (incident.status || "").replaceAll("_", " "),
+    Latitude: incident.latitude ?? "",
+    Longitude: incident.longitude ?? "",
     Date: formatDate(getIncidentDateTime(incident)),
     Time: formatTime(getIncidentDateTime(incident)),
   }));
@@ -290,6 +441,7 @@ function Incident() {
                     setSuccess("");
                     setEditingIncident(null);
                     setForm(EMPTY_FORM);
+                    fetchDistricts();
                   }
                 }}
                 className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
@@ -342,6 +494,38 @@ function Incident() {
                         <option value="">Select severity</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">Latitude</label>
+                      <input type="number" name="latitude" value={form.latitude} onChange={handleChange} min="-90" max="90" step="any" placeholder="e.g. 22.5726" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                      <p className="mt-1 text-xs text-slate-500">Range: -90 to 90</p>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">Longitude</label>
+                      <input type="number" name="longitude" value={form.longitude} onChange={handleChange} min="-180" max="180" step="any" placeholder="e.g. 88.3639" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                      <p className="mt-1 text-xs text-slate-500">Range: -180 to 180</p>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">District</label>
+                      <div className="relative">
+                        <select
+                          name="district_id"
+                          value={form.district_id}
+                          onChange={handleChange}
+                          disabled={districtsLoading}
+                          className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-8 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                        >
+                          <option value="">
+                            {districtsLoading ? "Loading districts…" : "Select district"}
+                          </option>
+                          {districts.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name || d.district_name || `District #${d.id}`}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      </div>
+                    </div>
                     <div className="sm:col-span-2">
                       <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">Description</label>
                       <textarea name="description" rows={3} value={form.description} onChange={handleChange} placeholder="Brief description of the incident..." className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
@@ -359,7 +543,7 @@ function Incident() {
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-            <h2 className="font-semibold text-slate-900">All Incidents {!loading && <span className="ml-1 text-sm font-normal text-slate-500">({incidents.length})</span>}</h2>
+            <h2 className="font-semibold text-slate-900">{isDistrictUser ? "District Incidents" : "All Incidents"} {!loading && <span className="ml-1 text-sm font-normal text-slate-500">({incidents.length})</span>}</h2>
             <DownloadMenu records={exportRecords} title="Incidents" disabled={loading} onError={(err) => setError(err.message || "Failed to download incidents.")} />
           </div>
           {loading ? (
@@ -373,13 +557,24 @@ function Incident() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-5 py-3 font-semibold">Incident No.</th><th className="px-5 py-3 font-semibold">Title</th><th className="px-5 py-3 font-semibold">Type</th><th className="px-5 py-3 font-semibold">Severity</th><th className="px-5 py-3 font-semibold">Status</th><th className="px-5 py-3 font-semibold">Action</th></tr></thead>
+                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                <th className="px-5 py-3 font-semibold">Incident No.</th>
+                <th className="px-5 py-3 font-semibold">Title</th>
+                <th className="px-5 py-3 font-semibold">Type</th>
+                <th className="px-5 py-3 font-semibold">District</th>
+                <th className="px-5 py-3 font-semibold">Severity</th>
+                <th className="px-5 py-3 font-semibold">Status</th>
+                <th className="px-5 py-3 font-semibold">Action</th>
+                </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-100">
                   {incidents.map((inc) => (
                     <tr key={inc.id} className="transition-colors hover:bg-slate-50">
                       <td className="whitespace-nowrap px-5 py-3"><button type="button" onClick={() => handleIncidentClick(inc)} className="rounded font-semibold text-blue-600 hover:text-blue-800 hover:underline">{inc.incident_no || "—"}</button></td>
                       <td className="max-w-xs truncate px-5 py-3 font-medium text-slate-800">{inc.title}</td>
                       <td className="px-5 py-3 capitalize text-slate-600">{inc.incident_type || "—"}</td>
+                      <td className="whitespace-nowrap px-5 py-3 text-slate-600">{getDistrictName(inc)}</td>
                       <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${SEVERITY_STYLES[inc.severity] ?? "bg-slate-100 text-slate-600"}`}>{inc.severity || "—"}</span></td>
                       <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${STATUS_STYLES[inc.status] ?? "bg-slate-100 text-slate-600"}`}>{(inc.status || "—").replaceAll("_", " ")}</span></td>
                       <td className="px-5 py-3"><div className="flex items-center gap-1">
@@ -415,6 +610,14 @@ function Incident() {
                 <div><p className="text-xs text-slate-500">Status</p><div className="mt-1"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${STATUS_STYLES[selectedIncident.status] ?? "bg-slate-100 text-slate-600"}`}>{(selectedIncident.status || "—").replaceAll("_", " ")}</span></div></div>
                 <div><p className="text-xs text-slate-500">Date</p><p className="mt-1 text-sm font-medium text-slate-800">{formatDate(getIncidentDateTime(selectedIncident))}</p></div>
                 <div><p className="text-xs text-slate-500">Time</p><p className="mt-1 text-sm font-medium text-slate-800">{formatTime(getIncidentDateTime(selectedIncident))}</p></div>
+                <div><p className="text-xs text-slate-500">Latitude</p><p className="mt-1 break-words text-sm font-medium text-slate-800">{selectedIncident.latitude ?? "—"}</p></div>
+                <div><p className="text-xs text-slate-500">Longitude</p><p className="mt-1 break-words text-sm font-medium text-slate-800">{selectedIncident.longitude ?? "—"}</p></div>
+                <div>
+                    <p className="text-xs text-slate-500">District</p>
+                    <p className="mt-1 text-sm font-medium text-slate-800">
+                      {getDistrictName(selectedIncident)}
+                    </p>
+                  </div>
               </div>
               <div className="border-t border-slate-100 pt-4"><h3 className="mb-1 text-sm font-semibold text-slate-700">Description</h3><p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{selectedIncident.description || selectedIncident.current_situation_summary || "No description provided."}</p></div>
             </div>

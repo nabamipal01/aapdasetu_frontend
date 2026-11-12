@@ -23,6 +23,7 @@ import {
   ClipboardCheck,
   Wrench,
   GraduationCap,
+  CloudSun,
   FileBarChart,
   Boxes,
   BarChart3,
@@ -164,6 +165,12 @@ const commonMenus = [
     label: "Training",
     icon: GraduationCap,
     path: "/training",
+  },
+
+  {
+    label: "Weather Prediction",
+    icon: CloudSun,
+    path: "/weather",
   },
 
   {
@@ -365,6 +372,9 @@ const getOperationalMenus = () => {
   const trainingMenu = commonMenus.find(
     (menu) => menu.label === "Training"
   );
+  const weatherMenu = commonMenus.find(
+    (menu) => menu.label === "Weather Prediction"
+  );
 
   const allowedAlertPaths = [
     "/pre-alerts",
@@ -384,6 +394,7 @@ const getOperationalMenus = () => {
       allowedAlertPaths.includes(item.path)
     ),
     ...(trainingMenu ? [trainingMenu] : []),
+    ...(weatherMenu ? [weatherMenu] : []),
     sosMenu,
   ];
 };
@@ -424,7 +435,8 @@ export const getMenuForUser = (user) => {
   if (
     menu.label === "Inventory" &&
     role !== "super_admin" &&
-    role !== "admin"
+    role !== "admin" &&
+    role !== "district"
   ) {
     return false;
   }
@@ -438,7 +450,16 @@ export const getMenuForUser = (user) => {
   }
 
   return true;
-});
+}).map((menu) =>
+  menu.label === "Inventory" && role === "district"
+    ? {
+        ...menu,
+        children: menu.children.filter((item) =>
+          ["Issue Stock", "Return Stock"].includes(item.label)
+        ),
+      }
+    : menu
+  );
 
   const locationMenu = locationMenus[role];
   const userMenu = userMenus[role];

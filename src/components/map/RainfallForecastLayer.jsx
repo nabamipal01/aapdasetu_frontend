@@ -704,13 +704,20 @@ export default function RainfallForecastLayer({
 
     const name = getDistrictName(feature);
 
-    layer.bindTooltip(name, { sticky: true });
+    layer.bindTooltip(name, {
+  sticky: true,
+  direction: "top",
+  className: "district-name-tooltip",
+  opacity: 1,
+});
 
     layer.on("click", (event) => {
 
       const districtId = feature?.properties?.dist_lgd;
 
       const districtBounds = layer.getBounds();
+
+         layer.openTooltip(event.latlng);
 
       onDistrictSelect?.({
 
@@ -828,9 +835,9 @@ export default function RainfallForecastLayer({
 
           return {
 
-            color: isSelected ? "#1d4ed8" : "#334155",
+            // color: isSelected ? "#1d4ed8" : "#334155",
 
-            weight: isSelected ? 2.5 : 1,
+            // weight: isSelected ? 2.5 : 1,
 
             fillColor:
 
@@ -848,7 +855,7 @@ export default function RainfallForecastLayer({
 
                 : "#ffffff",
 
-            fillOpacity: mapMode === "rainfall" ? 0.78 : 0,
+            fillOpacity: mapMode === "rainfall" ? 0.78 : 0.5,
 
           };
 

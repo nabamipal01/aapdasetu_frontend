@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getInventoryOverview,
@@ -28,6 +28,7 @@ const EMPTY_EDIT_FORM = {
   location: "",
   quantity: "",
   purchase_date: "",
+  expiry_date: "",
 };
 
 // Colors for the category cards
@@ -82,6 +83,23 @@ const getCurrentUser = () => {
   } catch {
     return null;
   }
+};
+
+const getExpiryDate = (item) => {
+  if (item?.expiry_date) return String(item.expiry_date).slice(0, 10);
+  if (!item?.purchase_date) return "";
+
+  const [year, month, day] = String(item.purchase_date)
+    .slice(0, 10)
+    .split("-")
+    .map(Number);
+  const expiry = new Date(year, month - 1, day + 30);
+
+  return [
+    expiry.getFullYear(),
+    String(expiry.getMonth() + 1).padStart(2, "0"),
+    String(expiry.getDate()).padStart(2, "0"),
+  ].join("-");
 };
 
 function StockOverview({ user: userProp }) {
@@ -216,7 +234,7 @@ const role = normalizeRole(
       location: item.location || "",
       quantity: item.quantity ?? "",
       purchase_date: item.purchase_date || "",
-      expiry_date: item.expiry_date || "",
+      expiry_date: getExpiryDate(item),
     });
 
     setError("");
@@ -277,7 +295,7 @@ const role = normalizeRole(
           editForm.purchase_date || null,
 
         expiry_date:
-          editForm.expiry_date || null,
+          editForm.expiry_date || getExpiryDate({ purchase_date: editForm.purchase_date }) || null,
       };
 
       const res = await updateInventoryItem(
@@ -614,6 +632,7 @@ if (!canAccessInventory) {
                         Location: item.location || "",
                         Quantity: item.quantity ?? 0,
                         "Purchase Date": item.purchase_date || "",
+                        "Expiry Date": getExpiryDate(item),
                       }))}
                       title="Your New PDF Header Name"
                       disabled={loading}
@@ -681,7 +700,7 @@ if (!canAccessInventory) {
             </div>
           ) : (
             <div className="w-full overflow-x-auto">
-              <table className="min-w-[1150px] w-full table-fixed text-left text-sm">
+              <table className="min-w-[1300px] w-full table-fixed text-left text-sm">
 
                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                   <tr>
@@ -707,6 +726,10 @@ if (!canAccessInventory) {
 
                     <th className="w-[150px] px-5 py-3 font-semibold">
                       Purchase Date
+                    </th>
+
+                    <th className="w-[150px] px-5 py-3 font-semibold">
+                      Expiry Date
                     </th>
 
                     <th className="sticky right-0 z-10 w-[110px] min-w-[110px] bg-slate-50 px-5 py-3 text-center font-semibold shadow-[-4px_0_8px_rgba(0,0,0,0.04)]">
@@ -769,6 +792,11 @@ if (!canAccessInventory) {
                       {/* Purchase Date */}
                       <td className="px-5 py-3 text-slate-500">
                         {item.purchase_date || "—"}
+                      </td>
+
+                      {/* Expiry Date */}
+                      <td className="px-5 py-3 text-slate-500">
+                        {getExpiryDate(item) || "—"}
                       </td>
 
                       {/* Action */}
@@ -925,6 +953,7 @@ if (!canAccessInventory) {
                   ["OEM", viewingItem.oem],
                   ["Storage Location", viewingItem.location],
                   ["Purchase Date", viewingItem.purchase_date],
+                  ["Expiry Date", getExpiryDate(viewingItem)],
                 ].map(([label, value]) => (
                   <div key={label}>
                     <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -997,6 +1026,7 @@ if (!canAccessInventory) {
                 ["location", "Storage Location"],
                 ["quantity", "Quantity"],
                 ["purchase_date", "Purchase Date"],
+                ["expiry_date", "Expiry Date"],
               ].map(([name, label]) => (
                 <div key={name}>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -1022,7 +1052,9 @@ if (!canAccessInventory) {
                         : undefined
                     }
                     value={
-                      editForm[name] ?? ""
+                      name === "expiry_date"
+                        ? editForm.expiry_date || getExpiryDate({ purchase_date: editForm.purchase_date })
+                        : editForm[name] ?? ""
                     }
                     onChange={
                       handleEditChange

@@ -1,4 +1,4 @@
-import { get, post, postFormData, patch, del } from "./api";
+import { get, post, postFormData, patch, put, del } from "./api";
 
 export const createVolunteer = (volunteerData) =>
   postFormData("/api/volunteers/create.php", volunteerData);
@@ -6,6 +6,12 @@ export const createVolunteer = (volunteerData) =>
 export const getVolunteer = (id) =>
   get("/api/volunteers/get.php", { id });
 
+/**
+ * List volunteers with optional status, credential, Aadhaar search, and
+ * pagination filters.
+ *
+ * Status: pending_approval | approved | active | deployed | inactive
+ */
 export const listVolunteers = (params = {}) =>
   get("/api/volunteers/list.php", params);
 
@@ -20,11 +26,7 @@ export const approveVolunteer = (id) =>
     action: "approve",
   });
 
-export const rejectVolunteer = (id, rejectionNote = "") =>
-  post(`/api/volunteers/approve.php?id=${id}`, {
-    action: "reject",
-    rejection_note: rejectionNote,
-  });
-
-export const generateVolunteerCredentials = (id, credentials) =>
-  post(`/api/volunteers/credentials.php?id=${id}`, credentials);
+export const generateVolunteerCredentials = (id, credentials, isReset = false) => {
+  const endpoint = `/api/volunteers/credentials.php?id=${id}`;
+  return isReset ? put(endpoint, credentials) : post(endpoint, credentials);
+};

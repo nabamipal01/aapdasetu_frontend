@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+
+import { useEffect } from "react";
 
 import {
   BrowserRouter,
@@ -16,6 +17,7 @@ import RoleProtectedRoute from "./route/RoleProtectedRoute";
 
 import Login from "./pages/Login/Login";
 import Dashboard from "./pages/Dashboard/Dashboard";
+import DistrictDashboard from "./pages/Dashboard/DistrictDashboard";
 import Emergency from "./components/Emergency/Emergency";
 import DashboardLayout from "./components/layout/DashboardLayout";
 
@@ -24,6 +26,7 @@ import Incident from "./pages/incident/Incident";
 import Task from "./pages/task/Task";
 import Resources from "./pages/resources/Resources";
 import Training from "./pages/Training Module/Training";
+import Weather from "./pages/Weather/Weather";
 import Report from "./pages/Report/MISReports";
 
 import Electricity from "./pages/Department/Electricity/Electricity";
@@ -62,7 +65,10 @@ import ReturnStock from "./pages/Inventory/ReturnStock/ReturnStock";
 import ReturnHistory from "./pages/Inventory/ReturnHistory/StockReturnHistory";
 import IssueStockHistory from "./pages/Inventory/IssueStockHistory/StockIssueHistory";
 
-import { isOperationalUser } from "./utils/roles";
+import {
+  getUserRole,
+  isOperationalUser,
+} from "./utils/roles";
 
 /* =========================================================
    ROLE CONFIGURATION
@@ -82,26 +88,58 @@ const OPERATIONAL_USER_TYPES = [
 ];
 
 /* =========================================================
+   LANDING PAGE
+========================================================= */
+
+function getUserLandingPath(user) {
+  const role = getUserRole(user);
+
+  // District users see their dedicated dashboard.
+  if (role === "district") {
+    return "/dashboard";
+  }
+
+  // Volunteers and NGO contacts use the operational interface.
+  if (isOperationalUser(user)) {
+    return "/pre-alerts";
+  }
+
+  // Admin, super admin, subdivision and block staff.
+  return "/dashboard";
+}
+
+/* =========================================================
    LOGIN REDIRECT
 ========================================================= */
 
 function LoginRedirect() {
   const { isLoggedIn, user } = useAuth();
 
-  if (isLoggedIn && user) {
-    return (
-      <Navigate
-        to={
-          isOperationalUser(user)
-            ? "/pre-alerts"
-            : "/dashboard"
-        }
-        replace
-      />
-    );
+  if (!isLoggedIn || !user) {
+    return <Login />;
   }
 
-  return <Login />;
+  return (
+    <Navigate
+      to={getUserLandingPath(user)}
+      replace
+    />
+  );
+}
+
+/* =========================================================
+   ROLE-BASED DASHBOARD
+========================================================= */
+
+function RoleBasedDashboard() {
+  const { user } = useAuth();
+  const role = getUserRole(user);
+
+  if (role === "district") {
+    return <DistrictDashboard />;
+  }
+
+  return <Dashboard />;
 }
 
 /* =========================================================
@@ -117,11 +155,7 @@ function HomeRedirect() {
 
   return (
     <Navigate
-      to={
-        isOperationalUser(user)
-          ? "/pre-alerts"
-          : "/dashboard"
-      }
+      to={getUserLandingPath(user)}
       replace
     />
   );
@@ -140,11 +174,7 @@ function CatchAll() {
 
   return (
     <Navigate
-      to={
-        isOperationalUser(user)
-          ? "/pre-alerts"
-          : "/dashboard"
-      }
+      to={getUserLandingPath(user)}
       replace
     />
   );
@@ -234,9 +264,7 @@ function App() {
         <ScrollToTop />
 
         <Routes>
-          {/* =====================================================
-              PUBLIC ROUTES
-          ===================================================== */}
+          {/* PUBLIC ROUTES */}
 
           <Route
             path="/login"
@@ -248,28 +276,19 @@ function App() {
             element={<HomeRedirect />}
           />
 
-          {/* =====================================================
-              AUTHENTICATED ROUTES
-          ===================================================== */}
+          {/* AUTHENTICATED ROUTES */}
 
           <Route element={<ProtectedRoute />}>
             <Route element={<DashboardLayout />}>
 
-              {/* =================================================
-                  OPERATIONAL ROUTES
-
-                  Staff roles, volunteers and NGO contacts can
-                  access ONLY these shared operational pages.
-
-                  The paths match menuConfig.js.
-              ================================================= */}
+              {/* OPERATIONAL ROUTES */}
 
               <Route
                 element={
                   <RoleProtectedRoute
                     allowedRoles={GENERAL_ROLES}
                     allowedUserTypes={OPERATIONAL_USER_TYPES}
-                    fallbackPath="/pre-alerts"
+                    fallbackPath="/dashboard"
                   />
                 }
               >
@@ -299,35 +318,24 @@ function App() {
                 />
               </Route>
 
-              {/* =================================================
-                  STAFF-ONLY APPLICATION ROUTES
-
-                  Volunteers and NGO contacts are NOT allowed.
-              ================================================= */}
+              {/* STAFF-ONLY APPLICATION ROUTES */}
 
               <Route
                 element={
                   <RoleProtectedRoute
                     allowedRoles={GENERAL_ROLES}
-                    fallbackPath="/pre-alerts"
+                    fallbackPath="/dashboard"
                   />
                 }
               >
-                <Route
-                  element={
-                    <RoleProtectedRoute
-                      allowedRoles={["super_admin", "admin", "district"]}
-                      fallbackPath="/pre-alerts"
-                    />
-                  }
-                >
-                  <Route
-                    path="/dashboard"
-                    element={<Dashboard />}
-                  />
-                </Route>
+                {/* ONE DASHBOARD ROUTE FOR ALL STAFF ROLES */}
 
-                {/* Department */}
+                <Route
+                  path="/dashboard"
+                  element={<RoleBasedDashboard />}
+                />
+
+                {/* DEPARTMENTS */}
 
                 <Route
                   path="/department/electricity"
@@ -359,7 +367,7 @@ function App() {
                   element={<Law />}
                 />
 
-                {/* Inventory: super_admin and admin only */}
+                {/* INVENTORY: SUPER ADMIN AND ADMIN ONLY */}
 
                 <Route
                   element={
@@ -377,16 +385,6 @@ function App() {
                   <Route
                     path="/inventory/history"
                     element={<StockHistory />}
-                  />
-
-                  <Route
-                    path="/inventory/issue"
-                    element={<IssueStock />}
-                  />
-
-                  <Route
-                    path="/inventory/return"
-                    element={<ReturnStock />}
                   />
 
                   <Route
@@ -415,7 +413,32 @@ function App() {
                   />
                 </Route>
 
-                {/* Disaster Management */}
+                {/* INVENTORY ISSUE AND RETURN */}
+
+                <Route
+                  element={
+                    <RoleProtectedRoute
+                      allowedRoles={[
+                        "super_admin",
+                        "admin",
+                        "district",
+                      ]}
+                      fallbackPath="/dashboard"
+                    />
+                  }
+                >
+                  <Route
+                    path="/inventory/issue"
+                    element={<IssueStock />}
+                  />
+
+                  <Route
+                    path="/inventory/return"
+                    element={<ReturnStock />}
+                  />
+                </Route>
+
+                {/* DISASTER MANAGEMENT */}
 
                 <Route
                   path="/disaster/erss"
@@ -427,16 +450,16 @@ function App() {
                   element={<CCTNS />}
                 />
 
-                {/* Resources */}
+                {/* RESOURCES */}
 
                 <Route
                   path="/resources"
                   element={<Resources />}
                 />
-
               </Route>
 
-              {/* MIS Reports: super_admin and admin only. */}
+              {/* MIS REPORTS: SUPER ADMIN AND ADMIN */}
+
               <Route
                 element={
                   <RoleProtectedRoute
@@ -451,13 +474,14 @@ function App() {
                 />
               </Route>
 
-              {/* Training is available to staff, volunteers, and NGO contacts. */}
+              {/* TRAINING */}
+
               <Route
                 element={
                   <RoleProtectedRoute
                     allowedRoles={GENERAL_ROLES}
                     allowedUserTypes={OPERATIONAL_USER_TYPES}
-                    fallbackPath="/pre-alerts"
+                    fallbackPath="/dashboard"
                   />
                 }
               >
@@ -467,9 +491,24 @@ function App() {
                 />
               </Route>
 
-              {/* =================================================
-                  SUPER ADMIN ONLY
-              ================================================= */}
+              {/* WEATHER */}
+
+              <Route
+                element={
+                  <RoleProtectedRoute
+                    allowedRoles={GENERAL_ROLES}
+                    allowedUserTypes={OPERATIONAL_USER_TYPES}
+                    fallbackPath="/dashboard"
+                  />
+                }
+              >
+                <Route
+                  path="/weather"
+                  element={<Weather />}
+                />
+              </Route>
+
+              {/* SUPER ADMIN ONLY */}
 
               <Route
                 element={
@@ -485,10 +524,7 @@ function App() {
                 />
               </Route>
 
-              {/* =================================================
-                  LOCATION MANAGEMENT
-                  super_admin + admin
-              ================================================= */}
+              {/* LOCATION MANAGEMENT: SUPER ADMIN AND ADMIN */}
 
               <Route
                 element={
@@ -514,10 +550,7 @@ function App() {
                 />
               </Route>
 
-              {/* =================================================
-                  DISTRICT USERS
-                  super_admin + admin
-              ================================================= */}
+              {/* DISTRICT USER MANAGEMENT: SUPER ADMIN AND ADMIN */}
 
               <Route
                 element={
@@ -533,10 +566,7 @@ function App() {
                 />
               </Route>
 
-              {/* =================================================
-                  SUBDIVISION USERS
-                  super_admin + admin + district
-              ================================================= */}
+              {/* SUBDIVISION USER MANAGEMENT */}
 
               <Route
                 element={
@@ -556,10 +586,7 @@ function App() {
                 />
               </Route>
 
-              {/* =================================================
-                  BLOCK USERS
-                  super_admin + admin + district + subdivision
-              ================================================= */}
+              {/* BLOCK USER MANAGEMENT */}
 
               <Route
                 element={
@@ -580,10 +607,7 @@ function App() {
                 />
               </Route>
 
-              {/* =================================================
-                  VOLUNTEER MANAGEMENT
-                  super_admin + admin + district + subdivision + block
-              ================================================= */}
+              {/* VOLUNTEER MANAGEMENT */}
 
               <Route
                 element={
@@ -605,10 +629,7 @@ function App() {
                 />
               </Route>
 
-              {/* =================================================
-                  NGO MANAGEMENT
-                  super_admin + admin + district + subdivision + block
-              ================================================= */}
+              {/* NGO MANAGEMENT */}
 
               <Route
                 element={
@@ -633,9 +654,7 @@ function App() {
             </Route>
           </Route>
 
-          {/* =====================================================
-              UNKNOWN ROUTES
-          ===================================================== */}
+          {/* UNKNOWN ROUTES */}
 
           <Route
             path="*"
