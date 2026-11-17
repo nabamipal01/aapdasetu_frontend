@@ -13,9 +13,14 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../../config/Config";
-import { getPostAlerts, listAlerts } from "../../services";
+import {
+  getPostAlerts,
+  listAlerts,
+  listInventoryItems,
+} from "../../services";
 import { useAuth } from "../../context/AuthContext";
 import {
+  canManageAlerts,
   isAlertVisibleToUser,
   isOperationalUser,
 } from "../../utils/roles";
@@ -26,6 +31,7 @@ import {
   markAllAlertNotificationsRead,
   clearAlertNotification,
   clearAlertNotifications,
+  addAlertNotification,
 } from "../../utils/alertNotifications";
 
 import {
@@ -36,6 +42,8 @@ import {
   clearTrainingNotification,
   clearTrainingNotifications,
 } from "../../utils/trainingNotifications";
+
+
 
 function Header({
   setMobileOpen,
@@ -146,18 +154,77 @@ function Header({
       return Array.isArray(items) ? items : [];
     };
 
+    const getAllInventoryItems = async () => {
+      const allItems = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const response = await listInventoryItems({ page, limit: 100 });
+        const items = getAlertItems(response, "inventory");
+        allItems.push(...items);
+
+        const data = response?.data ?? response;
+        const pagination = data?.pagination;
+        totalPages = Number(pagination?.total_pages) || 1;
+        page += 1;
+      } while (page <= totalPages);
+
+      return allItems;
+    };
+
+    const getDaysUntilExpiry = (expiryDate) => {
+      if (typeof expiryDate !== "string") return null;
+      const [year, month, day] = expiryDate.slice(0, 10).split("-").map(Number);
+      if (!year || !month || !day) return null;
+
+      const expiry = new Date(Date.UTC(year, month - 1, day));
+      if (
+        expiry.getUTCFullYear() !== year ||
+        expiry.getUTCMonth() !== month - 1 ||
+        expiry.getUTCDate() !== day
+      ) {
+        return null;
+      }
+
+      const now = new Date();
+      const today = Date.UTC(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate()
+      );
+      return Math.floor((expiry.getTime() - today) / 86_400_000);
+    };
+
     const syncPublishedAlerts = async () => {
-      try {
-        const [preAlertResponse, postAlertResponse] = await Promise.all([
-          listAlerts({ page: 1, limit: 50 }),
-          getPostAlerts(1, 50),
-        ]);
-        if (cancelled) return;
+      const requests = [
+        listAlerts({ page: 1, limit: 50 }),
+        getPostAlerts(1, 50),
+      ];
+      if (canManageAlerts(user)) {
+        requests.push(getAllInventoryItems());
+      }
 
-        const preAlerts = getAlertItems(preAlertResponse, "pre-alerts");
-        const postAlerts = getAlertItems(postAlertResponse, "post alerts");
+      const results = await Promise.allSettled(requests);
+      if (cancelled) return;
 
-        preAlerts
+      const getItemsFromResult = (result, label) => {
+        if (result.status === "rejected") {
+          console.error(`Unable to sync ${label} notifications.`, result.reason);
+          return [];
+        }
+        try {
+          return getAlertItems(result.value, label);
+        } catch (error) {
+          console.error(`Unable to sync ${label} notifications.`, error);
+          return [];
+        }
+      };
+
+      const preAlerts = getItemsFromResult(results[0], "pre-alerts");
+      const postAlerts = getItemsFromResult(results[1], "post alerts");
+
+      preAlerts
           .filter((alert) => isAlertVisibleToUser(alert, user))
           .forEach((alert) => {
             const alertId = alert.alert_id ?? alert.id;
@@ -175,7 +242,7 @@ function Header({
             });
           });
 
-        postAlerts
+      postAlerts
           .filter((alert) => isAlertVisibleToUser(alert, user))
           .forEach((alert) => {
             const alertId = alert.post_alert_id ?? alert.id;
@@ -197,10 +264,32 @@ function Header({
               createdAt: alert.created_at ?? alert.createdAt,
             });
           });
-      } catch (error) {
-        if (!cancelled) {
-          console.error("Unable to sync alert notifications.", error);
-        }
+
+      if (canManageAlerts(user) && results[2]) {
+        const inventoryItems = getItemsFromResult(results[2], "inventory");
+        inventoryItems.forEach((item) => {
+          const expiryDate = item.expiry_date?.slice(0, 10);
+          const daysUntilExpiry = getDaysUntilExpiry(expiryDate);
+          const itemId = item.inventory_id ?? item.id;
+          if (
+            itemId == null ||
+            daysUntilExpiry == null ||
+            daysUntilExpiry < 0 ||
+            daysUntilExpiry > 30
+          ) {
+            return;
+          }
+
+          addAlertNotification({
+            type: "Inventory expiry",
+            title: `${item.product_name || "Inventory item"} expiring soon`,
+            description: `${daysUntilExpiry === 0 ? "Expires today" : `Expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"}`} (${expiryDate}).`,
+            path: "/inventory/overview",
+            alert: item,
+            alertId: `${itemId}:${expiryDate}`,
+            createdAt: new Date().toISOString(),
+          });
+        });
       }
     };
 
@@ -211,6 +300,13 @@ function Header({
       cancelled = true;
       window.clearInterval(intervalId);
     };
+  }, [user]);
+
+  // Re-read notification stores when the logged-in user changes so that
+  // per-user read status persisted in localStorage is restored on login.
+  useEffect(() => {
+    setNotifications(getAlertNotifications());
+    setTrainingNotifications(getTrainingNotifications());
   }, [user]);
 
   // Sync training notifications from custom event / storage
@@ -499,8 +595,8 @@ function Header({
                         notification.read
                           ? "bg-white"
                           : notification.source === "training"
-                            ? "bg-blue-50/40"
-                            : "bg-red-50/50"
+                            ? "bg-blue-50"
+                            : "bg-red-50"
                       }`}
                     >
                       <button
@@ -520,22 +616,41 @@ function Header({
                         )}
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-2">
-                            <span
-                              className={`text-[10px] font-bold uppercase tracking-wide ${
-                                notification.source === "training"
-                                  ? "text-blue-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {notification.source === "training"
-                                ? `Training ${notification.type}`
-                                : notification.type}
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span
+                                className={`truncate text-[10px] font-bold uppercase tracking-wide ${
+                                  notification.source === "training"
+                                    ? "text-blue-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {notification.source === "training"
+                                  ? `Training ${notification.type}`
+                                  : notification.type}
+                              </span>
+                              <span
+                                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                                  notification.read
+                                    ? "bg-slate-100 text-slate-600"
+                                    : notification.source === "training"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {notification.read ? "Read" : "Unread"}
+                              </span>
                             </span>
                             <time className="shrink-0 text-[10px] text-slate-400">
                               {new Date(notification.createdAt).toLocaleString()}
                             </time>
                           </span>
-                          <span className="mt-1 block text-sm font-semibold text-slate-900">
+                          <span
+                            className={`mt-1 block text-sm font-semibold ${
+                              notification.read
+                                ? "text-slate-600"
+                                : "text-slate-900"
+                            }`}
+                          >
                             {notification.title}
                           </span>
                           {notification.description && (
