@@ -251,6 +251,14 @@ export default function Dashboard() {
   const [rainfallDate, setRainfallDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  useEffect(() => {
+  const timer = setInterval(() => {
+    setCurrentDateTime(new Date());
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, []);
   const [activityTab, setActivityTab] = useState("incidents");
 
   /* -------------------------------------------------------------- */
@@ -1258,16 +1266,25 @@ export default function Dashboard() {
                       rainfallStatus.loading && (
                         <p className="text-blue-700">Loading forecasts…</p>
                       )}
-                    {mapMode === "rainfall" &&
-                      rainfallStatus.updatedAt &&
-                      !rainfallStatus.error && (
-                        <p className="text-slate-500">
-                          Updated{" "}
-                          {new Date(
-                            rainfallStatus.updatedAt
-                          ).toLocaleTimeString()}
-                        </p>
-                      )}
+                    
+                  {/* Current date and time */}
+                    <p className="text-slate-500">
+                      Current:{" "}
+                      {currentDateTime.toLocaleString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        hour12: true,
+                        timeZone: "Asia/Kolkata",
+                      })}{" "}
+                      
+                    </p>
+
+
+
                     {districtLayerError && (
                       <p className="text-red-700">{districtLayerError}</p>
                     )}
@@ -1302,12 +1319,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-4 text-right">
-                    <div>
-                      <p className="text-[10px] text-slate-400">LGD ID</p>
-                      <p className="text-sm font-medium text-slate-700">
-                        {selectedDistrict.dist_lgd}
-                      </p>
-                    </div>
+                    
                     {mapMode === "rainfall" && (
                       <div>
                         <p className="text-[10px] text-slate-400">

@@ -27,3 +27,11 @@ export const listNotifications = (page = 1, limit = 20) =>
  */
 export const markNotificationRead = (notification_type, notification_id) =>
   post('/api/notification/mark-read.php', { notification_type, notification_id });
+
+/**
+ * Dismiss (delete) a single notification for the current user.
+ * POST /api/notification/delete.php
+ * Body: { notification_type, notification_id }
+ */
+export const deleteNotification = (notification_type, notification_id) =>
+  post('/api/notification/delete.php', { notification_type, notification_id });

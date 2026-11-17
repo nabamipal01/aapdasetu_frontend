@@ -11,6 +11,7 @@ const EMPTY_FORM = {
   location: "",
   quantity: "",
   purchase_date: "",
+  expiry_date: "",
 };
 
 const getTodayDate = () => {
@@ -20,18 +21,6 @@ const getTodayDate = () => {
   const day = String(today.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-};
-
-const getExpiryDate = (purchaseDate) => {
-  if (!purchaseDate) return "";
-
-  const [year, month, day] = purchaseDate.split("-").map(Number);
-  const expiry = new Date(year, month - 1, day + 30);
-  const expiryYear = expiry.getFullYear();
-  const expiryMonth = String(expiry.getMonth() + 1).padStart(2, "0");
-  const expiryDay = String(expiry.getDate()).padStart(2, "0");
-
-  return `${expiryYear}-${expiryMonth}-${expiryDay}`;
 };
 
 const createEmptyForm = () => ({
@@ -79,7 +68,7 @@ function AddStock() {
         ...(form.oem           && { oem:           form.oem.trim() }),
         ...(form.location      && { location:      form.location.trim() }),
         purchase_date: form.purchase_date,
-        expiry_date: getExpiryDate(form.purchase_date),
+        expiry_date: form.expiry_date || null,
       };
       const res = await createInventoryItem(payload);
       setSuccess({
@@ -223,10 +212,10 @@ function AddStock() {
               {/* Expiry date */}
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Expiry Date (30 days after purchase)
+                  Expiry Date
                 </label>
-                <input name="expiry_date" type="date" value={getExpiryDate(form.purchase_date)} readOnly
-                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-600 outline-none" />
+                <input name="expiry_date" type="date" value={form.expiry_date} onChange={handleChange}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
               </div>
 
             </div>

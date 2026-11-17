@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BellRing,
@@ -45,25 +46,38 @@ const EMPTY_FORM = {
 
 const getResponseActions = (alert) => {
   const actions = alert?.response_action_required;
+
   if (Array.isArray(actions)) return actions;
+
+  if (typeof actions === "string" && actions.trim()) {
+    try {
+      const parsed = JSON.parse(actions);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return actions.split(",").map((item) => item.trim()).filter(Boolean);
+    }
+  }
+
   return actions ? [actions] : [];
 };
 
 const getPostAlertKey = (alert) =>
-  alert.post_alert_id ??
-  alert.id ??
-  alert._notificationKey ??
-  `${alert.title ?? "alert"}-${alert.incident_date ?? ""}`;
+  alert?.post_alert_id ??
+  alert?.id ??
+  alert?._notificationKey ??
+  `${alert?.title ?? "alert"}-${alert?.incident_date ?? ""}`;
 
 const samePostAlert = (first, second) => {
-  const firstId = first.post_alert_id ?? first.id;
-  const secondId = second.post_alert_id ?? second.id;
+  const firstId = first?.post_alert_id ?? first?.id;
+  const secondId = second?.post_alert_id ?? second?.id;
+
   if (firstId != null && secondId != null) {
     return String(firstId) === String(secondId);
   }
+
   return (
-    first.title === second.title &&
-    first.incident_date === second.incident_date
+    first?.title === second?.title &&
+    first?.incident_date === second?.incident_date
   );
 };
 
@@ -114,27 +128,53 @@ const getPhotoSource = (photo) => {
         ].find((value) => typeof value === "string" && value.length > 0);
 
   if (!path) return "";
-  if (/^(https?:|data:|blob:)/i.test(path)) return path;
+
+  if (/^(https?:|data:|blob:)/i.test(path)) {
+    return path;
+  }
 
   if (typeof photo === "object" && (photo.photo || photo.image)) {
     return getPhotoSource(photo.photo || photo.image);
   }
 
-  const baseUrl = new URL(API_BASE_URL, window.location.origin);
-  const normalizedPath = String(path).replace(/\\/g, "/").replace(/^\/+/, "");
-  const basePath = baseUrl.pathname.replace(/\/+$/, "");
-  const normalizedBasePath = basePath.replace(/^\/+/, "");
-  const relativePath = normalizedPath.startsWith(`${normalizedBasePath}/`)
-    ? normalizedPath.slice(normalizedBasePath.length + 1)
-    : normalizedPath;
+  try {
+    const baseUrl = new URL(API_BASE_URL, window.location.origin);
+    const normalizedPath = String(path)
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "");
 
-  return new URL(relativePath, `${baseUrl.origin}${basePath}/`).toString();
+    const basePath = baseUrl.pathname.replace(/\/+$/, "");
+    const normalizedBasePath = basePath.replace(/^\/+/, "");
+
+    const relativePath = normalizedPath.startsWith(
+      `${normalizedBasePath}/`
+    )
+      ? normalizedPath.slice(normalizedBasePath.length + 1)
+      : normalizedPath;
+
+    return new URL(
+      relativePath,
+      `${baseUrl.origin}${basePath}/`
+    ).toString();
+  } catch {
+    return path;
+  }
+};
+
+const extractAlertItems = (data) => {
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.alerts)) return data.alerts;
+  if (Array.isArray(data?.post_alerts)) return data.post_alerts;
+  if (Array.isArray(data)) return data;
+  return [];
 };
 
 function PostAlert() {
   const { user } = useAuth();
+
   const canCreate = canCreateAlerts(user);
   const canManage = canManageAlerts(user);
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -142,7 +182,7 @@ function PostAlert() {
   const [alerts, setAlerts] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [districtsLoading, setDistrictsLoading] = useState(canManage);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -151,51 +191,53 @@ function PostAlert() {
   const [pagination, setPagination] = useState(null);
   const [viewingAlert, setViewingAlert] = useState(null);
   const [highlightedAlertKey, setHighlightedAlertKey] = useState(null);
-  const highlightedAlertRef = useRef(null);
-  const pendingNotificationAlertRef = useRef(null);
   const [deletingId, setDeletingId] = useState(null);
 
+  const highlightedAlertRef = useRef(null);
+  const pendingNotificationAlertRef = useRef(null);
+
   const loadAlerts = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
     try {
-      setLoading(true);
-      setError("");
       const result = await getPostAlerts(page, 10);
 
-      if (result?.success) {
-        const data = result.data;
-        const alertItems = Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data?.alerts)
-            ? data.alerts
-            : Array.isArray(data)
-              ? data
-              : [];
-        const visibleAlerts = alertItems.filter((alert) =>
-          isAlertVisibleToUser(alert, user)
+      if (result?.success === false) {
+        throw new Error(result.message || "Unable to load post alerts.");
+      }
+
+      const data = result?.data ?? result;
+      const alertItems = extractAlertItems(data);
+
+      const visibleAlerts = alertItems.filter((alert) =>
+        isAlertVisibleToUser(alert, user)
+      );
+
+      const pendingAlert = pendingNotificationAlertRef.current;
+
+      if (pendingAlert) {
+        const existingAlert = visibleAlerts.find((alert) =>
+          samePostAlert(alert, pendingAlert)
         );
 
-        const pendingAlert = pendingNotificationAlertRef.current;
-        if (pendingAlert) {
-          const existingAlert = visibleAlerts.find((alert) =>
-              samePostAlert(alert, pendingAlert)
-          );
-          const visibleAlert = existingAlert ?? pendingAlert;
-          const nextAlerts = existingAlert
-              ? visibleAlerts
-              : [pendingAlert, ...visibleAlerts];
-          setAlerts(nextAlerts);
-          setHighlightedAlertKey(getPostAlertKey(visibleAlert));
-          pendingNotificationAlertRef.current = null;
-        } else {
-          setAlerts(visibleAlerts);
-        }
+        const alertToHighlight = existingAlert ?? pendingAlert;
 
-        setPagination(data?.pagination || null);
+        setAlerts(
+          existingAlert
+            ? visibleAlerts
+            : [pendingAlert, ...visibleAlerts]
+        );
+
+        setHighlightedAlertKey(getPostAlertKey(alertToHighlight));
+        pendingNotificationAlertRef.current = null;
       } else {
-        setError(result.message || "Unable to load post alerts.");
+        setAlerts(visibleAlerts);
       }
+
+      setPagination(data?.pagination ?? result?.pagination ?? null);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load post alerts:", err);
       setError(
         err?.response?.data?.message ||
           err.message ||
@@ -207,37 +249,64 @@ function PostAlert() {
   }, [page, user]);
 
   useEffect(() => {
-    if (!canManage) return;
+    let active = true;
+
+    setDistrictsLoading(canManage);
+
+    if (!canManage) {
+      setDistricts([]);
+      return undefined;
+    }
 
     listDistricts()
       .then((result) => {
+        if (!active) return;
+
         const items = result?.data?.districts ?? result?.data ?? [];
+
         if (!Array.isArray(items)) {
           throw new Error("Unable to load districts.");
         }
+
         setDistricts(items);
       })
-      .catch((err) => setError(err.message || "Failed to load districts"))
-      .finally(() => setDistrictsLoading(false));
+      .catch((err) => {
+        if (active) {
+          setError(err.message || "Failed to load districts.");
+        }
+      })
+      .finally(() => {
+        if (active) setDistrictsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [canManage]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       loadAlerts();
     }, 0);
+
     return () => window.clearTimeout(timeoutId);
   }, [loadAlerts]);
 
   useEffect(() => {
     const notification = location.state?.alertNotification;
+
     if (
       !notification?.type?.toLowerCase().includes("post") ||
       !notification.alert
     ) {
       return undefined;
     }
+
     if (!isAlertVisibleToUser(notification.alert, user)) {
-      navigate(location.pathname, { replace: true, state: null });
+      navigate(location.pathname, {
+        replace: true,
+        state: null,
+      });
       return undefined;
     }
 
@@ -246,25 +315,40 @@ function PostAlert() {
         notification.alert.post_alert_id ??
         notification.alert.id ??
         notification.alertId;
+
       const alert = {
         ...notification.alert,
-        ...(alertId ? { post_alert_id: alertId } : {}),
-        _notificationKey: notification.id,
+        ...(alertId != null ? { post_alert_id: alertId } : {}),
+        _notificationKey:
+          notification.id ?? notification.alert._notificationKey,
       };
 
       pendingNotificationAlertRef.current = alert;
+
       setPage(1);
+
       setAlerts((currentAlerts) =>
         currentAlerts.some((item) => samePostAlert(item, alert))
           ? currentAlerts
           : [alert, ...currentAlerts]
       );
+
       setHighlightedAlertKey(getPostAlertKey(alert));
-      navigate(location.pathname, { replace: true, state: null });
+
+      navigate(location.pathname, {
+        replace: true,
+        state: null,
+      });
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [location.key, location.pathname, location.state, navigate, user]);
+  }, [
+    location.key,
+    location.pathname,
+    location.state,
+    navigate,
+    user,
+  ]);
 
   useEffect(() => {
     if (!loading && highlightedAlertRef.current) {
@@ -275,140 +359,211 @@ function PostAlert() {
     }
   }, [alerts, highlightedAlertKey, loading]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   };
 
-  const handleActionChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      response_action_required: e.target.checked
-        ? [...prev.response_action_required, e.target.value]
-        : prev.response_action_required.filter(
-            (action) => action !== e.target.value
+  const handleActionChange = (event) => {
+    const { checked, value } = event.target;
+
+    setFormData((previous) => ({
+      ...previous,
+      response_action_required: checked
+        ? [...previous.response_action_required, value]
+        : previous.response_action_required.filter(
+            (action) => action !== value
           ),
     }));
   };
 
-  const handleFileChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      incident_photo: Array.from(e.target.files || []),
+  const handleFileChange = (event) => {
+    setFormData((previous) => ({
+      ...previous,
+      incident_photo: Array.from(event.target.files || []),
     }));
   };
 
   const formatIncidentDate = (value) => {
     if (!value) return "";
+
     return value.length === 16
-      ? value.replace("T", " ") + ":00"
+      ? `${value.replace("T", " ")}:00`
       : value.replace("T", " ");
   };
 
   const resetForm = () => {
     setFormData({ ...EMPTY_FORM });
     setShowForm(false);
+
     const fileInput = document.getElementById("incident_photo");
+
     if (fileInput) fileInput.value = "";
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (event) => {
     if (!canCreate) return;
-    e.preventDefault();
+
+    event.preventDefault();
+
+    setError("");
+    setSuccess("");
+
+    if (!formData.title.trim()) {
+      setError("Alert title is required.");
+      return;
+    }
+
+    if (!formData.location.trim()) {
+      setError("Location is required.");
+      return;
+    }
+
+    if (!formData.incident_date) {
+      setError("Incident date and time are required.");
+      return;
+    }
+
+    if (!formData.current_situation_summary.trim()) {
+      setError("Current situation summary is required.");
+      return;
+    }
 
     if (formData.response_action_required.length === 0) {
       setError("Select at least one response action.");
-      setSuccess("");
       return;
     }
+
     const districtId = canManage
-      ? formData.district_id || null
+      ? formData.district_id === ""
+        ? null
+        : formData.district_id
       : getUserDistrictId(user);
+
     if (!canManage && districtId == null) {
       setError("Your account is not associated with a district.");
-      setSuccess("");
       return;
     }
 
     setSubmitting(true);
-    setError("");
-    setSuccess("");
 
     try {
       const data = new FormData();
-      data.append("title", formData.title);
-      data.append("location", formData.location);
-      data.append("incident_date", formatIncidentDate(formData.incident_date));
+
+      data.append("title", formData.title.trim());
+      data.append("location", formData.location.trim());
+      data.append(
+        "incident_date",
+        formatIncidentDate(formData.incident_date)
+      );
       data.append(
         "current_situation_summary",
-        formData.current_situation_summary
+        formData.current_situation_summary.trim()
       );
-      data.append(
-        "district_id",
-        districtId == null ? "" : String(districtId)
-      );
+
+      // FormData cannot transmit a JavaScript null directly.
+      // Send the literal string "null" for global alerts.
+      data.append("district_id", districtId == null ? "" : String(districtId));
+
       formData.response_action_required.forEach((action) => {
         data.append("response_action_required[]", action);
       });
+
       formData.incident_photo.forEach((file) => {
         data.append("incident_photo[]", file);
       });
 
       const result = await createPostAlert(data);
 
-      if (result.success) {
-        setSuccess(
-          `Post Alert created for ${
-            districtId == null
-              ? "all districts"
-              : districts.find((district) => String(district.id) === String(districtId))?.name || "the selected district"
-          }.`
+      if (result?.success === false) {
+        throw new Error(
+          result.message || "Unable to create post alert."
         );
-        const createdAlert =
-          result.data?.alert ??
-          result.data?.post_alert ??
-          result.data ??
-          {};
+      }
 
-        const scopedAlert = {
-          ...createdAlert,
-          district_id: districtId == null ? null : Number(districtId),
-          title: formData.title,
-          location: formData.location,
-          incident_date: formatIncidentDate(formData.incident_date),
-          current_situation_summary: formData.current_situation_summary,
-          response_action_required: [...formData.response_action_required],
-          photos:
-            createdAlert.photos ??
-            createdAlert.incident_photos ??
-            createdAlert.images ??
-            [],
-        };
+      const responseData = result?.data ?? result;
 
-        addAlertNotification({
-          type: "Post alert",
-          title: formData.title,
-          description: `${formData.location} · ${formData.current_situation_summary}`,
-          path: "/post-alerts",
-          alert: scopedAlert,
-          alertId: createdAlert.post_alert_id ?? createdAlert.id,
-          districtId,
-        });
+      const createdAlert =
+        responseData?.alert ??
+        responseData?.post_alert ??
+        responseData ??
+        {};
 
-        pendingNotificationAlertRef.current = scopedAlert;
-        setAlerts((currentAlerts) =>
-          currentAlerts.some((item) => samePostAlert(item, scopedAlert))
-            ? currentAlerts
-            : [scopedAlert, ...currentAlerts]
-        );
-        setPage(1);
-        resetForm();
-        if (page === 1) await loadAlerts();
-      } else {
-        setError(result.message || "Unable to create post alert.");
+      const normalizedDistrictId =
+        districtId == null ? null : Number(districtId);
+
+      const scopedAlert = {
+        ...createdAlert,
+        district_id: normalizedDistrictId,
+        title: formData.title.trim(),
+        location: formData.location.trim(),
+        incident_date: formatIncidentDate(formData.incident_date),
+        current_situation_summary:
+          formData.current_situation_summary.trim(),
+        response_action_required: [
+          ...formData.response_action_required,
+        ],
+        photos:
+          createdAlert.photos ??
+          createdAlert.incident_photos ??
+          createdAlert.images ??
+          createdAlert.incident_photo ??
+          [],
+      };
+
+      const alertTitle = scopedAlert.title;
+
+      addAlertNotification({
+        type: "Post alert",
+        title: alertTitle,
+        description: `${scopedAlert.location} · ${scopedAlert.current_situation_summary}`,
+        path: "/post-alerts",
+        alert: scopedAlert,
+        alertId:
+          createdAlert.post_alert_id ?? createdAlert.id,
+        districtId: normalizedDistrictId,
+      });
+
+      pendingNotificationAlertRef.current = scopedAlert;
+
+      setAlerts((currentAlerts) =>
+        currentAlerts.some((item) =>
+          samePostAlert(item, scopedAlert)
+        )
+          ? currentAlerts
+          : [scopedAlert, ...currentAlerts]
+      );
+
+      setHighlightedAlertKey(getPostAlertKey(scopedAlert));
+      setPage(1);
+
+      const selectedDistrict = districts.find(
+        (district) =>
+          String(district.id) === String(districtId)
+      );
+
+      setSuccess(
+        `Post Alert created for ${
+          districtId == null
+            ? "all districts"
+            : selectedDistrict?.name || "the selected district"
+        }.`
+      );
+
+      resetForm();
+
+      // Refresh the first page after creation. The pending alert ref
+      // keeps the new alert visible if the API response omits it.
+      if (page === 1) {
+        await loadAlerts();
       }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to create post alert:", err);
+
       setError(
         err?.response?.data?.message ||
           err.message ||
@@ -421,20 +576,32 @@ function PostAlert() {
 
   const formatDate = (date) => {
     if (!date) return "-";
-    return new Date(date.replace(" ", "T")).toLocaleString();
+
+    const normalized = String(date).replace(" ", "T");
+    const parsed = new Date(normalized);
+
+    return Number.isNaN(parsed.getTime())
+      ? String(date)
+      : parsed.toLocaleString();
   };
 
   const handleView = (alert) => setViewingAlert(alert);
+
   const closeModal = () => setViewingAlert(null);
 
   const handleDelete = async (alert) => {
     if (!canManage) return;
-    const id = getPostAlertKey(alert);
-    if (!id) {
+
+    const id = alert.post_alert_id ?? alert.id;
+
+    if (id == null) {
       setError("Unable to delete this alert because its ID is missing.");
       return;
     }
-    if (!window.confirm(`Delete alert "${alert.title}"?`)) return;
+
+    if (!window.confirm(`Delete alert "${alert.title}"?`)) {
+      return;
+    }
 
     setDeletingId(id);
     setError("");
@@ -442,15 +609,28 @@ function PostAlert() {
 
     try {
       const result = await deletePostAlert(id);
+
       if (result?.success === false) {
-        throw new Error(result.message || "Unable to delete post alert.");
+        throw new Error(
+          result.message || "Unable to delete post alert."
+        );
       }
 
       setAlerts((currentAlerts) =>
         currentAlerts.filter(
-          (item) => String(item.post_alert_id ?? item.id) !== String(id)
+          (item) =>
+            String(item.post_alert_id ?? item.id) !== String(id)
         )
       );
+
+      if (
+        viewingAlert &&
+        String(viewingAlert.post_alert_id ?? viewingAlert.id) ===
+          String(id)
+      ) {
+        setViewingAlert(null);
+      }
+
       setSuccess("Post Alert deleted successfully.");
 
       if (alerts.length === 1 && page > 1) {
@@ -459,12 +639,18 @@ function PostAlert() {
         await loadAlerts();
       }
     } catch (err) {
-      console.error(err);
-      setError(
-        err?.response?.data?.message ||
-          err.message ||
-          "Unable to delete post alert."
-      );
+      console.error("Failed to delete post alert:", err);
+
+      const msg = err?.message || "";
+      if (err?.status === 403 || msg.toLowerCase().includes("district") || msg.toLowerCase().includes("forbidden")) {
+        setError("Cannot delete this post alert — it may not be assigned to a valid district, or you don't have permission to delete it.");
+      } else {
+        setError(
+          err?.response?.data?.message ||
+            msg ||
+            "Unable to delete post alert."
+        );
+      }
     } finally {
       setDeletingId(null);
     }
@@ -476,20 +662,18 @@ function PostAlert() {
     Location: alert.location ?? "",
     "Incident Date & Time": alert.incident_date ?? "",
     "Situation Summary": alert.current_situation_summary ?? "",
-    "Required Response Actions": Array.isArray(alert.response_action_required)
-      ? alert.response_action_required.join(", ")
-      : alert.response_action_required ?? "",
+    "Required Response Actions": getResponseActions(alert).join(", "),
   }));
 
   const fieldClass =
     "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100";
+
   const labelClass =
     "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-red-50/30 p-4 sm:p-6 md:p-8">
       <div className="mx-auto max-w-7xl">
-        {/* Header — same structure as Pre-Alert */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <BellRing className="text-red-500" size={28} />
@@ -513,17 +697,25 @@ function PostAlert() {
               title="Post Alerts"
               disabled={loading}
               onError={(err) =>
-                setError(err.message || "Failed to download post alerts.")
+                setError(
+                  err.message || "Failed to download post alerts."
+                )
               }
             />
+
             <button
               type="button"
               onClick={loadAlerts}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              disabled={loading}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+              <RefreshCw
+                size={15}
+                className={loading ? "animate-spin" : ""}
+              />
               Refresh
             </button>
+
             {canCreate && (
               <button
                 type="button"
@@ -534,6 +726,7 @@ function PostAlert() {
                     setFormData({ ...EMPTY_FORM });
                     setShowForm(true);
                   }
+
                   setError("");
                   setSuccess("");
                 }}
@@ -553,19 +746,18 @@ function PostAlert() {
           </div>
         </div>
 
-        {/* Feedback — same as Pre-Alert */}
         {success && (
           <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {success}
           </div>
         )}
+
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
-        {/* Create form — same collapsible card shell as Pre-Alert */}
         {canCreate && (
           <div
             className={`grid transition-all duration-300 ease-in-out ${
@@ -585,6 +777,7 @@ function PostAlert() {
                     {canManage && (
                       <div className="md:col-span-2">
                         <label className={labelClass}>District</label>
+
                         <select
                           name="district_id"
                           value={formData.district_id}
@@ -593,30 +786,41 @@ function PostAlert() {
                           className={fieldClass}
                         >
                           <option value="">
-                            {districtsLoading ? "Loading districts..." : "All Districts"}
+                            {districtsLoading
+                              ? "Loading districts..."
+                              : "All Districts"}
                           </option>
+
                           {districts.map((district) => (
-                            <option key={district.id} value={district.id}>
+                            <option
+                              key={district.id}
+                              value={district.id}
+                            >
                               {district.name}
                             </option>
                           ))}
                         </select>
                       </div>
                     )}
+
                     <div className="md:col-span-2">
-                      <label className={labelClass}>Alert Title *</label>
+                      <label className={labelClass}>
+                        Alert Title *
+                      </label>
+
                       <input
                         name="title"
                         value={formData.title}
                         onChange={handleChange}
                         required
-                        placeholder="e.g. Flood situation update — Howrah"
+                        placeholder="e.g. Flood situation update"
                         className={fieldClass}
                       />
                     </div>
 
                     <div>
                       <label className={labelClass}>Location *</label>
+
                       <input
                         name="location"
                         value={formData.location}
@@ -631,6 +835,7 @@ function PostAlert() {
                       <label className={labelClass}>
                         Incident Date &amp; Time *
                       </label>
+
                       <input
                         type="datetime-local"
                         name="incident_date"
@@ -645,13 +850,14 @@ function PostAlert() {
                       <label className={labelClass}>
                         Current Situation Summary *
                       </label>
+
                       <textarea
                         name="current_situation_summary"
                         rows={3}
                         value={formData.current_situation_summary}
                         onChange={handleChange}
                         required
-                        placeholder="Describe the current situation in detail…"
+                        placeholder="Describe the current situation in detail..."
                         className={`${fieldClass} resize-none`}
                       />
                     </div>
@@ -660,6 +866,7 @@ function PostAlert() {
                       <label className={labelClass}>
                         Response Actions Required *
                       </label>
+
                       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {RESPONSE_ACTIONS.map((action) => (
                           <label
@@ -682,7 +889,10 @@ function PostAlert() {
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className={labelClass}>Incident Photos</label>
+                      <label className={labelClass}>
+                        Incident Photos
+                      </label>
+
                       <input
                         id="incident_photo"
                         type="file"
@@ -691,6 +901,7 @@ function PostAlert() {
                         onChange={handleFileChange}
                         className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-red-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-red-700 hover:file:bg-red-100"
                       />
+
                       {formData.incident_photo.length > 0 && (
                         <p className="mt-2 text-xs text-slate-500">
                           {formData.incident_photo.length} file(s) selected
@@ -707,12 +918,16 @@ function PostAlert() {
                     >
                       Cancel
                     </button>
+
                     <button
                       type="submit"
-                      disabled={submitting || (canManage && districtsLoading)}
+                      disabled={
+                        submitting ||
+                        (canManage && districtsLoading)
+                      }
                       className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {submitting ? "Sending…" : "Issue Alert"}
+                      {submitting ? "Sending..." : "Issue Alert"}
                     </button>
                   </div>
                 </form>
@@ -721,12 +936,11 @@ function PostAlert() {
           </div>
         )}
 
-        {/* Cards — same pattern as Pre-Alert */}
         {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3].map((item) => (
               <div
-                key={i}
+                key={item}
                 className="h-40 animate-pulse rounded-2xl bg-slate-200"
               />
             ))}
@@ -734,7 +948,9 @@ function PostAlert() {
         ) : alerts.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-20 text-center">
             <BellRing size={40} className="mb-3 text-slate-300" />
-            <p className="font-medium text-slate-700">No post alerts found</p>
+            <p className="font-medium text-slate-700">
+              No post alerts found
+            </p>
             <p className="mt-1 text-sm text-slate-500">
               {canCreate
                 ? "Create an alert to publish an emergency update."
@@ -744,8 +960,9 @@ function PostAlert() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {alerts.map((alert, index) => {
+              const alertKey = getPostAlertKey(alert);
               const isHighlighted =
-                getPostAlertKey(alert) === highlightedAlertKey;
+                String(alertKey) === String(highlightedAlertKey);
               const summary =
                 alert.current_situation_summary ||
                 alert.description ||
@@ -754,7 +971,7 @@ function PostAlert() {
 
               return (
                 <article
-                  key={getPostAlertKey(alert) ?? index}
+                  key={alertKey ?? index}
                   ref={isHighlighted ? highlightedAlertRef : null}
                   className={`group flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-[0_12px_24px_-10px_rgba(15,23,42,0.15)] ${
                     isHighlighted
@@ -768,13 +985,24 @@ function PostAlert() {
                         <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                         Post-Alert
                       </span>
+
                       <span className="text-[11px] text-slate-400">
                         {formatDate(alert.incident_date)}
                       </span>
+
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                        {alert.district_id
+                          ? districts.find(
+                              (d) => String(d.id) === String(alert.district_id)
+                            )?.name || `District #${alert.district_id}`
+                          : "All Districts"}
+                      </span>
                     </div>
+
                     <h3 className="mt-1.5 line-clamp-2 text-sm font-semibold text-slate-900">
                       {alert.title || "Untitled Alert"}
                     </h3>
+
                     <p className="mt-1 truncate text-xs text-slate-500">
                       {alert.location || "Location not available"}
                     </p>
@@ -789,10 +1017,12 @@ function PostAlert() {
                       <div className="mt-3 flex gap-2 overflow-hidden">
                         {photos.slice(0, 3).map((photo, photoIndex) => {
                           const source = getPhotoSource(photo);
+
                           if (!source) return null;
+
                           return (
                             <div
-                              key={`${getPostAlertKey(alert)}-photo-${photoIndex}`}
+                              key={`${alertKey}-photo-${photoIndex}`}
                               className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
                             >
                               <img
@@ -803,6 +1033,7 @@ function PostAlert() {
                             </div>
                           );
                         })}
+
                         {photos.length > 3 && (
                           <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[11px] font-semibold text-slate-500">
                             +{photos.length - 3}
@@ -825,11 +1056,11 @@ function PostAlert() {
                         <button
                           type="button"
                           onClick={() => handleDelete(alert)}
-                          disabled={deletingId === getPostAlertKey(alert)}
+                          disabled={deletingId === alertKey}
                           className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                           title="Delete alert"
                         >
-                          {deletingId === getPostAlertKey(alert) ? (
+                          {deletingId === alertKey ? (
                             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-600" />
                           ) : (
                             <Trash2 size={16} />
@@ -844,24 +1075,30 @@ function PostAlert() {
           </div>
         )}
 
-        {/* Pagination */}
         {pagination && pagination.total_pages > 1 && (
           <div className="mt-6 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
             <button
               type="button"
               disabled={page <= 1 || loading}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() =>
+                setPage((currentPage) => Math.max(1, currentPage - 1))
+              }
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               Previous
             </button>
+
             <p className="text-xs text-slate-500">
-              Page {pagination.current_page ?? page} of {pagination.total_pages}
+              Page {pagination.current_page ?? page} of{" "}
+              {pagination.total_pages}
             </p>
+
             <button
               type="button"
-              disabled={page >= pagination.total_pages || loading}
-              onClick={() => setPage((p) => p + 1)}
+              disabled={
+                page >= pagination.total_pages || loading
+              }
+              onClick={() => setPage((currentPage) => currentPage + 1)}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               Next
@@ -869,7 +1106,6 @@ function PostAlert() {
           </div>
         )}
 
-        {/* View modal — same pattern as Pre-Alert */}
         {viewingAlert && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
@@ -891,6 +1127,7 @@ function PostAlert() {
                 >
                   {viewingAlert.title || "Post-alert details"}
                 </h2>
+
                 <button
                   type="button"
                   onClick={closeModal}
@@ -904,12 +1141,26 @@ function PostAlert() {
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg bg-slate-50 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    District
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-slate-800">
+                    {viewingAlert.district_id
+                      ? districts.find(
+                          (d) => String(d.id) === String(viewingAlert.district_id)
+                        )?.name || `District #${viewingAlert.district_id}`
+                      : "All Districts"}
+                  </p>
+                </div>
+
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                     Location
                   </p>
                   <p className="mt-1 text-sm font-medium text-slate-800">
                     {viewingAlert.location || "—"}
                   </p>
                 </div>
+
                 <div className="rounded-lg bg-slate-50 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                     Incident Date
@@ -930,15 +1181,18 @@ function PostAlert() {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Response Actions
                   </p>
+
                   <div className="flex flex-wrap gap-2">
-                    {getResponseActions(viewingAlert).map((action) => (
-                      <span
-                        key={action}
-                        className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700"
-                      >
-                        {action}
-                      </span>
-                    ))}
+                    {getResponseActions(viewingAlert).map(
+                      (action, index) => (
+                        <span
+                          key={`${action}-${index}`}
+                          className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700"
+                        >
+                          {action}
+                        </span>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -948,10 +1202,13 @@ function PostAlert() {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Photos
                   </p>
+
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {getAlertPhotos(viewingAlert).map((photo, index) => {
                       const source = getPhotoSource(photo);
+
                       if (!source) return null;
+
                       return (
                         <div
                           key={photo?.id ?? `${source}-${index}`}

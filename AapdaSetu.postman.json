@@ -66,7 +66,7 @@
                                 },
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\r\n  \"email\": \"braun.doe@example.com\",\r\n  \"password\": \"password\"\r\n}",
+                                    "raw": "{\r\n  \"email\": \"prasenjit@gmail.com\",\r\n  \"password\": \"password\"\r\n}",
                                     "options": {
                                         "raw": {
                                             "language": "json"
@@ -148,7 +148,7 @@
                                 },
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\r\n  \"email\": \"shaun.doe@example.com\",\r\n  \"password\": \"password\"\r\n}",
+                                    "raw": "{\r\n  \"email\": \"puja@gmail.com\",\r\n  \"password\": \"password\"\r\n}",
                                     "options": {
                                         "raw": {
                                             "language": "json"
@@ -157,26 +157,10 @@
                                 }
                             },
                             "cookie": [],
-                            "status": "OK",
-                            "code": 200,
+                            "status": "Forbidden",
+                            "code": 403,
                             "_postman_previewlanguage": "json",
                             "header": [
-                                {
-                                    "key": "date",
-                                    "value": "Tue, 01 Sep 2026 12:41:49 GMT"
-                                },
-                                {
-                                    "key": "server",
-                                    "value": "Apache/2.4.58 (Win64) OpenSSL/3.1.3 PHP/8.1.25"
-                                },
-                                {
-                                    "key": "x-powered-by",
-                                    "value": "PHP/8.1.25"
-                                },
-                                {
-                                    "key": "access-control-allow-origin",
-                                    "value": "http://localhost:5173"
-                                },
                                 {
                                     "key": "access-control-allow-credentials",
                                     "value": "true"
@@ -190,23 +174,39 @@
                                     "value": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
                                 },
                                 {
-                                    "key": "content-length",
-                                    "value": "374"
-                                },
-                                {
-                                    "key": "keep-alive",
-                                    "value": "timeout=5, max=100"
+                                    "key": "access-control-allow-origin",
+                                    "value": "*"
                                 },
                                 {
                                     "key": "connection",
                                     "value": "Keep-Alive"
                                 },
                                 {
+                                    "key": "content-length",
+                                    "value": "66"
+                                },
+                                {
                                     "key": "content-type",
                                     "value": "application/json;charset=utf-8"
+                                },
+                                {
+                                    "key": "date",
+                                    "value": "Thu, 12 Nov 2026 12:19:14 GMT"
+                                },
+                                {
+                                    "key": "keep-alive",
+                                    "value": "timeout=5, max=100"
+                                },
+                                {
+                                    "key": "server",
+                                    "value": "Apache/2.4.58 (Win64) OpenSSL/3.1.3 PHP/8.2.12"
+                                },
+                                {
+                                    "key": "x-powered-by",
+                                    "value": "PHP/8.2.12"
                                 }
                             ],
-                            "body": "{\n  \"success\": true,\n  \"message\": \"Login Successful\",\n  \"data\": {\n    \"token\": \"\",\n    \"user\": {\n      \"id\": 5,\n      \"name\": \"Shaun Doe\",\n      \"email\": \"shaun.doe@example.com\",\n      \"role\": \"subdivision\",\n      \"region_id\": 2\n    }\n  }\n}"
+                            "body": "{\"success\":false,\"message\":\"User account is inactive\",\"data\":null}"
                         },
                         {
                             "name": "user_login(district_user)",
@@ -230,7 +230,7 @@
                                 },
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\r\n  \"email\": \"deepak@gmail.com\",\r\n  \"password\": \"password\"\r\n}",
+                                    "raw": "{\r\n  \"email\": \"rahul@gmail.com\",\r\n  \"password\": \"password\"\r\n}",
                                     "options": {
                                         "raw": {
                                             "language": "json"
@@ -453,6 +453,88 @@
                                 }
                             ],
                             "body": "{\n  \"success\": true,\n  \"message\": \"Login Successful\",\n  \"data\": {\n    \"token\": \"\",\n    \"user\": {\n      \"id\": 2,\n      \"name\": \"Admin\",\n      \"email\": \"admin@example.com\",\n      \"role\": \"admin\"\n    }\n  }\n}"
+                        },
+                        {
+                            "name": "user_login(volunteer_user)",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{baseUrl}}/AapdaSetu/backend/api/auth/login.php",
+                                    "path": [
+                                        "AapdaSetu",
+                                        "backend",
+                                        "api",
+                                        "auth",
+                                        "login.php"
+                                    ],
+                                    "host": [
+                                        "{{baseUrl}}"
+                                    ],
+                                    "query": [],
+                                    "variable": []
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\r\n  \"email\": \"saurabh@gmail.com\",\r\n  \"password\": \"12345678\"\r\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "cookie": [],
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "access-control-allow-credentials",
+                                    "value": "true"
+                                },
+                                {
+                                    "key": "access-control-allow-headers",
+                                    "value": "Content-Type, Authorization"
+                                },
+                                {
+                                    "key": "access-control-allow-methods",
+                                    "value": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+                                },
+                                {
+                                    "key": "access-control-allow-origin",
+                                    "value": "*"
+                                },
+                                {
+                                    "key": "connection",
+                                    "value": "Keep-Alive"
+                                },
+                                {
+                                    "key": "content-length",
+                                    "value": "400"
+                                },
+                                {
+                                    "key": "content-type",
+                                    "value": "application/json;charset=utf-8"
+                                },
+                                {
+                                    "key": "date",
+                                    "value": "Sat, 14 Nov 2026 07:10:37 GMT"
+                                },
+                                {
+                                    "key": "keep-alive",
+                                    "value": "timeout=5, max=100"
+                                },
+                                {
+                                    "key": "server",
+                                    "value": "Apache/2.4.58 (Win64) OpenSSL/3.1.3 PHP/8.2.12"
+                                },
+                                {
+                                    "key": "x-powered-by",
+                                    "value": "PHP/8.2.12"
+                                }
+                            ],
+                            "body": "{\"success\":true,\"message\":\"Login Successful\",\"data\":{\"token\":\"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzk0NjQwMjM3LCJleHAiOjE3OTQ2NDM4MzcsInN1YiI6NjgsInJvbGUiOm51bGwsInVzZXJfdHlwZSI6InZvbHVudGVlciJ9.SpPBZ57CLT7A5EbxY9csiBwAxSUpeVM8uY6sM8SOjEU\",\"user\":{\"id\":68,\"name\":\"Saurabh Saha\",\"email\":\"saurabh@gmail.com\",\"role\":null,\"user_type\":\"volunteer\",\"linked_id\":35}}}"
                         }
                     ],
                     "protocolProfileBehavior": {
@@ -2122,6 +2204,47 @@
             "description": "",
             "item": [
                 {
+                    "name": "task-summary",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzk0NjM1NjYyLCJleHAiOjE3OTQ2MzkyNjIsInN1YiI6NjgsInJvbGUiOm51bGwsInVzZXJfdHlwZSI6InZvbHVudGVlciJ9.fH0Mjt1nS8KZl4477C_Li_5ilICAjEZZKWWdn7PYby8",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "body": {},
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/incidents/task-summary.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "incidents",
+                                "task-summary.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
                     "name": "create_incident",
                     "description": "",
                     "event": [],
@@ -3154,7 +3277,7 @@
                             "bearer": [
                                 {
                                     "key": "token",
-                                    "value": "",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzkzNzEyOTI0LCJleHAiOjE3OTM3MTY1MjQsInN1YiI6NDksInJvbGUiOiJkaXN0cmljdCIsInVzZXJfdHlwZSI6InN0YWZmIn0.wsaCw_luMdlFCr5w3wrU3HpJ71gUX0x4UwtznS4GTLQ",
                                     "type": "string"
                                 }
                             ]
@@ -3307,6 +3430,138 @@
             "name": "Tasks",
             "description": "",
             "item": [
+                {
+                    "name": "submit-completion",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {},
+                        "method": "POST",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "task_id",
+                                    "value": "5",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "report",
+                                    "value": "Work completion description",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "media[]",
+                                    "type": "file",
+                                    "disabled": false
+                                }
+                            ]
+                        },
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/tasks/submit-completion.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "tasks",
+                                "submit-completion.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
+                    "name": "review-completion",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {},
+                        "method": "PATCH",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\r\n    \"submission_id\": 1,\r\n    \"action\": \"approve\"\r\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/tasks/review-completion.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "tasks",
+                                "review-completion.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
+                    "name": "completion-list",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {},
+                        "method": "GET",
+                        "body": {},
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/tasks/completion-list.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "tasks",
+                                "completion-list.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "pending",
+                                    "description": "",
+                                    "type": "string"
+                                }
+                            ],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
                 {
                     "name": "create",
                     "description": "",
@@ -4389,7 +4644,7 @@
                             "bearer": [
                                 {
                                     "key": "token",
-                                    "value": "",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzkzNjA0NDMyLCJleHAiOjE3OTM2MDgwMzIsInN1YiI6NDksInJvbGUiOiJkaXN0cmljdCIsInVzZXJfdHlwZSI6InN0YWZmIn0.-QCV7zsO3JUEzIjFeV3tTkVZDXTy2oVWoE1iem3fCT0",
                                     "type": "string"
                                 }
                             ]
@@ -4412,7 +4667,7 @@
                             "query": [
                                 {
                                     "key": "id",
-                                    "value": "1",
+                                    "value": "2",
                                     "description": "",
                                     "type": "string"
                                 }
@@ -4531,7 +4786,7 @@
                         "method": "PATCH",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\r\n  \"name\": \"West Bengal Relief Foundation\",\r\n  \"ngo_type\": \"private\",\r\n  \"contact_person\": \"Rahul Sharma\",\r\n  \"phone\": \"9876543210\",\r\n  \"emergency_no\": \"9123456780\",\r\n  \"email\": \"contact@wbrf.org\",\r\n  \"organization_registration_no\": \"WB-NGO-2026-001\",\r\n  \"house_no\": \"15B\",\r\n  \"address_line1\": \"Park Street\",\r\n  \"address_line2\": \"Near Metro Station\",\r\n  \"police_station\": \"Park Street\",\r\n  \"pin_code\": \"700016\"\r\n}",
+                            "raw": "{\r\n  \"name\": \"West Bengal Relief Foundation\",\r\n  \"ngo_type\": \"private\",\r\n  \"contact_person\": \"Rahul Sharma\",\r\n  \"phone\": \"9876543210\",\r\n  \"emergency_no\": \"9123456780\",\r\n  \"email\": \"contact@wbrf.org\",\r\n  \"organization_registration_no\": \"WB-NGO-2026-001\",\r\n  \"house_no\": \"15-C\",\r\n  \"address_line1\": \"Park Street\",\r\n  \"address_line2\": \"Near Metro Station\",\r\n  \"police_station\": \"Park Street\",\r\n  \"pin_code\": \"700016\"\r\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -4673,7 +4928,7 @@
                             "bearer": [
                                 {
                                     "key": "token",
-                                    "value": "",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzkzNjA0NDMyLCJleHAiOjE3OTM2MDgwMzIsInN1YiI6NDksInJvbGUiOiJkaXN0cmljdCIsInVzZXJfdHlwZSI6InN0YWZmIn0.-QCV7zsO3JUEzIjFeV3tTkVZDXTy2oVWoE1iem3fCT0",
                                     "type": "string"
                                 }
                             ]
@@ -6811,7 +7066,7 @@
                                 },
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\r\n  \"title\": \"Flood\",\r\n  \"description\": \"Rising water levels and flooding are expected in vulnerable areas. Authorities are directed to remain vigilant and ensure immediate preparedness.\",\r\n  \"instruction\": \"Monitor water levels closely, keep emergency teams ready, and take prompt action to protect lives and property.\"\r\n}",
+                                    "raw": "{\r\n  \"district_id\": null,\r\n  \"title\": \"Flood\",\r\n  \"description\": \"Rising water levels and flooding are expected in vulnerable areas. Authorities are directed to remain vigilant and ensure immediate preparedness.\",\r\n  \"instruction\": \"Monitor water levels closely, keep emergency teams ready, and take prompt action to protect lives and property.\"\r\n}",
                                     "options": {
                                         "raw": {
                                             "language": "json"
@@ -11028,6 +11283,55 @@
             "description": "",
             "item": [
                 {
+                    "name": "mark-read",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzk0ODIxNjkwLCJleHAiOjE3OTQ4MjUyOTAsInN1YiI6NSwicm9sZSI6ImJsb2NrIiwidXNlcl90eXBlIjoic3RhZmYifQ.bReT2VaE6-yEdZuBPjgG1BcHaQuwEw83N8QyfOKoKEw",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\r\n  \"notification_type\": \"pre_alert\",\r\n  \"notification_id\": 12\r\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/notification/mark-read.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "notification",
+                                "mark-read.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
                     "name": "inventory_expiry",
                     "description": "",
                     "event": [],
@@ -11104,7 +11408,7 @@
                             "bearer": [
                                 {
                                     "key": "token",
-                                    "value": "",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzk0NDg1OTkxLCJleHAiOjE3OTQ0ODk1OTEsInN1YiI6NDAsInJvbGUiOiJzdWJkaXZpc2lvbiIsInVzZXJfdHlwZSI6InN0YWZmIn0.75ah9bi9GIq2uveQrwIu3DTrnrKLh2aVDWNqsP_AqLk",
                                     "type": "string"
                                 }
                             ]
@@ -11261,6 +11565,11 @@
                         "body": {
                             "mode": "formdata",
                             "formdata": [
+                                {
+                                    "key": "district_id",
+                                    "type": "text",
+                                    "disabled": false
+                                },
                                 {
                                     "key": "title",
                                     "type": "text",
@@ -14399,8 +14708,14 @@
                         "body": {},
                         "header": [],
                         "url": {
-                            "raw": "{{baseUrl}}/",
-                            "path": [],
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/sos/delete.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "sos",
+                                "delete.php"
+                            ],
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -14415,8 +14730,14 @@
                                 "method": "GET",
                                 "header": [],
                                 "url": {
-                                    "raw": "{{baseUrl}}/",
-                                    "path": [],
+                                    "raw": "{{baseUrl}}/AapdaSetu/backend/api/sos/delete.php",
+                                    "path": [
+                                        "AapdaSetu",
+                                        "backend",
+                                        "api",
+                                        "sos",
+                                        "delete.php"
+                                    ],
                                     "host": [
                                         "{{baseUrl}}"
                                     ],
@@ -14459,7 +14780,7 @@
             "description": "",
             "item": [
                 {
-                    "name": "New Request",
+                    "name": "collect",
                     "description": "",
                     "event": [],
                     "auth": {},
@@ -14529,6 +14850,347 @@
                             "cookie": []
                         }
                     ],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                }
+            ],
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "exec": [],
+                        "type": "text/javascript",
+                        "packages": {}
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [],
+                        "type": "text/javascript",
+                        "packages": {}
+                    }
+                }
+            ],
+            "auth": {}
+        },
+        {
+            "name": "Incident_reports",
+            "description": "",
+            "item": [
+                {
+                    "name": "create",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzk0NTUyMTYwLCJleHAiOjE3OTQ1NTU3NjAsInN1YiI6NjgsInJvbGUiOm51bGwsInVzZXJfdHlwZSI6InZvbHVudGVlciJ9.Vdil-JmD2TCwAYNDwXMCCX2AOOyG2QhDQ5ZgUYBmg_Q",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "title",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "incident_type",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "description",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "severity",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "latitude",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "longitude",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "district_id",
+                                    "type": "text",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "media[]",
+                                    "type": "text",
+                                    "disabled": false
+                                }
+                            ]
+                        },
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/incident-reports/create.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "incident-reports",
+                                "create.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
+                    "name": "list",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzk0NjQwMjM3LCJleHAiOjE3OTQ2NDM4MzcsInN1YiI6NjgsInJvbGUiOm51bGwsInVzZXJfdHlwZSI6InZvbHVudGVlciJ9.SpPBZ57CLT7A5EbxY9csiBwAxSUpeVM8uY6sM8SOjEU",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "body": {},
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/incident-reports/list.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "incident-reports",
+                                "list.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "pending",
+                                    "description": "status",
+                                    "type": "string"
+                                }
+                            ],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
+                    "name": "get",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzk0NjM2MDkwLCJleHAiOjE3OTQ2Mzk2OTAsInN1YiI6MSwicm9sZSI6InN1cGVyX2FkbWluIiwidXNlcl90eXBlIjoic3RhZmYifQ.Kp8ZxHR3ekz71kZl_dGjt6dgQdybJnLf4O6FMo17IKA",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "body": {},
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/incident-reports/get.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "incident-reports",
+                                "get.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "id",
+                                    "value": "1",
+                                    "description": "",
+                                    "type": "string"
+                                }
+                            ],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
+                    "name": "review",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {},
+                        "method": "POST",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\r\n  \"report_id\": 12,\r\n  \"action\": \"linked_existing\",\r\n  \"incident_id\": 18,\r\n  \"remarks\": \"This report relates to the existing flood incident.\"\r\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/incident-reports/review.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "incident-reports",
+                                "review.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
+                    "name": "update",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhYXBkYXNldHUtYXBpIiwiaWF0IjoxNzk0NjQwMjM3LCJleHAiOjE3OTQ2NDM4MzcsInN1YiI6NjgsInJvbGUiOm51bGwsInVzZXJfdHlwZSI6InZvbHVudGVlciJ9.SpPBZ57CLT7A5EbxY9csiBwAxSUpeVM8uY6sM8SOjEU",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "PATCH",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\r\n  \"title\": \"Flood situation reported near river bank\",\r\n  \"incident_type\": \"flood\"\r\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/incident-reports/update.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "incident-reports",
+                                "update.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "id",
+                                    "value": "2",
+                                    "description": "",
+                                    "type": "string"
+                                }
+                            ],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "strictSSL": false,
+                        "followRedirects": true
+                    }
+                },
+                {
+                    "name": "media",
+                    "description": "",
+                    "event": [],
+                    "auth": {},
+                    "request": {
+                        "auth": {},
+                        "method": "GET",
+                        "body": {},
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/AapdaSetu/backend/api/incident-reports/media.php",
+                            "path": [
+                                "AapdaSetu",
+                                "backend",
+                                "api",
+                                "incident-reports",
+                                "media.php"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "id",
+                                    "value": "5",
+                                    "description": "",
+                                    "type": "string"
+                                }
+                            ],
+                            "variable": []
+                        }
+                    },
+                    "response": [],
                     "protocolProfileBehavior": {
                         "strictSSL": false,
                         "followRedirects": true

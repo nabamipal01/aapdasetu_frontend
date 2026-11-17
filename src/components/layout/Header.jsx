@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Menu,
   Bell,
@@ -8,6 +8,7 @@ import {
   PanelLeftOpen,
   Siren,
   GraduationCap,
+  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../../config/Config";
@@ -21,7 +22,7 @@ import {
   clearTrainingNotification,
   clearTrainingNotifications,
 } from "../../utils/trainingNotifications";
-import { listNotifications, markNotificationRead } from "../../services/notificationService";
+import { listNotifications, markNotificationRead, deleteNotification } from "../../services/notificationService";
 
 function Header({
   setMobileOpen,
@@ -38,7 +39,9 @@ function Header({
   // Backend-driven alert notifications
   const [alertNotifs, setAlertNotifs] = useState([]);
   const [alertUnreadCount, setAlertUnreadCount] = useState(0);
+  const [alertTotalCount, setAlertTotalCount] = useState(0);
   const [alertNotifOpen, setAlertNotifOpen] = useState(false);
+  const [notifFilter, setNotifFilter] = useState("all"); // "all" | "unread"
   const alertNotifRef = useRef(null);
 
   // Training bell dropdown
@@ -48,21 +51,52 @@ function Header({
   const userMenuRef = useRef(null);
   const navigate = useNavigate();
 
-  // Fetch backend notifications on mount and when user changes
+  // Fetch backend notifications on mount and when user changes.
+  // Also poll every 60 seconds to pick up new notifications automatically.
+  const fetchAlertNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      // Fetch first page with a large limit to cover most cases in one call.
+      // If the server still has more pages, fetch them all and merge.
+      const LIMIT = 50;
+      const first = await listNotifications(1, LIMIT);
+      if (!first?.success || !first?.data) return;
+
+      let all = [...(first.data.notifications ?? [])];
+      const pagination = first.data.pagination ?? {};
+      const totalPages = pagination.total_pages ?? 1;
+
+      // Fetch any remaining pages in parallel
+      if (totalPages > 1) {
+        const pageNums = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+        const rest = await Promise.allSettled(
+          pageNums.map((p) => listNotifications(p, LIMIT))
+        );
+        rest.forEach((result) => {
+          if (result.status === "fulfilled" && result.value?.data?.notifications) {
+            all = [...all, ...result.value.data.notifications];
+          }
+        });
+      }
+
+      setAlertNotifs(all);
+      setAlertUnreadCount(first.data.unread_count ?? 0);
+      setAlertTotalCount(pagination.total_items ?? all.length);
+    } catch (err) {
+      console.error('Failed to load notifications', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchAlertNotifications();
+  }, [fetchAlertNotifications]);
+
+  // Poll every 60 s so the badge reflects new incoming notifications
   useEffect(() => {
     if (!user) return;
-    let cancelled = false;
-    listNotifications(1, 20)
-      .then((res) => {
-        if (cancelled) return;
-        if (res?.success && res?.data) {
-          setAlertNotifs(res.data.notifications ?? []);
-          setAlertUnreadCount(res.data.unread_count ?? 0);
-        }
-      })
-      .catch((err) => console.error('Failed to load notifications', err));
-    return () => { cancelled = true; };
-  }, [user]);
+    const interval = setInterval(fetchAlertNotifications, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchAlertNotifications, user]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -123,38 +157,79 @@ function Header({
     setTrainingNotifications(getTrainingNotifications());
   }, [user]);
 
-  const handleAlertNotifClick = async (notif) => {
-    setAlertNotifOpen(false);
-    if (!notif.is_read) {
-      try {
-        await markNotificationRead(notif.notification_type, notif.notification_id);
-      } catch (err) {
-        console.error('Failed to mark notification read', err);
-      }
+
+const handleAlertNotifClick = async (notif) => {
+  setAlertNotifOpen(false);
+
+  if (!notif.is_read) {
+    try {
+      await markNotificationRead(
+        notif.notification_type,
+        notif.notification_id
+      );
+
+      // Mark only the selected notification as read.
       setAlertNotifs((prev) =>
         prev.map((n) =>
-          n.notification_id === notif.notification_id && n.notification_type === notif.notification_type
+          n.notification_type === notif.notification_type &&
+          n.notification_id === notif.notification_id
             ? { ...n, is_read: true }
             : n
         )
       );
-      setAlertUnreadCount((c) => Math.max(0, c - 1));
+
+      // Refresh the authoritative unread count from the backend.
+      await fetchAlertNotifications();
+    } catch (err) {
+      console.error("Failed to mark notification read", err);
     }
-    const dest = notif.notification_type === 'post_alert' ? '/alerts/post-alerts' : '/alerts/pre-alerts';
-    navigate(dest);
-  };
+  }
+
+  const dest =
+    notif.notification_type === "post_alert"
+      ? "/alerts/post-alerts"
+      : "/alerts/pre-alerts";
+
+  navigate(dest);
+};
+
 
   const handleMarkAllRead = async () => {
     const unread = alertNotifs.filter((n) => !n.is_read);
-    for (const notif of unread) {
-      try {
-        await markNotificationRead(notif.notification_type, notif.notification_id);
-      } catch (err) {
-        console.error('Failed to mark notification read', err);
-      }
+    await Promise.allSettled(
+      unread.map((n) =>
+        markNotificationRead(n.notification_type, n.notification_id)
+      )
+    );
+    // Refresh from server so count and list are both authoritative
+    fetchAlertNotifications();
+  };
+
+  // Dismiss (delete) a single notification from the bell list
+  const handleDismissNotification = async (e, notif) => {
+    e.stopPropagation(); // don't trigger the row click / navigate
+    // Optimistically remove from list immediately for snappy UX
+    setAlertNotifs((prev) =>
+      prev.filter(
+        (n) =>
+          !(
+            n.notification_id === notif.notification_id &&
+            n.notification_type === notif.notification_type
+          )
+      )
+    );
+    if (!notif.is_read) {
+      setAlertUnreadCount((c) => Math.max(0, c - 1));
     }
-    setAlertNotifs((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    setAlertUnreadCount(0);
+    try {
+      await deleteNotification(notif.notification_type, notif.notification_id);
+      // Re-fetch to sync server count
+      fetchAlertNotifications();
+    } catch (err) {
+      console.error('Failed to dismiss notification', err);
+      // Restore on failure
+      fetchAlertNotifications();
+    }
   };
 
   const openTrainingNotification = (notification) => {
@@ -326,96 +401,163 @@ function Header({
             className="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
           >
             <Bell size={20} />
-            {alertUnreadCount > 0 && (
+           {alertUnreadCount > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-                {alertUnreadCount > 99 ? '99+' : alertUnreadCount}
+                {alertUnreadCount > 99 ? "99+" : alertUnreadCount}
               </span>
+
             )}
           </button>
 
           {alertNotifOpen && (
             <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Notifications</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {alertUnreadCount
-                      ? `${alertUnreadCount} unread notification${
-                          alertUnreadCount === 1 ? '' : 's'
-                        }`
-                      : 'You are all caught up'}
-                  </p>
+              <div className="border-b border-slate-100 px-4 pt-3 pb-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">Notifications</h2>
+                  </div>
+                  {alertUnreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllRead}
+                      className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+                    >
+                      Mark all read
+                    </button>
+                  )}
                 </div>
-                {alertUnreadCount > 0 && (
+
+                {/* Filter tabs */}
+                <div className="mt-2 flex gap-1">
                   <button
                     type="button"
-                    onClick={handleMarkAllRead}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
+                    onClick={() => setNotifFilter("all")}
+                    className={`flex items-center gap-1.5 rounded-t-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      notifFilter === "all"
+                        ? "border-b-2 border-red-500 text-red-600"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
                   >
-                    Mark all read
+                    All
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      notifFilter === "all"
+                        ? "bg-red-100 text-red-600"
+                        : "bg-slate-100 text-slate-500"
+                    }`}>
+                      {alertTotalCount > 99 ? "99+" : alertTotalCount}
+                    </span>
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => setNotifFilter("unread")}
+                    className={`flex items-center gap-1.5 rounded-t-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      notifFilter === "unread"
+                        ? "border-b-2 border-red-500 text-red-600"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Unread
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      notifFilter === "unread"
+                        ? "bg-red-100 text-red-600"
+                        : alertUnreadCount > 0
+                          ? "bg-red-100 text-red-600"
+                          : "bg-slate-100 text-slate-500"
+                    }`}>
+                      {alertUnreadCount > 99 ? "99+" : alertUnreadCount}
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {/* List */}
               <div className="max-h-96 overflow-y-auto">
-                {alertNotifs.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-slate-500">
-                    No notifications yet.
-                  </p>
-                ) : (
-                  alertNotifs.map((notif) => (
-                    <button
+                {(() => {
+                  const visible =
+                    notifFilter === "unread"
+                      ? alertNotifs.filter((n) => !n.is_read)
+                      : alertNotifs;
+
+                  if (visible.length === 0) {
+                    return (
+                      <p className="px-4 py-8 text-center text-sm text-slate-500">
+                        {notifFilter === "unread"
+                          ? "No unread notifications."
+                          : "No notifications yet."}
+                      </p>
+                    );
+                  }
+
+                  return visible.map((notif) => (
+                    <div
                       key={`${notif.notification_type}-${notif.notification_id}`}
-                      type="button"
-                      onClick={() => handleAlertNotifClick(notif)}
-                      className={`flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 ${
-                        notif.is_read ? 'bg-white' : 'bg-red-50/50'
+                      className={`flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 transition hover:bg-slate-50 ${
+                        notif.is_read ? "bg-white" : "bg-red-50/50"
                       }`}
                     >
-                      {!notif.is_read && (
-                        <span
-                          aria-label="Unread"
-                          className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-600"
-                        />
-                      )}
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center justify-between gap-2">
+                      {/* Clickable area — navigate to alert page */}
+                      <button
+                        type="button"
+                        onClick={() => handleAlertNotifClick(notif)}
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                      >
+                        {!notif.is_read && (
                           <span
-                            className={`truncate text-[10px] font-bold uppercase tracking-wide ${
-                              notif.notification_type === 'post_alert'
-                                ? 'text-red-600'
-                                : 'text-orange-600'
+                            aria-label="Unread"
+                            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-600"
+                          />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span
+                              className={`truncate text-[10px] font-bold uppercase tracking-wide ${
+                                notif.notification_type === "post_alert"
+                                  ? "text-red-600"
+                                  : "text-orange-600"
+                              }`}
+                            >
+                              {notif.notification_type === "post_alert"
+                                ? "Post Alert"
+                                : "Pre Alert"}
+                            </span>
+                            <time className="shrink-0 text-[10px] text-slate-400">
+                              {new Date(notif.created_at).toLocaleString()}
+                            </time>
+                          </span>
+                          <span
+                            className={`mt-1 block text-sm font-semibold ${
+                              notif.is_read ? "text-slate-600" : "text-slate-900"
                             }`}
                           >
-                            {notif.notification_type === 'post_alert' ? 'Post Alert' : 'Pre Alert'}
+                            {notif.title}
                           </span>
-                          <time className="shrink-0 text-[10px] text-slate-400">
-                            {new Date(notif.created_at).toLocaleString()}
-                          </time>
+                          {notif.message && (
+                            <span className="mt-0.5 block line-clamp-2 text-xs leading-5 text-slate-600">
+                              {notif.message}
+                            </span>
+                          )}
+                          {notif.location && (
+                            <span className="mt-0.5 block text-xs text-slate-400">
+                              {notif.location}
+                            </span>
+                          )}
                         </span>
-                        <span
-                          className={`mt-1 block text-sm font-semibold ${
-                            notif.is_read ? 'text-slate-600' : 'text-slate-900'
-                          }`}
-                        >
-                          {notif.title}
-                        </span>
-                        {notif.message && (
-                          <span className="mt-0.5 block line-clamp-2 text-xs leading-5 text-slate-600">
-                            {notif.message}
-                          </span>
-                        )}
-                        {notif.location && (
-                          <span className="mt-0.5 block text-xs text-slate-400">
-                            {notif.location}
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                  ))
-                )}
+                      </button>
+
+                      {/* Dismiss button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDismissNotification(e, notif)}
+                        title="Dismiss notification"
+                        aria-label="Dismiss notification"
+                        className="mt-0.5 shrink-0 rounded p-1 text-slate-300 transition hover:bg-red-50 hover:text-red-500"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           )}

@@ -1027,7 +1027,7 @@ const getDistrictName = (agency) => {
                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-3 font-semibold">Name</th>
-                    <th className="px-5 py-3 font-semibold">Type</th>
+                    {/* <th className="px-5 py-3 font-semibold">Type</th> */}
                     <th className="px-5 py-3 font-semibold">District</th>
                     <th className="px-5 py-3 font-semibold">Contact Person</th>
                     <th className="px-5 py-3 font-semibold">Phone</th>
@@ -1058,9 +1058,9 @@ const getDistrictName = (agency) => {
                         )}
                       </td>
 
-                      <td className="px-5 py-3 capitalize text-slate-600">
+                      {/* <td className="px-5 py-3 capitalize text-slate-600">
                         {agency.type || "—"}
-                      </td>
+                      </td> */}
                       <td className="whitespace-nowrap px-5 py-3 text-slate-600">
                         {getDistrictName(agency)}
                       </td>

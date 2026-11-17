@@ -140,7 +140,7 @@ function ReturnHistory() {
     "Before Return": item.quantity_before ?? "—",
     "Source Location": item.source_location ?? "—",
     "Destination Location": item.destination_location ?? "—",
-    "District User": item.district_user_name ?? "—",
+    // "District User": item.district_user_name ?? "—",
     
     Date: item.created_at
       ? new Date(item.created_at).toLocaleString()
@@ -359,9 +359,9 @@ function ReturnHistory() {
                         ["Qty Returned", "text-right"],
                         ["Source Location", "text-left"],
                         ["Destination Location", "text-left"],
-                        ["District User", "text-left"],
-                        ["Returned By", "text-left"],
-                        ["Date", "text-right"],
+                        // ["District User", "text-left"],
+                        // ["Returned By", "text-left"],
+                        // ["Date", "text-right"],
                       ].map(([label, alignment]) => (
                         <th
                           key={label}
@@ -418,17 +418,6 @@ function ReturnHistory() {
                           </td>
                           <td className="px-5 py-5 text-slate-600">
                             {log.destination_location ?? "—"}
-                          </td>
-                          <td className="px-5 py-5 font-medium text-slate-700">
-                            {log.district_user_name ?? "—"}
-                          </td>
-                          <td className="px-5 py-5 font-medium text-slate-700">
-                            {log.returned_by_name ?? log.returned_by ?? "—"}
-                          </td>
-                          <td className="whitespace-nowrap px-5 py-5 text-right text-xs text-slate-500">
-                            {log.created_at
-                              ? new Date(log.created_at).toLocaleString()
-                              : "—"}
                           </td>
                         </tr>
                       );
@@ -513,30 +502,30 @@ function ReturnHistory() {
                             {log.destination_location || "—"}
                           </p>
                         </div>
-                        <div className="rounded-xl bg-slate-50 p-3">
+                        {/* <div className="rounded-xl bg-slate-50 p-3">
                           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                             District User
                           </p>
                           <p className="mt-1 break-words text-sm font-semibold text-slate-700">
                             {log.district_user_name || "—"}
                           </p>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 p-3">
+                        </div> */}
+                        {/* <div className="rounded-xl bg-slate-50 p-3">
                           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                             Returned By
                           </p>
                           <p className="mt-1 break-words text-sm font-semibold text-slate-700">
                             {log.returned_by_name ?? log.returned_by ?? "—"}
                           </p>
-                        </div>
+                        </div> */}
                       </div>
 
-                      <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                      {/* <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
                         <span className="font-medium text-slate-400">Date</span>
                         {log.created_at
                           ? new Date(log.created_at).toLocaleString()
                           : "—"}
-                      </div>
+                      </div> */}
                     </article>
                   );
                 })}

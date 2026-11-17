@@ -25,6 +25,23 @@ const CARD_COLORS = [
   { border: "border-orange-500",  bg: "bg-orange-50",  text: "text-orange-700",  badge: "bg-orange-100 text-orange-700" },
 ];
 
+const getExpiryDate = (item) => {
+  if (item?.expiry_date) return String(item.expiry_date).slice(0, 10);
+  if (!item?.purchase_date) return "";
+
+  const [year, month, day] = String(item.purchase_date)
+    .slice(0, 10)
+    .split("-")
+    .map(Number);
+  const expiry = new Date(year, month - 1, day + 30);
+
+  return [
+    expiry.getFullYear(),
+    String(expiry.getMonth() + 1).padStart(2, "0"),
+    String(expiry.getDate()).padStart(2, "0"),
+  ].join("-");
+};
+
 function CategoryDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -211,7 +228,8 @@ function CategoryDetail() {
                     const invId = item.id ?? item.inventory_id;
                     const isExpanded = expandedItem === invId;
                     const itemHistory = historyForItem(invId);
-                    const isExpired = item.expiry_date && new Date(item.expiry_date) < new Date();
+                    const expiryDate = getExpiryDate(item);
+                    const isExpired = expiryDate && new Date(expiryDate) < new Date();
 
                     return (
                       <React.Fragment key={invId}>
@@ -222,10 +240,10 @@ function CategoryDetail() {
                           <td className="px-5 py-3 text-right font-semibold text-slate-800">{item.quantity}</td>
                           <td className="px-5 py-3 text-slate-500">{item.purchase_date || "—"}</td>
                           <td className="px-5 py-3">
-                            {item.expiry_date ? (
+                            {expiryDate ? (
                               <span className={`flex items-center gap-1 text-xs font-medium ${isExpired ? "text-red-600" : "text-slate-500"}`}>
                                 {isExpired && <AlertTriangle size={12} />}
-                                {item.expiry_date}
+                                {expiryDate}
                               </span>
                             ) : (
                               <span className="text-slate-400">—</span>

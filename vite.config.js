@@ -20,6 +20,19 @@ export default defineConfig(({ mode }) => {
 
     plugins: [react(), tailwindcss()],
 
+    define: {
+      // xlsx-js-style (and stream-browserify) reference Node.js globals that
+      // don't exist in the browser. Polyfill them at build time.
+      global: 'globalThis',
+    },
+
+    resolve: {
+      alias: {
+        // Map the Node.js `stream` built-in to its browser-compatible polyfill.
+        stream: 'stream-browserify',
+      },
+    },
+
     server: {
 
       host: true,

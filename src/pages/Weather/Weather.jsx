@@ -843,9 +843,8 @@ export default function Weather() {
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-2">
-            <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="font-bold text-slate-900">
+            <div className="relative z-10 flex flex-col gap-4 border-b border-slate-100 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">              <div>
+                <h2 className="mb-1 text-lg font-bold leading-7 text-slate-900">
                   West Bengal Weather Map
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -875,7 +874,7 @@ export default function Weather() {
               </div>
             </div>
 
-            <div className="relative h-[400px] sm:h-[500px]">
+            <div className="relative z-0 h-[400px] sm:h-[500px]">
               <MapContainer
                 center={MAP_CENTER}
                 zoom={MAP_ZOOM}
@@ -1196,7 +1195,7 @@ export default function Weather() {
                     <th className="px-4 py-3 font-semibold">Temperature</th>
                     <th className="px-4 py-3 font-semibold">Rainfall</th>
                     <th className="px-4 py-3 font-semibold">Wind speed</th>
-                    <th className="px-4 py-3 font-semibold">Wind direction</th>
+                    {/* <th className="px-4 py-3 font-semibold">Wind direction</th> */}
                     <th className="px-4 py-3 font-semibold">Cloud cover</th>
                     <th className="px-4 py-3 font-semibold">Rainfall level</th>
                   </tr>
@@ -1236,9 +1235,9 @@ export default function Weather() {
                           {formatNumber(record.wind_speed)} km/h
                         </td>
 
-                        <td className="px-4 py-4 text-slate-700">
+                        {/* <td className="px-4 py-4 text-slate-700">
                           {formatNumber(record.wind_direction, 0)}°
-                        </td>
+                        </td> */}
 
                         <td className="px-4 py-4 text-slate-700">
                           {formatNumber(record.cloud_cover, 0)}%

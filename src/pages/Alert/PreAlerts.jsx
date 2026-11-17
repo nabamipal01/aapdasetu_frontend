@@ -200,12 +200,31 @@ function PreAlert() {
   const handleDelete = async (id, title) => {
     if (!canManage) return;
     if (!window.confirm(`Delete alert "${title}"?`)) return;
+    setError("");
+    setSuccess("");
     try {
       await deleteAlert(id);
       setAlerts((prev) => prev.filter((a) => (a.alert_id ?? a.id) !== id));
+      setSuccess(`Alert "${title}" deleted successfully.`);
     } catch (err) {
-      setError(err.message || "Failed to delete alert");
-    }
+  const msg = err.message || "Failed to delete alert.";
+
+  console.error("Delete pre-alert failed:", {
+    status: err.status,
+    message: err.message,
+    error: err,
+    alertId: id,
+    userRole: user?.role,
+  });
+
+  if (err.status === 403) {
+    setError(
+      "You are not authorized to delete this alert. Please check the backend role permissions."
+    );
+  } else {
+    setError(msg);
+  }
+}
   };
 
   const handleUpdate = async (e) => {
@@ -468,6 +487,13 @@ function PreAlert() {
                         {dated ? (
                           <span className="text-[11px] text-slate-400">{dated}</span>
                         ) : null}
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                          {alert.district_id
+                            ? districts.find(
+                                (d) => String(d.id) === String(alert.district_id)
+                              )?.name || `District #${alert.district_id}`
+                            : "All Districts"}
+                        </span>
                       </div>
                       <h3 className="mt-1.5 line-clamp-2 text-sm font-semibold text-slate-900">
                         {alert.title || "Untitled Alert"}
@@ -617,6 +643,19 @@ function PreAlert() {
                   <X size={18} />
                 </button>
               </div>
+
+              {/* District badge */}
+              <div className="mt-3">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  {viewingAlert.district_id
+                    ? districts.find(
+                        (d) => String(d.id) === String(viewingAlert.district_id)
+                      )?.name || `District #${viewingAlert.district_id}`
+                    : "All Districts"}
+                </span>
+              </div>
+
               <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
                 {viewingAlert.description || "No description provided."}
               </p>

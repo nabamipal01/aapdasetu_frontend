@@ -29,6 +29,7 @@ import {
   BarChart3,
   PackageCheck,
   ClipboardMinus,
+  ScanSearch
 } from "lucide-react";
 
 import {
@@ -171,6 +172,16 @@ const commonMenus = [
     label: "Weather Prediction",
     icon: CloudSun,
     path: "/weather",
+  },
+
+  {
+
+    label: "Disaster Analysis",
+
+    icon: ScanSearch,
+
+    path: "/disaster-analysis",
+
   },
 
   {
@@ -372,10 +383,6 @@ const getOperationalMenus = () => {
   const trainingMenu = commonMenus.find(
     (menu) => menu.label === "Training"
   );
-  const weatherMenu = commonMenus.find(
-    (menu) => menu.label === "Weather Prediction"
-  );
-
   const allowedAlertPaths = [
     "/pre-alerts",
     "/post-alerts",
@@ -394,7 +401,6 @@ const getOperationalMenus = () => {
       allowedAlertPaths.includes(item.path)
     ),
     ...(trainingMenu ? [trainingMenu] : []),
-    ...(weatherMenu ? [weatherMenu] : []),
     sosMenu,
   ];
 };
@@ -426,8 +432,15 @@ export const getMenuForUser = (user) => {
   if (
     menu.label === "Dashboard" &&
     role !== "super_admin" &&
-    role !== "admin" &&
-    role !== "district"
+    role !== "admin"
+  ) {
+    return false;
+  }
+
+  if (
+    menu.label === "Weather Prediction" &&
+    role !== "super_admin" &&
+    role !== "admin"
   ) {
     return false;
   }

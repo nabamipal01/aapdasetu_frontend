@@ -26,6 +26,7 @@ import {
     getCompletionMedia,
     submitCompletion,
     reviewCompletion,
+    getTask,
     createTask,
     updateTask,
     deleteTask,
@@ -338,6 +339,10 @@ export default function Task() {
     const incidentsRef = useRef(incidents);
     const districtsMapRef = useRef(districtsMap);
     const completionFileInputRef = useRef(null);
+
+    const [loadingTaskDetails, setLoadingTaskDetails] = useState(false);
+
+    const [taskDetailsError, setTaskDetailsError] = useState("");
 
     useEffect(() => {
         incidentsRef.current = incidents;
@@ -1188,45 +1193,172 @@ export default function Task() {
     };
 
     const openTaskDetails = async (task) => {
-        setSelectedTask(task);
-        setTaskCompletionFeedback(null);
-        setTaskCompletionFeedbackError("");
-        setLoadingTaskCompletionFeedback(true);
-        try {
-            const response = await listCompletionSubmissions({
-                task_id: task.id,
-                page: 1,
-                per_page: 100,
-            });
-            if (response?.success === false) {
-                throw new Error(
-                    response.message ||
-                        "Could not load completion review information."
-                );
-            }
 
-            const submissions = extractRecords(response, "submissions");
-            const latestSubmission = submissions.reduce((latest, item) => {
-                if (!latest) return item;
-                const itemDate = new Date(
-                    String(item.submitted_at || "").replace(" ", "T")
-                ).getTime();
-                const latestDate = new Date(
-                    String(latest.submitted_at || "").replace(" ", "T")
-                ).getTime();
-                return itemDate > latestDate ? item : latest;
-            }, null);
-            setTaskCompletionFeedback(latestSubmission);
-        } catch (err) {
-            console.error("[Tasks] Task completion feedback fetch error:", err);
-            setTaskCompletionFeedbackError(
-                err?.message ||
-                    "Could not load completion review information."
+    setSelectedTask(task);
+
+ 
+
+    setTaskCompletionFeedback(null);
+
+    setTaskCompletionFeedbackError("");
+
+    setTaskDetailsError("");
+
+ 
+
+    setLoadingTaskDetails(true);
+
+    setLoadingTaskCompletionFeedback(true);
+
+ 
+
+    // 1. Fetch individual task details.
+
+    try {
+
+        const response = await getTask(task.id);
+
+ 
+
+        if (response?.success === false) {
+
+            throw new Error(
+
+                response.message || "Could not load task details."
+
             );
-        } finally {
-            setLoadingTaskCompletionFeedback(false);
+
         }
-    };
+
+ 
+
+        if (!response?.data?.id) {
+
+            throw new Error("Invalid task details received.");
+
+        }
+
+ 
+
+        setSelectedTask((previousTask) => ({
+
+            ...previousTask,
+
+            ...response.data,
+
+        }));
+
+    } catch (err) {
+
+        console.error("[Tasks] Task details error:", err);
+
+ 
+
+        setTaskDetailsError(
+
+            err?.message || "Could not load task details."
+
+        );
+
+    } finally {
+
+        setLoadingTaskDetails(false);
+
+    }
+
+ 
+
+    // 2. Fetch completion submissions and review status.
+
+    try {
+
+        const response = await listCompletionSubmissions({
+
+            task_id: task.id,
+
+            page: 1,
+
+            per_page: 100,
+
+        });
+
+ 
+
+        if (response?.success === false) {
+
+            throw new Error(
+
+                response.message ||
+
+                    "Could not load completion review information."
+
+            );
+
+        }
+
+ 
+
+        const submissions = extractRecords(response, "submissions");
+
+ 
+
+        const latestSubmission = submissions.reduce((latest, item) => {
+
+            if (!latest) return item;
+
+ 
+
+            const itemDate = new Date(
+
+                String(item.submitted_at || "").replace(" ", "T")
+
+            ).getTime();
+
+ 
+
+            const latestDate = new Date(
+
+                String(latest.submitted_at || "").replace(" ", "T")
+
+            ).getTime();
+
+ 
+
+            return itemDate > latestDate ? item : latest;
+
+        }, null);
+
+ 
+
+        setTaskCompletionFeedback(latestSubmission);
+
+    } catch (err) {
+
+        console.error(
+
+            "[Tasks] Completion feedback error:",
+
+            err
+
+        );
+
+ 
+
+        setTaskCompletionFeedbackError(
+
+            err?.message ||
+
+                "Could not load completion review information."
+
+        );
+
+    } finally {
+
+        setLoadingTaskCompletionFeedback(false);
+
+    }
+
+};
 
     const canCancelTask = (task) => {
         if (!task || ["completed", "cancelled"].includes(task.status)) {
@@ -1916,14 +2048,12 @@ export default function Task() {
                                             ) : null}
                                         </p>
                                     </div>
-                                    {isDistrictManager && (
-                                        <div>
-                                            <p className="text-xs text-slate-500">District</p>
-                                            <p className="mt-1 text-sm font-medium text-slate-800">
-                                                {getTaskDistrictName(selectedTask)}
-                                            </p>
-                                        </div>
-                                    )}
+                                    <div>
+                                        <p className="text-xs text-slate-500">District</p>
+                                        <p className="mt-1 text-sm font-medium text-slate-800">
+                                            {getTaskDistrictName(selectedTask) || "—"}
+                                        </p>
+                                    </div>
                                     <div>
                                         <p className="text-xs text-slate-500">Task Type</p>
                                         <p className="mt-1 text-sm font-medium text-slate-800">{formatLabel(selectedTask.task_type || "manual")}</p>

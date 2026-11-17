@@ -17,7 +17,6 @@ import RoleProtectedRoute from "./route/RoleProtectedRoute";
 
 import Login from "./pages/Login/Login";
 import Dashboard from "./pages/Dashboard/Dashboard";
-import DistrictDashboard from "./pages/Dashboard/DistrictDashboard";
 import Emergency from "./components/Emergency/Emergency";
 import DashboardLayout from "./components/layout/DashboardLayout";
 
@@ -65,6 +64,10 @@ import ReturnStock from "./pages/Inventory/ReturnStock/ReturnStock";
 import ReturnHistory from "./pages/Inventory/ReturnHistory/StockReturnHistory";
 import IssueStockHistory from "./pages/Inventory/IssueStockHistory/StockIssueHistory";
 
+import AssessmentList from "./pages/DisasterAnalysis/AssessmentList";
+import CreateAssessment from "./pages/DisasterAnalysis/CreateAssessment";
+import AssessmentDetails from "./pages/DisasterAnalysis/AssessmentDetails";
+
 import {
   getUserRole,
   isOperationalUser,
@@ -94,18 +97,16 @@ const OPERATIONAL_USER_TYPES = [
 function getUserLandingPath(user) {
   const role = getUserRole(user);
 
-  // District users see their dedicated dashboard.
-  if (role === "district") {
-    return "/dashboard";
-  }
-
   // Volunteers and NGO contacts use the operational interface.
   if (isOperationalUser(user)) {
     return "/pre-alerts";
   }
 
-  // Admin, super admin, subdivision and block staff.
-  return "/dashboard";
+  if (role === "super_admin" || role === "admin") {
+    return "/dashboard";
+  }
+
+  return "/pre-alerts";
 }
 
 /* =========================================================
@@ -125,21 +126,6 @@ function LoginRedirect() {
       replace
     />
   );
-}
-
-/* =========================================================
-   ROLE-BASED DASHBOARD
-========================================================= */
-
-function RoleBasedDashboard() {
-  const { user } = useAuth();
-  const role = getUserRole(user);
-
-  if (role === "district") {
-    return <DistrictDashboard />;
-  }
-
-  return <Dashboard />;
 }
 
 /* =========================================================
@@ -324,16 +310,24 @@ function App() {
                 element={
                   <RoleProtectedRoute
                     allowedRoles={GENERAL_ROLES}
-                    fallbackPath="/dashboard"
+                    fallbackPath="/pre-alerts"
                   />
                 }
               >
-                {/* ONE DASHBOARD ROUTE FOR ALL STAFF ROLES */}
-
+                {/* DASHBOARD: SUPER ADMIN AND ADMIN ONLY */}
                 <Route
-                  path="/dashboard"
-                  element={<RoleBasedDashboard />}
-                />
+                  element={
+                    <RoleProtectedRoute
+                      allowedRoles={["super_admin", "admin"]}
+                      fallbackPath="/pre-alerts"
+                    />
+                  }
+                >
+                  <Route
+                    path="/dashboard"
+                    element={<Dashboard />}
+                  />
+                </Route>
 
                 {/* DEPARTMENTS */}
 
@@ -474,6 +468,32 @@ function App() {
                 />
               </Route>
 
+              {/* DISASTER ANALYSIS: SUPER ADMIN AND ADMIN */}
+
+              <Route
+                element={
+                  <RoleProtectedRoute
+                    allowedRoles={["super_admin", "admin"]}
+                    fallbackPath="/dashboard"
+                  />
+                }
+              >
+                <Route
+                  path="/disaster-analysis"
+                  element={<AssessmentList />}
+                />
+
+                <Route
+                  path="/disaster-analysis/create"
+                  element={<CreateAssessment />}
+                />
+
+                <Route
+                  path="/disaster-analysis/:id"
+                  element={<AssessmentDetails />}
+                />
+              </Route>
+
               {/* TRAINING */}
 
               <Route
@@ -496,9 +516,8 @@ function App() {
               <Route
                 element={
                   <RoleProtectedRoute
-                    allowedRoles={GENERAL_ROLES}
-                    allowedUserTypes={OPERATIONAL_USER_TYPES}
-                    fallbackPath="/dashboard"
+                    allowedRoles={["super_admin", "admin"]}
+                    fallbackPath="/pre-alerts"
                   />
                 }
               >
