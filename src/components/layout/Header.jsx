@@ -1,39 +1,18 @@
-
 import { useState, useRef, useEffect } from "react";
 import {
   Menu,
   Bell,
-  Check,
   ChevronDown,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   Siren,
-  Trash2,
+  GraduationCap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../../config/Config";
-import {
-  getPostAlerts,
-  listAlerts,
-  listInventoryItems,
-} from "../../services";
 import { useAuth } from "../../context/AuthContext";
-import {
-  canManageAlerts,
-  isAlertVisibleToUser,
-  isOperationalUser,
-} from "../../utils/roles";
-import {
-  ALERT_NOTIFICATIONS_EVENT,
-  getAlertNotifications,
-  markAlertNotificationRead,
-  markAllAlertNotificationsRead,
-  clearAlertNotification,
-  clearAlertNotifications,
-  addAlertNotification,
-} from "../../utils/alertNotifications";
-
+import { isOperationalUser } from "../../utils/roles";
 import {
   TRAINING_NOTIFICATIONS_EVENT,
   getTrainingNotifications,
@@ -42,8 +21,7 @@ import {
   clearTrainingNotification,
   clearTrainingNotifications,
 } from "../../utils/trainingNotifications";
-
-
+import { listNotifications, markNotificationRead } from "../../services/notificationService";
 
 function Header({
   setMobileOpen,
@@ -53,42 +31,40 @@ function Header({
 }) {
   const { user } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState(
-    getAlertNotifications
-  );
   const [trainingNotifications, setTrainingNotifications] = useState(
     getTrainingNotifications
   );
-  const userMenuRef = useRef(null);
-  const notificationsRef = useRef(null);
-  const navigate = useNavigate();
-  const combinedNotifications = [
-    ...notifications
-      .filter((notification) =>
-        isAlertVisibleToUser(
-          notification.alert ?? { district_id: notification.districtId },
-          user
-        )
-      )
-      .map((notification) => ({
-      ...notification,
-      source: "alert",
-      })),
-    ...trainingNotifications.map((notification) => ({
-      ...notification,
-      source: "training",
-    })),
-  ].sort(
-    (first, second) =>
-      new Date(second.createdAt).getTime() -
-      new Date(first.createdAt).getTime()
-  );
-  const unreadCount = combinedNotifications.filter(
-    (notification) => !notification.read
-  ).length;
 
-  // Close dropdown when clicking outside
+  // Backend-driven alert notifications
+  const [alertNotifs, setAlertNotifs] = useState([]);
+  const [alertUnreadCount, setAlertUnreadCount] = useState(0);
+  const [alertNotifOpen, setAlertNotifOpen] = useState(false);
+  const alertNotifRef = useRef(null);
+
+  // Training bell dropdown
+  const [trainingOpen, setTrainingOpen] = useState(false);
+  const trainingRef = useRef(null);
+
+  const userMenuRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Fetch backend notifications on mount and when user changes
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    listNotifications(1, 20)
+      .then((res) => {
+        if (cancelled) return;
+        if (res?.success && res?.data) {
+          setAlertNotifs(res.data.notifications ?? []);
+          setAlertUnreadCount(res.data.unread_count ?? 0);
+        }
+      })
+      .catch((err) => console.error('Failed to load notifications', err));
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -98,216 +74,24 @@ function Header({
         setUserMenuOpen(false);
       }
       if (
-        notificationsRef.current &&
-        !notificationsRef.current.contains(event.target)
+        alertNotifRef.current &&
+        !alertNotifRef.current.contains(event.target)
       ) {
-        setNotificationsOpen(false);
+        setAlertNotifOpen(false);
+      }
+      if (
+        trainingRef.current &&
+        !trainingRef.current.contains(event.target)
+      ) {
+        setTrainingOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
-
-  useEffect(() => {
-    const syncNotifications = (event) => {
-      setNotifications(
-        Array.isArray(event.detail)
-          ? event.detail
-          : getAlertNotifications()
-      );
-    };
-    const syncFromStorage = (event) => {
-      if (event.key?.startsWith("aapdasetu-alert-notifications")) {
-        setNotifications(getAlertNotifications());
-      }
-    };
-
-    window.addEventListener(
-      ALERT_NOTIFICATIONS_EVENT,
-      syncNotifications
-    );
-    window.addEventListener("storage", syncFromStorage);
-
-    return () => {
-      window.removeEventListener(
-        ALERT_NOTIFICATIONS_EVENT,
-        syncNotifications
-      );
-      window.removeEventListener("storage", syncFromStorage);
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const getAlertItems = (response, label) => {
-      if (response?.success === false) {
-        throw new Error(response.message || `Unable to load ${label}.`);
-      }
-
-      const data = response?.data ?? response;
-      const items = data?.items ?? data?.alerts ?? data?.data ?? data;
-      return Array.isArray(items) ? items : [];
-    };
-
-    const getAllInventoryItems = async () => {
-      const allItems = [];
-      let page = 1;
-      let totalPages = 1;
-
-      do {
-        const response = await listInventoryItems({ page, limit: 100 });
-        const items = getAlertItems(response, "inventory");
-        allItems.push(...items);
-
-        const data = response?.data ?? response;
-        const pagination = data?.pagination;
-        totalPages = Number(pagination?.total_pages) || 1;
-        page += 1;
-      } while (page <= totalPages);
-
-      return allItems;
-    };
-
-    const getDaysUntilExpiry = (expiryDate) => {
-      if (typeof expiryDate !== "string") return null;
-      const [year, month, day] = expiryDate.slice(0, 10).split("-").map(Number);
-      if (!year || !month || !day) return null;
-
-      const expiry = new Date(Date.UTC(year, month - 1, day));
-      if (
-        expiry.getUTCFullYear() !== year ||
-        expiry.getUTCMonth() !== month - 1 ||
-        expiry.getUTCDate() !== day
-      ) {
-        return null;
-      }
-
-      const now = new Date();
-      const today = Date.UTC(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate()
-      );
-      return Math.floor((expiry.getTime() - today) / 86_400_000);
-    };
-
-    const syncPublishedAlerts = async () => {
-      const requests = [
-        listAlerts({ page: 1, limit: 50 }),
-        getPostAlerts(1, 50),
-      ];
-      if (canManageAlerts(user)) {
-        requests.push(getAllInventoryItems());
-      }
-
-      const results = await Promise.allSettled(requests);
-      if (cancelled) return;
-
-      const getItemsFromResult = (result, label) => {
-        if (result.status === "rejected") {
-          console.error(`Unable to sync ${label} notifications.`, result.reason);
-          return [];
-        }
-        try {
-          return getAlertItems(result.value, label);
-        } catch (error) {
-          console.error(`Unable to sync ${label} notifications.`, error);
-          return [];
-        }
-      };
-
-      const preAlerts = getItemsFromResult(results[0], "pre-alerts");
-      const postAlerts = getItemsFromResult(results[1], "post alerts");
-
-      preAlerts
-          .filter((alert) => isAlertVisibleToUser(alert, user))
-          .forEach((alert) => {
-            const alertId = alert.alert_id ?? alert.id;
-            if (alertId == null) return;
-
-            addAlertNotification({
-              type: "Pre-alert",
-              title: alert.title || "New Pre-alert",
-              description: alert.description || "",
-              path: "/pre-alerts",
-              alert,
-              alertId,
-              districtId: alert.district_id ?? alert.districtId,
-              createdAt: alert.created_at ?? alert.createdAt,
-            });
-          });
-
-      postAlerts
-          .filter((alert) => isAlertVisibleToUser(alert, user))
-          .forEach((alert) => {
-            const alertId = alert.post_alert_id ?? alert.id;
-            if (alertId == null) return;
-
-            addAlertNotification({
-              type: "Post alert",
-              title: alert.title || "New Post alert",
-              description: [
-                alert.location,
-                alert.current_situation_summary,
-              ]
-                .filter(Boolean)
-                .join(" · "),
-              path: "/post-alerts",
-              alert,
-              alertId,
-              districtId: alert.district_id ?? alert.districtId,
-              createdAt: alert.created_at ?? alert.createdAt,
-            });
-          });
-
-      if (canManageAlerts(user) && results[2]) {
-        const inventoryItems = getItemsFromResult(results[2], "inventory");
-        inventoryItems.forEach((item) => {
-          const expiryDate = item.expiry_date?.slice(0, 10);
-          const daysUntilExpiry = getDaysUntilExpiry(expiryDate);
-          const itemId = item.inventory_id ?? item.id;
-          if (
-            itemId == null ||
-            daysUntilExpiry == null ||
-            daysUntilExpiry < 0 ||
-            daysUntilExpiry > 30
-          ) {
-            return;
-          }
-
-          addAlertNotification({
-            type: "Inventory expiry",
-            title: `${item.product_name || "Inventory item"} expiring soon`,
-            description: `${daysUntilExpiry === 0 ? "Expires today" : `Expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"}`} (${expiryDate}).`,
-            path: "/inventory/overview",
-            alert: item,
-            alertId: `${itemId}:${expiryDate}`,
-            createdAt: new Date().toISOString(),
-          });
-        });
-      }
-    };
-
-    syncPublishedAlerts();
-    const intervalId = window.setInterval(syncPublishedAlerts, 60_000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [user]);
-
-  // Re-read notification stores when the logged-in user changes so that
-  // per-user read status persisted in localStorage is restored on login.
-  useEffect(() => {
-    setNotifications(getAlertNotifications());
-    setTrainingNotifications(getTrainingNotifications());
-  }, [user]);
 
   // Sync training notifications from custom event / storage
   useEffect(() => {
@@ -332,6 +116,53 @@ function Header({
       window.removeEventListener("storage", syncTrainingFromStorage);
     };
   }, []);
+
+  // Re-read notification stores when the logged-in user changes so that
+  // per-user read status persisted in localStorage is restored on login.
+  useEffect(() => {
+    setTrainingNotifications(getTrainingNotifications());
+  }, [user]);
+
+  const handleAlertNotifClick = async (notif) => {
+    setAlertNotifOpen(false);
+    if (!notif.is_read) {
+      try {
+        await markNotificationRead(notif.notification_type, notif.notification_id);
+      } catch (err) {
+        console.error('Failed to mark notification read', err);
+      }
+      setAlertNotifs((prev) =>
+        prev.map((n) =>
+          n.notification_id === notif.notification_id && n.notification_type === notif.notification_type
+            ? { ...n, is_read: true }
+            : n
+        )
+      );
+      setAlertUnreadCount((c) => Math.max(0, c - 1));
+    }
+    const dest = notif.notification_type === 'post_alert' ? '/alerts/post-alerts' : '/alerts/pre-alerts';
+    navigate(dest);
+  };
+
+  const handleMarkAllRead = async () => {
+    const unread = alertNotifs.filter((n) => !n.is_read);
+    for (const notif of unread) {
+      try {
+        await markNotificationRead(notif.notification_type, notif.notification_id);
+      } catch (err) {
+        console.error('Failed to mark notification read', err);
+      }
+    }
+    setAlertNotifs((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setAlertUnreadCount(0);
+  };
+
+  const openTrainingNotification = (notification) => {
+    setTrainingOpen(false);
+    const destination = notification.path || '/training';
+    setTrainingNotifications(markTrainingNotificationRead(notification.id));
+    navigate(destination, { state: { trainingNotification: notification } });
+  };
 
   const handleLogout = async () => {
     try {
@@ -378,42 +209,6 @@ function Header({
 
       window.location.href = "/login";
     }
-  };
-
-  const openNotification = (notification) => {
-    setNotificationsOpen(false);
-
-    if (notification.source === "training") {
-      const destination = notification.path || "/training";
-      setTrainingNotifications(
-        markTrainingNotificationRead(notification.id)
-      );
-      navigate(destination, {
-        state: {
-          trainingNotification: notification,
-        },
-      });
-      return;
-    }
-
-    const notificationType = notification.type?.toLowerCase();
-    const destination = notificationType?.includes("post")
-      ? "/post-alerts"
-      : notificationType?.includes("pre")
-        ? "/pre-alerts"
-        : notification.path;
-
-    if (!destination) {
-      console.error("Alert notification is missing its destination.", notification);
-      return;
-    }
-
-    navigate(destination, {
-      state: {
-        alertNotification: notification,
-      },
-    });
-    setNotifications(markAlertNotificationRead(notification.id));
   };
 
   return (
@@ -515,171 +310,211 @@ function Header({
           </button>
         )}
 
-        {/* Notifications */}
-        <div className="relative" ref={notificationsRef}>
+        {/* Backend alert notifications bell */}
+        <div className="relative" ref={alertNotifRef}>
           <button
             type="button"
-            aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
-            aria-expanded={notificationsOpen}
+            aria-label={`Alert notifications${
+              alertUnreadCount ? `, ${alertUnreadCount} unread` : ''
+            }`}
+            aria-expanded={alertNotifOpen}
             onClick={() => {
-              setNotificationsOpen((open) => !open);
+              setAlertNotifOpen((o) => !o);
+              setTrainingOpen(false);
               setUserMenuOpen(false);
             }}
             className="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
           >
             <Bell size={20} />
-            {unreadCount > 0 && (
+            {alertUnreadCount > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
+                {alertUnreadCount > 99 ? '99+' : alertUnreadCount}
               </span>
             )}
           </button>
 
-          {notificationsOpen && (
+          {alertNotifOpen && (
+            <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Notifications</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {alertUnreadCount
+                      ? `${alertUnreadCount} unread notification${
+                          alertUnreadCount === 1 ? '' : 's'
+                        }`
+                      : 'You are all caught up'}
+                  </p>
+                </div>
+                {alertUnreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </div>
+
+              {/* List */}
+              <div className="max-h-96 overflow-y-auto">
+                {alertNotifs.length === 0 ? (
+                  <p className="px-4 py-8 text-center text-sm text-slate-500">
+                    No notifications yet.
+                  </p>
+                ) : (
+                  alertNotifs.map((notif) => (
+                    <button
+                      key={`${notif.notification_type}-${notif.notification_id}`}
+                      type="button"
+                      onClick={() => handleAlertNotifClick(notif)}
+                      className={`flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 ${
+                        notif.is_read ? 'bg-white' : 'bg-red-50/50'
+                      }`}
+                    >
+                      {!notif.is_read && (
+                        <span
+                          aria-label="Unread"
+                          className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-600"
+                        />
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span
+                            className={`truncate text-[10px] font-bold uppercase tracking-wide ${
+                              notif.notification_type === 'post_alert'
+                                ? 'text-red-600'
+                                : 'text-orange-600'
+                            }`}
+                          >
+                            {notif.notification_type === 'post_alert' ? 'Post Alert' : 'Pre Alert'}
+                          </span>
+                          <time className="shrink-0 text-[10px] text-slate-400">
+                            {new Date(notif.created_at).toLocaleString()}
+                          </time>
+                        </span>
+                        <span
+                          className={`mt-1 block text-sm font-semibold ${
+                            notif.is_read ? 'text-slate-600' : 'text-slate-900'
+                          }`}
+                        >
+                          {notif.title}
+                        </span>
+                        {notif.message && (
+                          <span className="mt-0.5 block line-clamp-2 text-xs leading-5 text-slate-600">
+                            {notif.message}
+                          </span>
+                        )}
+                        {notif.location && (
+                          <span className="mt-0.5 block text-xs text-slate-400">
+                            {notif.location}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Training notifications bell */}
+        <div className="relative" ref={trainingRef}>
+          <button
+            type="button"
+            aria-label={`Training notifications${
+              trainingNotifications.filter((n) => !n.read).length
+                ? `, ${trainingNotifications.filter((n) => !n.read).length} unread`
+                : ''
+            }`}
+            aria-expanded={trainingOpen}
+            onClick={() => {
+              setTrainingOpen((o) => !o);
+              setAlertNotifOpen(false);
+              setUserMenuOpen(false);
+            }}
+            className="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
+          >
+            <GraduationCap size={20} />
+            {trainingNotifications.filter((n) => !n.read).length > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white">
+                {trainingNotifications.filter((n) => !n.read).length > 9
+                  ? '9+'
+                  : trainingNotifications.filter((n) => !n.read).length}
+              </span>
+            )}
+          </button>
+
+          {trainingOpen && (
             <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
               <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900">
-                    Notifications
-                  </h2>
+                  <h2 className="text-sm font-bold text-slate-900">Training</h2>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {unreadCount
-                      ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
-                      : "Your latest alerts and training activity"}
+                    {trainingNotifications.filter((n) => !n.read).length
+                      ? `${trainingNotifications.filter((n) => !n.read).length} unread`
+                      : 'All caught up'}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {unreadCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNotifications(markAllAlertNotificationsRead());
-                        setTrainingNotifications(
-                          markAllTrainingNotificationsRead()
-                        );
-                      }}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
-                    >
-                      <Check size={14} />
-                      Mark all read
-                    </button>
-                  )}
-                  {combinedNotifications.length > 0 && (
-                    <button
-                      type="button"
-                      aria-label="Clear all notifications"
-                      title="Clear all notifications"
-                      onClick={() => {
-                        setNotifications(clearAlertNotifications());
-                        setTrainingNotifications(clearTrainingNotifications());
-                      }}
-                      className="rounded-md p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
+                {trainingNotifications.filter((n) => !n.read).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTrainingNotifications(markAllTrainingNotificationsRead())
+                    }
+                    className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+                  >
+                    Mark all read
+                  </button>
+                )}
               </div>
-
               <div className="max-h-96 overflow-y-auto">
-                {combinedNotifications.length === 0 ? (
+                {trainingNotifications.length === 0 ? (
                   <p className="px-4 py-8 text-center text-sm text-slate-500">
-                    No notifications yet. New alerts and training activity will
-                    appear here.
+                    No training notifications yet.
                   </p>
                 ) : (
-                  combinedNotifications.map((notification) => (
-                    <div
-                      key={`${notification.source}-${notification.id}`}
-                      className={`flex items-start gap-2 border-b border-slate-100 px-4 py-3 transition hover:bg-slate-50 ${
-                        notification.read
-                          ? "bg-white"
-                          : notification.source === "training"
-                            ? "bg-blue-50"
-                            : "bg-red-50"
+                  trainingNotifications.map((notification) => (
+                    <button
+                      key={notification.id}
+                      type="button"
+                      onClick={() => openTrainingNotification(notification)}
+                      className={`flex w-full items-start gap-2.5 border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 ${
+                        notification.read ? 'bg-white' : 'bg-blue-50'
                       }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => openNotification(notification)}
-                        className="flex min-w-0 flex-1 items-start gap-2.5 text-left"
-                      >
-                        {!notification.read && (
-                          <span
-                            aria-label="Unread"
-                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                              notification.source === "training"
-                                ? "bg-blue-600"
-                                : "bg-red-600"
-                            }`}
-                          />
-                        )}
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center justify-between gap-2">
-                            <span className="flex min-w-0 items-center gap-1.5">
-                              <span
-                                className={`truncate text-[10px] font-bold uppercase tracking-wide ${
-                                  notification.source === "training"
-                                    ? "text-blue-600"
-                                    : "text-red-600"
-                                }`}
-                              >
-                                {notification.source === "training"
-                                  ? `Training ${notification.type}`
-                                  : notification.type}
-                              </span>
-                              <span
-                                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                                  notification.read
-                                    ? "bg-slate-100 text-slate-600"
-                                    : notification.source === "training"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {notification.read ? "Read" : "Unread"}
-                              </span>
-                            </span>
-                            <time className="shrink-0 text-[10px] text-slate-400">
-                              {new Date(notification.createdAt).toLocaleString()}
-                            </time>
+                      {!notification.read && (
+                        <span
+                          aria-label="Unread"
+                          className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-600"
+                        />
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[10px] font-bold uppercase tracking-wide text-blue-600">
+                            Training {notification.type}
                           </span>
-                          <span
-                            className={`mt-1 block text-sm font-semibold ${
-                              notification.read
-                                ? "text-slate-600"
-                                : "text-slate-900"
-                            }`}
-                          >
-                            {notification.title}
-                          </span>
-                          {notification.description && (
-                            <span className="mt-1 block line-clamp-2 text-xs leading-5 text-slate-600">
-                              {notification.description}
-                            </span>
-                          )}
+                          <time className="shrink-0 text-[10px] text-slate-400">
+                            {new Date(notification.createdAt).toLocaleString()}
+                          </time>
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Clear notification: ${notification.title}`}
-                        title="Clear notification"
-                        onClick={() => {
-                          if (notification.source === "training") {
-                            setTrainingNotifications(
-                              clearTrainingNotification(notification.id)
-                            );
-                          } else {
-                            setNotifications(
-                              clearAlertNotification(notification.id)
-                            );
-                          }
-                        }}
-                        className="shrink-0 rounded-md p-1.5 text-slate-400 transition hover:bg-red-100 hover:text-red-600"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                        <span
+                          className={`mt-1 block text-sm font-semibold ${
+                            notification.read ? 'text-slate-600' : 'text-slate-900'
+                          }`}
+                        >
+                          {notification.title}
+                        </span>
+                        {notification.description && (
+                          <span className="mt-0.5 block line-clamp-2 text-xs leading-5 text-slate-600">
+                            {notification.description}
+                          </span>
+                        )}
+                      </span>
+                    </button>
                   ))
                 )}
               </div>
