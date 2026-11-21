@@ -17,6 +17,7 @@ export * from "./districtService";
 export * from "./subDivisionService";
 export * from "./authService";
 export * from "./incidentService";
+export * from "./incidentReportService";
 export * from "./taskService";
 export * from "./resourceService";
 export * from "./agencyService";
